@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="CPX-AP-I-EC-M12" width="54" height="186.002" viewBox="0 0 54 186.002">
+  <g id="Body">
+    <path id="Bottom" d="M0,79c0-.037,0-.072,0-.107V0H54V79h0V79c0,3.313-12.086,6-27,6S0,82.314,0,79Z" transform="translate(0.001 101.002)" fill="#d8dce1"/>
+    <path id="Top" d="M0,101V6C0,2.686,12.088,0,27,0S54,2.686,54,6v95Z" transform="translate(-0.001 0)" fill="#e5e8eb"/>
+    <g id="Festo_Logo" data-name="Festo Logo">
+      <path id="F" d="M.066,1.943A.066.066,0,0,1,0,1.878V.065A.066.066,0,0,1,.066,0H1.922a.066.066,0,0,1,.066.065V.324a.066.066,0,0,1-.066.065H.6A.066.066,0,0,0,.53.454V.713A.066.066,0,0,0,.6.778H1.789a.066.066,0,0,1,.066.065V1.1a.065.065,0,0,1-.066.064H.6a.066.066,0,0,0-.066.065v.647a.066.066,0,0,1-.066.065Z" transform="translate(42.096 16.336)" fill="#0091dc"/>
+      <path id="E" d="M0,.065A.066.066,0,0,1,.066,0H2.054a.066.066,0,0,1,.066.065V.324a.066.066,0,0,1-.066.065H.6A.065.065,0,0,0,.53.454V.713A.066.066,0,0,0,.6.778H1.922a.066.066,0,0,1,.066.065V1.1a.065.065,0,0,1-.066.064H.6a.066.066,0,0,0-.066.065V1.49A.066.066,0,0,0,.6,1.555H2.054a.066.066,0,0,1,.066.065v.259a.066.066,0,0,1-.066.065H.066A.066.066,0,0,1,0,1.879Z" transform="translate(44.217 16.336)" fill="#0091dc"/>
+      <path id="S" d="M0,.778a.393.393,0,0,0,.4.388h1.06a.131.131,0,0,1,.133.13v.129a.131.131,0,0,1-.133.13H.6A.066.066,0,0,1,.53,1.49a.066.066,0,0,0-.066-.065h-.4A.066.066,0,0,0,0,1.49v.065a.393.393,0,0,0,.4.389H1.723a.393.393,0,0,0,.4-.389V1.166a.393.393,0,0,0-.4-.388H.663A.131.131,0,0,1,.53.648V.518A.131.131,0,0,1,.663.389h.861a.065.065,0,0,1,.067.065.065.065,0,0,0,.066.065h.4A.066.066,0,0,0,2.12.454V.389A.394.394,0,0,0,1.723,0H.4A.393.393,0,0,0,0,.389Z" transform="translate(46.47 16.336)" fill="#0091dc"/>
+      <path id="T" d="M0,.065A.066.066,0,0,1,.067,0H2.054a.066.066,0,0,1,.067.065V.324a.066.066,0,0,1-.067.065H1.392a.065.065,0,0,0-.066.065V1.878a.066.066,0,0,1-.067.065h-.4A.066.066,0,0,1,.8,1.878V.454A.065.065,0,0,0,.729.389H.067A.066.066,0,0,1,0,.324V.065Z" transform="translate(48.723 16.336)" fill="#0091dc"/>
+      <path id="O" d="M1.7,1.949H.391a.391.391,0,0,1-.36-.238A.386.386,0,0,1,0,1.559V.39A.388.388,0,0,1,.115.114.39.39,0,0,1,.391,0H1.7a.39.39,0,0,1,.391.39V1.559a.39.39,0,0,1-.391.39ZM.652.39A.13.13,0,0,0,.56.428.129.129,0,0,0,.522.52v.909a.13.13,0,0,0,.131.13h.783a.13.13,0,0,0,.131-.13V.52A.129.129,0,0,0,1.527.428.13.13,0,0,0,1.435.39Z" transform="translate(51.009 16.336)" fill="#0091dc"/>
+    </g>
+  </g>
+  <g id="Auxiliary_Interfaces" data-name="Auxiliary Interfaces">
+    <circle id="XD2" cx="39.0" cy="162.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+      <title>XD2</title>
+    </circle>
+    <circle id="XD1" cx="15.0" cy="162.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+      <title>XD1</title>
+    </circle>
+  </g>
+  <g id="Connectors">
+    <g id="XF21">
+      <g id="Right">
+        <circle id="M8" cx="38.996" cy="139.0" r="4" fill="#0091dc" stroke="#0091dc" stroke-width="2"/>
+      </g>
+      <title>XF21</title>
+    </g>
+    <g id="XF20">
+      <g id="Left">
+        <circle id="M8-2" data-name="M8" cx="14.996" cy="139.0" r="4" fill="#0091dc" stroke="#0091dc" stroke-width="2"/>
+      </g>
+      <title>XF20</title>
+    </g>
+    <g id="OUT_X2" data-name="OUT X2">
+      <g id="Right-2" data-name="Right">
+        <circle id="M12" cx="39.001000000000005" cy="113.0" r="6" fill="#ffd600" stroke="#ffd600" stroke-width="2"/>
+      </g>
+      <title>OUT X2</title>
+    </g>
+    <g id="IN_X1" data-name="IN X1">
+      <g id="Left-2" data-name="Left">
+        <circle id="M12-2" data-name="M12" cx="15.001000000000001" cy="113.0" r="6" fill="#ffd600" stroke="#ffd600" stroke-width="2"/>
+      </g>
+      <title>IN X1</title>
+    </g>
+  </g>
+  <g id="DIL_Switches" data-name="DIL Switches">
+    <rect id="Cover" width="54" height="17" fill="#d8dce1" y="83"/>
+    <path id="Switches" d="M24729,24838a5,5,0,0,1,0-10h21a5,5,0,0,1,0,10Z" transform="translate(-24712 -24741)" fill="#b6bec6"/>
+  </g>
+  <g id="LEDs">
+    <rect id="LED_LA X2" data-name="LA X2" width="6" height="6" fill="#b6bec6" x="47.994" y="72">
+      <title>LA X2</title>
+    </rect>
+    <rect id="LED_LA X1" data-name="LA X1" width="6" height="6" fill="#b6bec6" y="72">
+      <title>LA X1</title>
+    </rect>
+    <rect id="LED_ERR" width="6" height="6" fill="#b6bec6" data-name="ERR" x="47.994" y="63">
+      <title>ERR</title>
+    </rect>
+    <rect id="LED_RUN" width="6" height="6" fill="#b6bec6" data-name="RUN" y="63">
+      <title>RUN</title>
+    </rect>
+    <rect id="LED_MT" width="6" height="6" fill="#b6bec6" data-name="MT" x="47.994" y="47">
+      <title>MT</title>
+    </rect>
+    <rect id="LED_PL" width="6" height="6" fill="#b6bec6" data-name="PL" y="47">
+      <title>PL</title>
+    </rect>
+    <rect id="LED_SD" width="6" height="6" fill="#b6bec6" data-name="SD" x="47.994" y="38">
+      <title>SD</title>
+    </rect>
+    <rect id="LED_MD" width="6" height="6" fill="#b6bec6" data-name="MD" y="38">
+      <title>MD</title>
+    </rect>
+  </g>
+</svg>

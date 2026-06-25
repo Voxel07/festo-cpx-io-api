@@ -1,0 +1,77 @@
+{
+    "Name": "Topology 192.168.1.11",
+    "Description": "Auto-generated topology from CPX-AP system",
+    "Version": "1.0",
+    "Topology": [
+        {
+            "Name": "CPX-AP-A-EPLI",
+            "Modulecode": 12414,
+            "ProductKey": "test",
+            "Adress": 0,
+            "Type": "Input",
+            "NumOfInputs": 0,
+            "NumOfOutputs": 0,
+            "NumOfInOuts": 0
+        },
+        {
+            "Name": "CPX-AP-A-12DI4DO-M12-5P",
+            "Modulecode": 12290,
+            "ProductKey": "KTWVMMRB3K3",
+            "Adress": 1,
+            "Type": "In/Out",
+            "NumOfInputs": 12,
+            "NumOfOutputs": 4,
+            "NumOfInOuts": 0
+        },
+        {
+            "Name": "CPX-AP-A-8HDO-M12-5P",
+            "Modulecode": 12314,
+            "ProductKey": "GFQKVHMGXZ5",
+            "Adress": 2,
+            "Type": "Output",
+            "NumOfInputs": 0,
+            "NumOfOutputs": 8,
+            "NumOfInOuts": 0
+        },
+        {
+            "Name": "CPX-AP-A-16DI-D-M12-5P",
+            "Modulecode": 12289,
+            "ProductKey": "M1CSG1WV0V2",
+            "Adress": 4,
+            "Type": "Input",
+            "NumOfInputs": 16,
+            "NumOfOutputs": 0,
+            "NumOfInOuts": 0
+        },
+        {
+            "Name": "CPX-AP-A-12DI4DO-M12-5P",
+            "Modulecode": 12290,
+            "ProductKey": "CYPRNCLR49C",
+            "Adress": 5,
+            "Type": "In/Out",
+            "NumOfInputs": 12,
+            "NumOfOutputs": 4,
+            "NumOfInOuts": 0
+        },
+        {
+            "Name": "VABX-A-S-EL-E12-API",
+            "Modulecode": 8231,
+            "ProductKey": "J5H0L2TRKPY",
+            "Adress": 6,
+            "Type": "Input",
+            "NumOfInputs": 0,
+            "NumOfOutputs": 0,
+            "NumOfInOuts": 0
+        },
+        {
+            "Name": "VABX-A-S-BV-V4B",
+            "Modulecode": 8224,
+            "ProductKey": "LX91XWV70GY",
+            "Adress": 7,
+            "Type": "In/Out",
+            "NumOfInputs": 8,
+            "NumOfOutputs": 8,
+            "NumOfInOuts": 0
+        }
+    ]
+}

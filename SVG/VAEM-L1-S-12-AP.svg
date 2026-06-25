@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="VAEM-L1-S-12-AP" width="115" height="104" viewBox="0 0 115 104">
+  <path id="Body" d="M0,0H115V100H0Z" fill="#e5e8eb" transform="translate(0 0)"/>
+  <path id="Body-2" data-name="Body" d="M.088,0h61V100h-61Z" transform="translate(44.912 0)" fill="#f2f3f5"/>
+  <g id="Valves">
+    <g id="Valve">
+      <rect id="Fitting" width="7" height="4" fill="#b6bec6" x="47" y="100"/>
+      <rect id="Bottom" width="9" height="58" fill="#d8dce1" x="46" y="42"/>
+      <rect id="Top" width="9" height="42" fill="#e5e8eb" x="46"/>
+      <circle id="Manual_Override" data-name="Manual Override" cx="50.5" cy="24.5" r="3.5" fill="#b6bec6"/>
+      <circle id="Manual_Override-2" data-name="Manual Override" cx="50.5" cy="11.5" r="3.5" fill="#b6bec6"/>
+      <rect id="LED" width="3" height="5" fill="#b6bec6" x="52"/>
+      <rect id="LED-2" data-name="LED" width="3" height="5" fill="#b6bec6" x="46"/>
+    </g>
+    <g id="Valve-2" data-name="Valve">
+      <rect id="Fitting-2" data-name="Fitting" width="7" height="4" fill="#b6bec6" x="57" y="100"/>
+      <rect id="Bottom-2" data-name="Bottom" width="9" height="63" fill="#d8dce1" x="56" y="37"/>
+      <rect id="Top-2" data-name="Top" width="9" height="42" fill="#e5e8eb" x="56"/>
+      <circle id="Manual_Override-3" data-name="Manual Override" cx="60.5" cy="24.5" r="3.5" fill="#b6bec6"/>
+      <circle id="Manual_Override-4" data-name="Manual Override" cx="60.5" cy="11.5" r="3.5" fill="#b6bec6"/>
+      <rect id="LED-3" data-name="LED" width="3" height="5" fill="#b6bec6" x="62"/>
+      <rect id="LED-4" data-name="LED" width="3" height="5" fill="#b6bec6" x="56"/>
+    </g>
+    <g id="Valve-3" data-name="Valve">
+      <rect id="Fitting-3" data-name="Fitting" width="7" height="4" fill="#b6bec6" x="67" y="100"/>
+      <rect id="Bottom-3" data-name="Bottom" width="9" height="63" fill="#d8dce1" x="66" y="37"/>
+      <rect id="Top-3" data-name="Top" width="9" height="42" fill="#e5e8eb" x="66"/>
+      <circle id="Manual_Override-5" data-name="Manual Override" cx="70.5" cy="24.5" r="3.5" fill="#b6bec6"/>
+      <circle id="Manual_Override-6" data-name="Manual Override" cx="70.5" cy="11.5" r="3.5" fill="#b6bec6"/>
+      <rect id="LED-5" data-name="LED" width="3" height="5" fill="#b6bec6" x="72"/>
+      <rect id="LED-6" data-name="LED" width="3" height="5" fill="#b6bec6" x="66"/>
+    </g>
+    <g id="Valve-4" data-name="Valve">
+      <rect id="Fitting-4" data-name="Fitting" width="7" height="4" fill="#b6bec6" x="77" y="100"/>
+      <rect id="Bottom-4" data-name="Bottom" width="9" height="63" fill="#d8dce1" x="76" y="37"/>
+      <rect id="Top-4" data-name="Top" width="9" height="42" fill="#e5e8eb" x="76"/>
+      <circle id="Manual_Override-7" data-name="Manual Override" cx="80.5" cy="24.5" r="3.5" fill="#b6bec6"/>
+      <circle id="Manual_Override-8" data-name="Manual Override" cx="80.5" cy="11.5" r="3.5" fill="#b6bec6"/>
+      <rect id="LED-7" data-name="LED" width="3" height="5" fill="#b6bec6" x="82"/>
+      <rect id="LED-8" data-name="LED" width="3" height="5" fill="#b6bec6" x="76"/>
+    </g>
+    <g id="Valve-5" data-name="Valve">
+      <rect id="Fitting-5" data-name="Fitting" width="7" height="4" fill="#b6bec6" x="87" y="100"/>
+      <rect id="Bottom-5" data-name="Bottom" width="9" height="63" fill="#d8dce1" x="86" y="37"/>
+      <rect id="Top-5" data-name="Top" width="9" height="42" fill="#e5e8eb" x="86"/>
+      <circle id="Manual_Override-9" data-name="Manual Override" cx="90.5" cy="24.5" r="3.5" fill="#b6bec6"/>
+      <circle id="Manual_Override-10" data-name="Manual Override" cx="90.5" cy="11.5" r="3.5" fill="#b6bec6"/>
+      <rect id="LED-9" data-name="LED" width="3" height="5" fill="#b6bec6" x="92"/>
+      <rect id="LED-10" data-name="LED" width="3" height="5" fill="#b6bec6" x="86"/>
+    </g>
+    <g id="Valve-6" data-name="Valve">
+      <rect id="Fitting-6" data-name="Fitting" width="7" height="4" fill="#b6bec6" x="97" y="100"/>
+      <rect id="Bottom-6" data-name="Bottom" width="9" height="63" fill="#d8dce1" x="96" y="37"/>
+      <rect id="Top-6" data-name="Top" width="9" height="42" fill="#e5e8eb" x="96"/>
+      <circle id="Manual_Override-11" data-name="Manual Override" cx="100.5" cy="24.5" r="3.5" fill="#b6bec6"/>
+      <circle id="Manual_Override-12" data-name="Manual Override" cx="100.5" cy="11.5" r="3.5" fill="#b6bec6"/>
+      <rect id="LED-11" data-name="LED" width="3" height="5" fill="#b6bec6" x="102"/>
+      <rect id="LED-12" data-name="LED" width="3" height="5" fill="#b6bec6" x="96"/>
+    </g>
+  </g>
+  <g id="Auxiliary_Interfaces" data-name="Auxiliary Interfaces">
+    <circle id="XD2" cx="23.5" cy="84.5" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+      <title>XD2</title>
+    </circle>
+    <circle id="XD1" cx="23.5" cy="63.5" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+      <title>XD1</title>
+    </circle>
+  </g>
+  <g id="Connectors">
+    <g id="XF20">
+      <g id="Right">
+        <circle id="M8" cx="23.5" cy="42.5" r="4" fill="#0091dc" stroke="#0091dc" stroke-width="2"/>
+      </g>
+      <title>XF20</title>
+    </g>
+    <g id="XF10">
+      <g id="Left">
+        <circle id="M8-2" data-name="M8" cx="23.5" cy="21.5" r="4" fill="#0091dc" stroke="#0091dc" stroke-width="2"/>
+      </g>
+      <title>XF10</title>
+    </g>
+  </g>
+  <g id="LEDs">
+    <rect id="LED_PL" width="8" height="2" fill="#e5e8eb" data-name="PL" x="8" y="33">
+      <title>PL</title>
+    </rect>
+    <rect id="LED_MD" width="8" height="2" fill="#e5e8eb" data-name="MD" x="8" y="28">
+      <title>MD</title>
+    </rect>
+  </g>
+  <g id="Festo_Logo" data-name="Festo Logo">
+    <path id="F" d="M.1,2.827A.1.1,0,0,1,0,2.732V.095A.1.1,0,0,1,.1,0H2.8a.1.1,0,0,1,.1.095V.472a.1.1,0,0,1-.1.094H.868a.1.1,0,0,0-.1.094v.377a.1.1,0,0,0,.1.094H2.6a.1.1,0,0,1,.1.094V1.6a.1.1,0,0,1-.1.094H.868a.1.1,0,0,0-.1.095v.942a.1.1,0,0,1-.1.095Z" transform="translate(15 3)" fill="#0091dc"/>
+    <path id="E" d="M0,.095A.1.1,0,0,1,.1,0H2.988a.1.1,0,0,1,.1.095V.472a.1.1,0,0,1-.1.094H.868a.1.1,0,0,0-.1.094v.377a.1.1,0,0,0,.1.094H2.8a.1.1,0,0,1,.1.094V1.6a.1.1,0,0,1-.1.094H.868a.1.1,0,0,0-.1.095v.376a.1.1,0,0,0,.1.095H2.988a.1.1,0,0,1,.1.094v.376a.1.1,0,0,1-.1.095H.1A.1.1,0,0,1,0,2.732Z" transform="translate(18.084 3)" fill="#0091dc"/>
+    <path id="S" d="M0,1.131A.572.572,0,0,0,.578,1.7H2.121a.191.191,0,0,1,.193.189v.188a.19.19,0,0,1-.193.189H.867a.1.1,0,0,1-.1-.095.1.1,0,0,0-.1-.094H.1a.1.1,0,0,0-.1.094v.095a.572.572,0,0,0,.578.565H2.506a.572.572,0,0,0,.578-.565V1.7a.571.571,0,0,0-.578-.565H.964A.191.191,0,0,1,.771.942V.754A.19.19,0,0,1,.964.566H2.216a.1.1,0,0,1,.1.094.1.1,0,0,0,.1.094h.579a.1.1,0,0,0,.1-.094V.566A.572.572,0,0,0,2.506,0H.578A.572.572,0,0,0,0,.566Z" transform="translate(21.362000000000002 3)" fill="#0091dc"/>
+    <path id="T" d="M0,.095A.1.1,0,0,1,.1,0H2.988a.1.1,0,0,1,.1.095V.472a.1.1,0,0,1-.1.094H2.025a.1.1,0,0,0-.1.094V2.732a.1.1,0,0,1-.1.095H1.254a.1.1,0,0,1-.1-.095V.66a.1.1,0,0,0-.1-.094H.1A.1.1,0,0,1,0,.472V.095Z" transform="translate(24.639 3)" fill="#0091dc"/>
+    <path id="O" d="M2.467,2.835H.569a.569.569,0,0,1-.524-.346A.561.561,0,0,1,0,2.268V.567a.565.565,0,0,1,.167-.4A.568.568,0,0,1,.569,0h1.9a.567.567,0,0,1,.569.567v1.7a.568.568,0,0,1-.569.567ZM.949.567A.189.189,0,0,0,.814.622.187.187,0,0,0,.759.756V2.078a.189.189,0,0,0,.19.189H2.087a.189.189,0,0,0,.19-.189V.756A.187.187,0,0,0,2.222.622.189.189,0,0,0,2.087.567Z" transform="translate(27.964 3)" fill="#0091dc"/>
+  </g>
+</svg>

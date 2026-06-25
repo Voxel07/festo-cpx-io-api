@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="34" height="110" viewBox="0 0 34 110">
+  <g id="VMPA-AP-EPL_Silencer">
+    <rect id="Body" width="34" height="105" fill="#e5e8eb"/>
+    <rect id="Fitting" width="14" height="5" fill="#b6bec6" x="18" y="105"/>
+    <g id="Silencer">
+      <rect id="Frame" width="14" height="103" fill="#b6bec6" x="19" y="1"/>
+      <rect id="Bottom" width="10" height="4" fill="#e5e8eb" x="21" y="98"/>
+      <rect id="Middle" width="10" height="23" fill="#e5e8eb" x="21" y="60"/>
+      <rect id="Top" width="10" height="34" fill="#e5e8eb" x="21" y="10"/>
+    </g>
+    <circle id="Screw" cx="12.5" cy="100.5" r="3.5" fill="#b6bec6"/>
+    <circle id="Screw-2" data-name="Screw" cx="12.5" cy="4.5" r="3.5" fill="#b6bec6"/>
+    <g id="Rectangle" fill="none" stroke="#b6bec6" stroke-width="1">
+      <rect width="6" height="13" stroke="none" x="2" y="66"/>
+      <rect x="2.5" y="66.5" width="5" height="12" fill="none"/>
+    </g>
+    <g id="Rectangle-2" data-name="Rectangle" fill="none" stroke="#b6bec6" stroke-width="1">
+      <rect width="6" height="13" stroke="none" x="2" y="49"/>
+      <rect x="2.5" y="49.5" width="5" height="12" fill="none"/>
+    </g>
+    <g id="Rectangle-3" data-name="Rectangle" fill="none" stroke="#d8dce1" stroke-width="1">
+      <rect width="12" height="8" stroke="none" x="4" y="18"/>
+      <rect x="4.5" y="18.5" width="11" height="7" fill="none"/>
+    </g>
+    <g id="LEDs">
+      <rect id="LED_MD" width="6" height="2" fill="#b6bec6" data-name="MD" x="7" y="20">
+        <title>MD</title>
+      </rect>
+    </g>
+  </g>
+</svg>

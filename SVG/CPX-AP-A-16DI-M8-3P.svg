@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="107" viewBox="0 0 100 107">
+  <g id="CPX-AP-A-16DI-M8-3P">
+    <g id="CPX-AP-A_Base" data-name="CPX-AP-A Base">
+      <rect id="Base" width="100" height="107" fill="#e5e8eb" x="0.061"/>
+      <g id="Festo_Logo" data-name="Festo Logo">
+        <path id="F" d="M.086,2.679A.088.088,0,0,1,0,2.589V.09A.088.088,0,0,1,.086,0H2.5a.088.088,0,0,1,.086.09V.447A.088.088,0,0,1,2.5.536H.777A.088.088,0,0,0,.691.626V.983a.088.088,0,0,0,.086.089H2.332a.088.088,0,0,1,.086.089v.357a.087.087,0,0,1-.086.089H.777a.089.089,0,0,0-.086.09V2.59a.088.088,0,0,1-.086.09Z" transform="translate(73.549 1.951)" fill="#0091dc"/>
+        <path id="E" d="M0,.09A.088.088,0,0,1,.086,0H2.677a.088.088,0,0,1,.086.09V.447a.088.088,0,0,1-.086.089H.777A.088.088,0,0,0,.691.626V.983a.088.088,0,0,0,.086.089H2.5a.088.088,0,0,1,.086.089v.357a.088.088,0,0,1-.086.089H.777a.088.088,0,0,0-.086.09v.357a.088.088,0,0,0,.086.09h1.9a.088.088,0,0,1,.086.089V2.59a.088.088,0,0,1-.086.09H.086A.088.088,0,0,1,0,2.59Z" transform="translate(76.313 1.951)" fill="#0091dc"/>
+        <path id="S" d="M0,1.072a.527.527,0,0,0,.518.535H1.9a.176.176,0,0,1,.173.179v.178a.176.176,0,0,1-.173.179H.777a.088.088,0,0,1-.086-.09A.088.088,0,0,0,.6,1.964H.086A.088.088,0,0,0,0,2.054v.09a.527.527,0,0,0,.518.536H2.246a.527.527,0,0,0,.518-.536V1.607a.527.527,0,0,0-.518-.535H.864A.176.176,0,0,1,.691.893V.715A.176.176,0,0,1,.864.536H1.986a.088.088,0,0,1,.087.089.088.088,0,0,0,.086.089h.519A.088.088,0,0,0,2.763.625V.536A.528.528,0,0,0,2.246,0H.518A.527.527,0,0,0,0,.536Z" transform="translate(79.24900000000001 1.951)" fill="#0091dc"/>
+        <path id="T" d="M0,.09A.088.088,0,0,1,.087,0h2.59a.088.088,0,0,1,.087.09V.447a.088.088,0,0,1-.087.089H1.814a.088.088,0,0,0-.086.089V2.589a.088.088,0,0,1-.087.09H1.123a.088.088,0,0,1-.087-.09V.626A.088.088,0,0,0,.95.536H.087A.088.088,0,0,1,0,.447V.09Z" transform="translate(82.185 1.951)" fill="#0091dc"/>
+        <path id="O" d="M2.211,2.687H.51a.484.484,0,0,1-.2-.042.508.508,0,0,1-.162-.115A.538.538,0,0,1,.04,2.358.559.559,0,0,1,0,2.149V.538A.559.559,0,0,1,.04.328.539.539,0,0,1,.149.158.508.508,0,0,1,.311.042.483.483,0,0,1,.51,0h1.7a.484.484,0,0,1,.2.042.507.507,0,0,1,.162.115A.538.538,0,0,1,2.68.328a.56.56,0,0,1,.04.209V2.149a.56.56,0,0,1-.04.209.537.537,0,0,1-.109.171.506.506,0,0,1-.162.115A.485.485,0,0,1,2.211,2.687ZM.85.538A.165.165,0,0,0,.73.59.183.183,0,0,0,.68.717V1.97A.183.183,0,0,0,.73,2.1a.165.165,0,0,0,.12.052H1.87a.165.165,0,0,0,.12-.052.183.183,0,0,0,.05-.127V.717A.183.183,0,0,0,1.991.59.165.165,0,0,0,1.87.538Z" transform="translate(85.164 1.951)" fill="#0091dc"/>
+      </g>
+      <line id="Line" x2="99" transform="translate(0.439 29.5)" fill="none" stroke="#d8dce1" stroke-linecap="square" stroke-width="1"/>
+    </g>
+    <g id="Auxiliary_Interfaces" data-name="Auxiliary Interfaces">
+      <ellipse id="X7" cx="36.061" cy="93.0" rx="4" ry="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+        <title>X7</title>
+      </ellipse>
+      <ellipse id="X6" cx="36.061" cy="76.0" rx="4" ry="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+        <title>X6</title>
+      </ellipse>
+      <ellipse id="X5" cx="36.061" cy="59.0" rx="4" ry="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+        <title>X5</title>
+      </ellipse>
+      <ellipse id="X4" cx="36.061" cy="42.0" rx="4" ry="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+        <title>X4</title>
+      </ellipse>
+      <ellipse id="X3" cx="14.061" cy="93.0" rx="4" ry="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+        <title>X3</title>
+      </ellipse>
+      <ellipse id="X2" cx="14.061" cy="76.0" rx="4" ry="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+        <title>X2</title>
+      </ellipse>
+      <ellipse id="X1" cx="14.061" cy="59.0" rx="4" ry="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+        <title>X1</title>
+      </ellipse>
+      <ellipse id="X0" cx="14.061" cy="42.0" rx="4" ry="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+        <title>X0</title>
+      </ellipse>
+    </g>
+    <g id="LEDs">
+      <g id="Column_2" data-name="Column 2">
+        <rect id="LED_15" data-name="15" width="6" height="2" fill="#b6bec6" x="66.061" y="26"/>
+        <rect id="LED_14" data-name="14" width="6" height="2" fill="#b6bec6" x="58.061" y="26"/>
+        <rect id="LED_11" data-name="11" width="6" height="2" fill="#b6bec6" x="66.061" y="22"/>
+        <rect id="LED_10" data-name="10" width="6" height="2" fill="#b6bec6" x="58.061" y="22"/>
+        <rect id="LED_7" data-name="7" width="6" height="2" fill="#b6bec6" x="66.061" y="18"/>
+        <rect id="LED_6" data-name="6" width="6" height="2" fill="#b6bec6" x="58.061" y="18"/>
+        <rect id="LED_3" data-name="3" width="6" height="2" fill="#b6bec6" x="66.061" y="14"/>
+        <rect id="LED_2" data-name="2" width="6" height="2" fill="#b6bec6" x="58.061" y="14"/>
+        <title>Column 2</title>
+      </g>
+      <g id="Column_1" data-name="Column 1">
+        <rect id="LED_13" data-name="13" width="6" height="2" fill="#b6bec6" x="15.061" y="26"/>
+        <rect id="LED_12" data-name="12" width="6" height="2" fill="#b6bec6" x="7.061" y="26"/>
+        <rect id="LED_9" data-name="9" width="6" height="2" fill="#b6bec6" x="15.061" y="22"/>
+        <rect id="LED_8" data-name="8" width="6" height="2" fill="#b6bec6" x="7.061" y="22"/>
+        <rect id="LED_5" data-name="5" width="6" height="2" fill="#b6bec6" x="15.061" y="18"/>
+        <rect id="LED_4" data-name="4" width="6" height="2" fill="#b6bec6" x="7.061" y="18"/>
+        <rect id="LED_1" data-name="1" width="6" height="2" fill="#b6bec6" x="15.061" y="14"/>
+        <rect id="LED_0" data-name="0" width="6" height="2" fill="#b6bec6" x="7.061" y="14"/>
+        <title>Column 1</title>
+      </g>
+      <rect id="LED_MD" width="6" height="2" fill="#b6bec6" data-name="MD" x="78.061" y="10">
+        <title>MD</title>
+      </rect>
+    </g>
+    <g id="Auxiliary_Interfaces-2" data-name="Auxiliary Interfaces">
+      <g id="Gruppe_5" data-name="Gruppe 5">
+        <circle id="X15" cx="86.06100000000004" cy="93.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2"/>
+        <circle id="X11" cx="86.06100000000004" cy="76.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2"/>
+        <circle id="X7-2" data-name="X7" cx="86.06100000000004" cy="59.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2"/>
+        <circle id="X3-2" data-name="X3" cx="86.06100000000004" cy="42.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2"/>
+        <title>Gruppe 5</title>
+      </g>
+      <g id="Gruppe_4" data-name="Gruppe 4">
+        <circle id="X14" cx="65.06100000000004" cy="93.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2"/>
+        <circle id="X10" cx="65.06100000000004" cy="76.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2"/>
+        <circle id="X6-2" data-name="X6" cx="65.06100000000004" cy="59.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2"/>
+        <circle id="X2-2" data-name="X2" cx="65.06100000000004" cy="42.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2"/>
+        <title>Gruppe 4</title>
+      </g>
+      <g id="Gruppe_3" data-name="Gruppe 3">
+        <circle id="X13" cx="36.06000000000004" cy="93.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2"/>
+        <circle id="X9" cx="36.06000000000004" cy="76.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2"/>
+        <circle id="X5-2" data-name="X5" cx="36.06000000000004" cy="59.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2"/>
+        <circle id="X1-2" data-name="X1" cx="36.06000000000004" cy="42.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2"/>
+        <title>Gruppe 3</title>
+      </g>
+      <g id="Gruppe_2" data-name="Gruppe 2">
+        <circle id="X12" cx="14.061000000000035" cy="93.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2"/>
+        <circle id="X8" cx="14.061000000000035" cy="76.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2"/>
+        <circle id="X4-2" data-name="X4" cx="14.061000000000035" cy="59.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2"/>
+        <circle id="X0-2" data-name="X0" cx="14.061000000000035" cy="42.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2"/>
+        <title>Gruppe 2</title>
+      </g>
+    </g>
+  </g>
+</svg>

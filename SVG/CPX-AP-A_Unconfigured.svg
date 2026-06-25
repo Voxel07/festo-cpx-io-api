@@ -1,0 +1,327 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="277" height="109" viewBox="0 0 277 109">
+  <g id="Unconfigured">
+    <g id="Rack">
+      <g id="MPA1">
+        <rect id="Body" width="39" height="105" fill="#f2f3f5" x="238"/>
+        <g id="Valves">
+          <g id="Valve">
+            <rect id="Fitting" width="7" height="4" fill="#b6bec6" x="239" y="105"/>
+            <rect id="Bottom" width="9" height="63" fill="#d8dce1" x="238" y="42"/>
+            <rect id="Top" width="9" height="42" fill="#e5e8eb" x="238"/>
+            <circle id="Manual_Override" data-name="Manual Override" cx="242.5" cy="25.5" r="3.5" fill="#b6bec6"/>
+            <circle id="Manual_Override-2" data-name="Manual Override" cx="242.5" cy="11.5" r="3.5" fill="#b6bec6"/>
+            <rect id="LED" width="3" height="5" fill="#b6bec6" x="244"/>
+            <rect id="LED-2" data-name="LED" width="3" height="5" fill="#b6bec6" x="238"/>
+          </g>
+          <g id="Valve-2" data-name="Valve">
+            <rect id="Fitting-2" data-name="Fitting" width="7" height="4" fill="#b6bec6" x="249" y="105"/>
+            <rect id="Bottom-2" data-name="Bottom" width="9" height="63" fill="#d8dce1" x="248" y="42"/>
+            <rect id="Top-2" data-name="Top" width="9" height="42" fill="#e5e8eb" x="248"/>
+            <circle id="Manual_Override-3" data-name="Manual Override" cx="252.5" cy="25.5" r="3.5" fill="#b6bec6"/>
+            <circle id="Manual_Override-4" data-name="Manual Override" cx="252.5" cy="11.5" r="3.5" fill="#b6bec6"/>
+            <rect id="LED-3" data-name="LED" width="3" height="5" fill="#b6bec6" x="254"/>
+            <rect id="LED-4" data-name="LED" width="3" height="5" fill="#b6bec6" x="248"/>
+          </g>
+          <g id="Valve-3" data-name="Valve">
+            <rect id="Fitting-3" data-name="Fitting" width="7" height="4" fill="#b6bec6" x="259" y="105"/>
+            <rect id="Bottom-3" data-name="Bottom" width="9" height="63" fill="#d8dce1" x="258" y="42"/>
+            <rect id="Top-3" data-name="Top" width="9" height="42" fill="#e5e8eb" x="258"/>
+            <circle id="Manual_Override-5" data-name="Manual Override" cx="262.5" cy="25.5" r="3.5" fill="#b6bec6"/>
+            <circle id="Manual_Override-6" data-name="Manual Override" cx="262.5" cy="11.5" r="3.5" fill="#b6bec6"/>
+            <rect id="LED-5" data-name="LED" width="3" height="5" fill="#b6bec6" x="264"/>
+            <rect id="LED-6" data-name="LED" width="3" height="5" fill="#b6bec6" x="258"/>
+          </g>
+          <g id="Valve-4" data-name="Valve">
+            <rect id="Fitting-4" data-name="Fitting" width="7" height="4" fill="#b6bec6" x="269" y="105"/>
+            <rect id="Bottom-4" data-name="Bottom" width="9" height="63" fill="#d8dce1" x="268" y="42"/>
+            <rect id="Top-4" data-name="Top" width="9" height="42" fill="#e5e8eb" x="268"/>
+            <circle id="Manual_Override-7" data-name="Manual Override" cx="272.5" cy="25.5" r="3.5" fill="#b6bec6"/>
+            <circle id="Manual_Override-8" data-name="Manual Override" cx="272.5" cy="11.5" r="3.5" fill="#b6bec6"/>
+            <rect id="LED-7" data-name="LED" width="3" height="5" fill="#b6bec6" x="274"/>
+            <rect id="LED-8" data-name="LED" width="3" height="5" fill="#b6bec6" x="268"/>
+          </g>
+        </g>
+      </g>
+      <g id="MPA1-2" data-name="MPA1">
+        <g id="Spacer-3" data-name="Spacer">
+          <rect id="Spacer-4" data-name="Spacer" width="2" height="107" fill="none" x="236"/>
+        </g>
+        <rect id="Body-2" data-name="Body" width="39" height="105" fill="#f2f3f5" x="197"/>
+        <g id="Valves-2" data-name="Valves">
+          <g id="Valve-5" data-name="Valve">
+            <rect id="Fitting-5" data-name="Fitting" width="7" height="4" fill="#b6bec6" x="198" y="105"/>
+            <rect id="Bottom-5" data-name="Bottom" width="9" height="63" fill="#d8dce1" x="197" y="42"/>
+            <rect id="Top-5" data-name="Top" width="9" height="42" fill="#e5e8eb" x="197"/>
+            <circle id="Manual_Override-9" data-name="Manual Override" cx="201.5" cy="25.5" r="3.5" fill="#b6bec6"/>
+            <circle id="Manual_Override-10" data-name="Manual Override" cx="201.5" cy="11.5" r="3.5" fill="#b6bec6"/>
+            <rect id="LED-9" data-name="LED" width="3" height="5" fill="#b6bec6" x="203"/>
+            <rect id="LED-10" data-name="LED" width="3" height="5" fill="#b6bec6" x="197"/>
+          </g>
+          <g id="Valve-6" data-name="Valve">
+            <rect id="Fitting-6" data-name="Fitting" width="7" height="4" fill="#b6bec6" x="208" y="105"/>
+            <rect id="Bottom-6" data-name="Bottom" width="9" height="63" fill="#d8dce1" x="207" y="42"/>
+            <rect id="Top-6" data-name="Top" width="9" height="42" fill="#e5e8eb" x="207"/>
+            <circle id="Manual_Override-11" data-name="Manual Override" cx="211.5" cy="25.5" r="3.5" fill="#b6bec6"/>
+            <circle id="Manual_Override-12" data-name="Manual Override" cx="211.5" cy="11.5" r="3.5" fill="#b6bec6"/>
+            <rect id="LED-11" data-name="LED" width="3" height="5" fill="#b6bec6" x="213"/>
+            <rect id="LED-12" data-name="LED" width="3" height="5" fill="#b6bec6" x="207"/>
+          </g>
+          <g id="Valve-7" data-name="Valve">
+            <rect id="Fitting-7" data-name="Fitting" width="7" height="4" fill="#b6bec6" x="218" y="105"/>
+            <rect id="Bottom-7" data-name="Bottom" width="9" height="63" fill="#d8dce1" x="217" y="42"/>
+            <rect id="Top-7" data-name="Top" width="9" height="42" fill="#e5e8eb" x="217"/>
+            <circle id="Manual_Override-13" data-name="Manual Override" cx="221.5" cy="25.5" r="3.5" fill="#b6bec6"/>
+            <circle id="Manual_Override-14" data-name="Manual Override" cx="221.5" cy="11.5" r="3.5" fill="#b6bec6"/>
+            <rect id="LED-13" data-name="LED" width="3" height="5" fill="#b6bec6" x="223"/>
+            <rect id="LED-14" data-name="LED" width="3" height="5" fill="#b6bec6" x="217"/>
+          </g>
+          <g id="Valve-8" data-name="Valve">
+            <rect id="Fitting-8" data-name="Fitting" width="7" height="4" fill="#b6bec6" x="228" y="105"/>
+            <rect id="Bottom-8" data-name="Bottom" width="9" height="63" fill="#d8dce1" x="227" y="42"/>
+            <rect id="Top-8" data-name="Top" width="9" height="42" fill="#e5e8eb" x="227"/>
+            <circle id="Manual_Override-15" data-name="Manual Override" cx="231.5" cy="25.5" r="3.5" fill="#b6bec6"/>
+            <circle id="Manual_Override-16" data-name="Manual Override" cx="231.5" cy="11.5" r="3.5" fill="#b6bec6"/>
+            <rect id="LED-15" data-name="LED" width="3" height="5" fill="#b6bec6" x="233"/>
+            <rect id="LED-16" data-name="LED" width="3" height="5" fill="#b6bec6" x="227"/>
+          </g>
+        </g>
+        <g id="ApAddressPlaceHolder-3" data-name="ApAddressPlaceHolder">
+          <rect id="ApAddressPlaceHolder-4" data-name="ApAddressPlaceHolder" width="20" height="8" fill="#fff" x="214" y="93"/>
+        </g>
+      </g>
+      <g id="MPA1-3" data-name="MPA1">
+        <g id="Spacer-5" data-name="Spacer">
+          <rect id="Spacer-6" data-name="Spacer" width="2" height="107" fill="none" x="195"/>
+        </g>
+        <rect id="Body-3" data-name="Body" width="39" height="105" fill="#f2f3f5" x="156"/>
+        <g id="Valves-3" data-name="Valves">
+          <g id="Valve-9" data-name="Valve">
+            <rect id="Fitting-9" data-name="Fitting" width="7" height="4" fill="#b6bec6" x="157" y="105"/>
+            <rect id="Bottom-9" data-name="Bottom" width="9" height="63" fill="#d8dce1" x="156" y="42"/>
+            <rect id="Top-9" data-name="Top" width="9" height="42" fill="#e5e8eb" x="156"/>
+            <circle id="Manual_Override-17" data-name="Manual Override" cx="160.5" cy="25.5" r="3.5" fill="#b6bec6"/>
+            <circle id="Manual_Override-18" data-name="Manual Override" cx="160.5" cy="11.5" r="3.5" fill="#b6bec6"/>
+            <rect id="LED-17" data-name="LED" width="3" height="5" fill="#b6bec6" x="162"/>
+            <rect id="LED-18" data-name="LED" width="3" height="5" fill="#b6bec6" x="156"/>
+          </g>
+          <g id="Valve-10" data-name="Valve">
+            <rect id="Fitting-10" data-name="Fitting" width="7" height="4" fill="#b6bec6" x="167" y="105"/>
+            <rect id="Bottom-10" data-name="Bottom" width="9" height="63" fill="#d8dce1" x="166" y="42"/>
+            <rect id="Top-10" data-name="Top" width="9" height="42" fill="#e5e8eb" x="166"/>
+            <circle id="Manual_Override-19" data-name="Manual Override" cx="170.5" cy="25.5" r="3.5" fill="#b6bec6"/>
+            <circle id="Manual_Override-20" data-name="Manual Override" cx="170.5" cy="11.5" r="3.5" fill="#b6bec6"/>
+            <rect id="LED-19" data-name="LED" width="3" height="5" fill="#b6bec6" x="172"/>
+            <rect id="LED-20" data-name="LED" width="3" height="5" fill="#b6bec6" x="166"/>
+          </g>
+          <g id="Valve-11" data-name="Valve">
+            <rect id="Fitting-11" data-name="Fitting" width="7" height="4" fill="#b6bec6" x="177" y="105"/>
+            <rect id="Bottom-11" data-name="Bottom" width="9" height="63" fill="#d8dce1" x="176" y="42"/>
+            <rect id="Top-11" data-name="Top" width="9" height="42" fill="#e5e8eb" x="176"/>
+            <circle id="Manual_Override-21" data-name="Manual Override" cx="180.5" cy="25.5" r="3.5" fill="#b6bec6"/>
+            <circle id="Manual_Override-22" data-name="Manual Override" cx="180.5" cy="11.5" r="3.5" fill="#b6bec6"/>
+            <rect id="LED-21" data-name="LED" width="3" height="5" fill="#b6bec6" x="182"/>
+            <rect id="LED-22" data-name="LED" width="3" height="5" fill="#b6bec6" x="176"/>
+          </g>
+          <g id="Valve-12" data-name="Valve">
+            <rect id="Fitting-12" data-name="Fitting" width="7" height="4" fill="#b6bec6" x="187" y="105"/>
+            <rect id="Bottom-12" data-name="Bottom" width="9" height="63" fill="#d8dce1" x="186" y="42"/>
+            <rect id="Top-12" data-name="Top" width="9" height="42" fill="#e5e8eb" x="186"/>
+            <circle id="Manual_Override-23" data-name="Manual Override" cx="190.5" cy="25.5" r="3.5" fill="#b6bec6"/>
+            <circle id="Manual_Override-24" data-name="Manual Override" cx="190.5" cy="11.5" r="3.5" fill="#b6bec6"/>
+            <rect id="LED-23" data-name="LED" width="3" height="5" fill="#b6bec6" x="192"/>
+            <rect id="LED-24" data-name="LED" width="3" height="5" fill="#b6bec6" x="186"/>
+          </g>
+        </g>
+        <g id="ApAddressPlaceHolder-5" data-name="ApAddressPlaceHolder">
+          <rect id="ApAddressPlaceHolder-6" data-name="ApAddressPlaceHolder" width="20" height="8" fill="#fff" x="173" y="93"/>
+        </g>
+      </g>
+      <g id="CPX-AP-A-8DI-M8-3P">
+        <g id="CPX-AP-A_Base" data-name="CPX-AP-A Base">
+          <g id="Spacer-7" data-name="Spacer">
+            <rect id="Spacer-8" data-name="Spacer" width="2" height="107" fill="none" x="154"/>
+          </g>
+          <rect id="Base" width="50" height="107" fill="#e5e8eb" x="104"/>
+          <g id="Festo_Logo" data-name="Festo Logo">
+            <path id="F" d="M.091,2.814A.093.093,0,0,1,0,2.72V.094A.093.093,0,0,1,.091,0h2.54a.093.093,0,0,1,.091.094V.469a.092.092,0,0,1-.091.094H.817A.092.092,0,0,0,.726.657v.375a.093.093,0,0,0,.091.094H2.45a.092.092,0,0,1,.091.094V1.6a.092.092,0,0,1-.09.093H.817a.093.093,0,0,0-.091.094V2.72a.093.093,0,0,1-.091.094Z" transform="translate(131.2 1.951)" fill="#0091dc"/>
+            <path id="E" d="M0,.094A.093.093,0,0,1,.091,0H2.813A.093.093,0,0,1,2.9.094V.469a.093.093,0,0,1-.091.094h-2A.092.092,0,0,0,.726.657v.375a.092.092,0,0,0,.091.094H2.631a.092.092,0,0,1,.091.094V1.6a.092.092,0,0,1-.091.093H.817a.093.093,0,0,0-.091.094v.375a.093.093,0,0,0,.091.094h2a.092.092,0,0,1,.091.094V2.72a.093.093,0,0,1-.091.094H.091A.093.093,0,0,1,0,2.72Z" transform="translate(134.10299999999998 1.951)" fill="#0091dc"/>
+            <path id="S" d="M0,1.126a.553.553,0,0,0,.544.562H2a.185.185,0,0,1,.182.188v.187A.184.184,0,0,1,2,2.252H.816a.093.093,0,0,1-.091-.094.092.092,0,0,0-.09-.094H.09A.092.092,0,0,0,0,2.157v.094a.554.554,0,0,0,.544.563H2.359A.554.554,0,0,0,2.9,2.252V1.688a.553.553,0,0,0-.544-.562H.907A.185.185,0,0,1,.726.938V.751A.184.184,0,0,1,.907.563H2.086a.092.092,0,0,1,.091.094.092.092,0,0,0,.09.094h.545A.092.092,0,0,0,2.9.657V.563A.554.554,0,0,0,2.359,0H.544A.554.554,0,0,0,0,.563Z" transform="translate(137.188 1.951)" fill="#0091dc"/>
+            <path id="T" d="M0,.094A.093.093,0,0,1,.092,0H2.812A.093.093,0,0,1,2.9.094V.469a.093.093,0,0,1-.091.094H1.906a.092.092,0,0,0-.09.094V2.72a.093.093,0,0,1-.091.094H1.18a.093.093,0,0,1-.091-.094V.657A.092.092,0,0,0,1,.563H.091A.093.093,0,0,1,0,.469V.094Z" transform="translate(140.272 1.951)" fill="#0091dc"/>
+            <path id="O" d="M2.322,2.822H.535a.508.508,0,0,1-.208-.044.533.533,0,0,1-.17-.121.565.565,0,0,1-.115-.179A.587.587,0,0,1,0,2.258V.565A.587.587,0,0,1,.042.345.566.566,0,0,1,.157.165.534.534,0,0,1,.327.044.507.507,0,0,1,.535,0H2.322a.509.509,0,0,1,.209.044A.532.532,0,0,1,2.7.165a.565.565,0,0,1,.115.18.589.589,0,0,1,.042.22V2.258a.588.588,0,0,1-.042.22.565.565,0,0,1-.115.179.532.532,0,0,1-.17.121A.509.509,0,0,1,2.322,2.822ZM.893.565A.173.173,0,0,0,.766.62.192.192,0,0,0,.714.753V2.069A.193.193,0,0,0,.766,2.2a.173.173,0,0,0,.127.055H1.965A.173.173,0,0,0,2.091,2.2a.193.193,0,0,0,.052-.133V.753A.192.192,0,0,0,2.091.62.173.173,0,0,0,1.965.565Z" transform="translate(143.402 1.951)" fill="#0091dc"/>
+          </g>
+          <line id="Line" x2="49" transform="translate(0.5 29.5)" fill="none" stroke="#d8dce1" stroke-linecap="square" stroke-width="1"/>
+          <rect id="ApAddressPlaceHolder-7" data-name="ApAddressPlaceHolder" width="20" height="8" fill="#fff" x="132" y="95"/>
+        </g>
+        <g id="Auxiliary_Interfaces" data-name="Auxiliary Interfaces">
+          <circle id="X7" cx="140.0" cy="93.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+            <title>X7</title>
+          </circle>
+          <circle id="X6" cx="140.0" cy="76.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+            <title>X6</title>
+          </circle>
+          <circle id="X5" cx="140.0" cy="59.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+            <title>X5</title>
+          </circle>
+          <circle id="X4" cx="140.0" cy="42.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+            <title>X4</title>
+          </circle>
+          <circle id="X3" cx="118.0" cy="93.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+            <title>X3</title>
+          </circle>
+          <circle id="X2" cx="118.0" cy="76.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+            <title>X2</title>
+          </circle>
+          <circle id="X1" cx="118.0" cy="59.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+            <title>X1</title>
+          </circle>
+          <circle id="X0" cx="118.0" cy="42.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+            <title>X0</title>
+          </circle>
+        </g>
+        <g id="LEDs">
+          <g id="Right">
+            <rect id="LED_MD" width="6" height="2" fill="#b6bec6" data-name="MD" x="133" y="10"/>
+            <title>Right</title>
+          </g>
+          <g id="Left">
+            <rect id="LED_7" data-name="7" width="6" height="2" fill="#b6bec6" x="119" y="26"/>
+            <rect id="LED_6" data-name="6" width="6" height="2" fill="#b6bec6" x="111" y="26"/>
+            <rect id="LED_5" data-name="5" width="6" height="2" fill="#b6bec6" x="119" y="22"/>
+            <rect id="LED_4" data-name="4" width="6" height="2" fill="#b6bec6" x="111" y="22"/>
+            <rect id="LED_3" data-name="3" width="6" height="2" fill="#b6bec6" x="119" y="18"/>
+            <rect id="LED_2" data-name="2" width="6" height="2" fill="#b6bec6" x="111" y="18"/>
+            <rect id="LED_1" data-name="1" width="6" height="2" fill="#b6bec6" x="119" y="14"/>
+            <rect id="LED_0" data-name="0" width="6" height="2" fill="#b6bec6" x="111" y="14"/>
+            <title>Left</title>
+          </g>
+        </g>
+      </g>
+      <g id="CPX-AP-A-8DI-M8-3P-2" data-name="CPX-AP-A-8DI-M8-3P">
+        <g id="CPX-AP-A_Base-2" data-name="CPX-AP-A Base">
+          <g id="Spacer-9" data-name="Spacer">
+            <rect id="Spacer-10" data-name="Spacer" width="2" height="107" fill="none" x="102"/>
+          </g>
+          <rect id="Base-2" data-name="Base" width="50" height="107" fill="#e5e8eb" x="52"/>
+          <g id="Festo_Logo-2" data-name="Festo Logo">
+            <path id="F-2" data-name="F" d="M.091,2.814A.093.093,0,0,1,0,2.72V.094A.093.093,0,0,1,.091,0h2.54a.093.093,0,0,1,.091.094V.469a.092.092,0,0,1-.091.094H.817A.092.092,0,0,0,.726.657v.375a.093.093,0,0,0,.091.094H2.45a.092.092,0,0,1,.091.094V1.6a.092.092,0,0,1-.09.093H.817a.093.093,0,0,0-.091.094V2.72a.093.093,0,0,1-.091.094Z" transform="translate(79.2 1.951)" fill="#0091dc"/>
+            <path id="E-2" data-name="E" d="M0,.094A.093.093,0,0,1,.091,0H2.813A.093.093,0,0,1,2.9.094V.469a.093.093,0,0,1-.091.094h-2A.092.092,0,0,0,.726.657v.375a.092.092,0,0,0,.091.094H2.631a.092.092,0,0,1,.091.094V1.6a.092.092,0,0,1-.091.093H.817a.093.093,0,0,0-.091.094v.375a.093.093,0,0,0,.091.094h2a.092.092,0,0,1,.091.094V2.72a.093.093,0,0,1-.091.094H.091A.093.093,0,0,1,0,2.72Z" transform="translate(82.10300000000001 1.951)" fill="#0091dc"/>
+            <path id="S-2" data-name="S" d="M0,1.126a.553.553,0,0,0,.544.562H2a.185.185,0,0,1,.182.188v.187A.184.184,0,0,1,2,2.252H.816a.093.093,0,0,1-.091-.094.092.092,0,0,0-.09-.094H.09A.092.092,0,0,0,0,2.157v.094a.554.554,0,0,0,.544.563H2.359A.554.554,0,0,0,2.9,2.252V1.688a.553.553,0,0,0-.544-.562H.907A.185.185,0,0,1,.726.938V.751A.184.184,0,0,1,.907.563H2.086a.092.092,0,0,1,.091.094.092.092,0,0,0,.09.094h.545A.092.092,0,0,0,2.9.657V.563A.554.554,0,0,0,2.359,0H.544A.554.554,0,0,0,0,.563Z" transform="translate(85.188 1.951)" fill="#0091dc"/>
+            <path id="T-2" data-name="T" d="M0,.094A.093.093,0,0,1,.092,0H2.812A.093.093,0,0,1,2.9.094V.469a.093.093,0,0,1-.091.094H1.906a.092.092,0,0,0-.09.094V2.72a.093.093,0,0,1-.091.094H1.18a.093.093,0,0,1-.091-.094V.657A.092.092,0,0,0,1,.563H.091A.093.093,0,0,1,0,.469V.094Z" transform="translate(88.272 1.951)" fill="#0091dc"/>
+            <path id="O-2" data-name="O" d="M2.322,2.822H.535a.508.508,0,0,1-.208-.044.533.533,0,0,1-.17-.121.565.565,0,0,1-.115-.179A.587.587,0,0,1,0,2.258V.565A.587.587,0,0,1,.042.345.566.566,0,0,1,.157.165.534.534,0,0,1,.327.044.507.507,0,0,1,.535,0H2.322a.509.509,0,0,1,.209.044A.532.532,0,0,1,2.7.165a.565.565,0,0,1,.115.18.589.589,0,0,1,.042.22V2.258a.588.588,0,0,1-.042.22.565.565,0,0,1-.115.179.532.532,0,0,1-.17.121A.509.509,0,0,1,2.322,2.822ZM.893.565A.173.173,0,0,0,.766.62.192.192,0,0,0,.714.753V2.069A.193.193,0,0,0,.766,2.2a.173.173,0,0,0,.127.055H1.965A.173.173,0,0,0,2.091,2.2a.193.193,0,0,0,.052-.133V.753A.192.192,0,0,0,2.091.62.173.173,0,0,0,1.965.565Z" transform="translate(91.402 1.951)" fill="#0091dc"/>
+          </g>
+          <line id="Line-2" data-name="Line" x2="49" transform="translate(0.5 29.5)" fill="none" stroke="#d8dce1" stroke-linecap="square" stroke-width="1"/>
+          <rect id="ApAddressPlaceHolder-8" data-name="ApAddressPlaceHolder" width="20" height="8" fill="#fff" x="80" y="95"/>
+        </g>
+        <g id="Auxiliary_Interfaces-2" data-name="Auxiliary Interfaces">
+          <circle id="X7-2" data-name="X7" cx="88.0" cy="93.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+            <title>X7</title>
+          </circle>
+          <circle id="X6-2" data-name="X6" cx="88.0" cy="76.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+            <title>X6</title>
+          </circle>
+          <circle id="X5-2" data-name="X5" cx="88.0" cy="59.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+            <title>X5</title>
+          </circle>
+          <circle id="X4-2" data-name="X4" cx="88.0" cy="42.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+            <title>X4</title>
+          </circle>
+          <circle id="X3-2" data-name="X3" cx="66.0" cy="93.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+            <title>X3</title>
+          </circle>
+          <circle id="X2-2" data-name="X2" cx="66.0" cy="76.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+            <title>X2</title>
+          </circle>
+          <circle id="X1-2" data-name="X1" cx="66.0" cy="59.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+            <title>X1</title>
+          </circle>
+          <circle id="X0-2" data-name="X0" cx="66.0" cy="42.0" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+            <title>X0</title>
+          </circle>
+        </g>
+        <g id="LEDs-2" data-name="LEDs">
+          <g id="Right-2" data-name="Right">
+            <rect id="MD-2" data-name="MD" width="6" height="2" fill="#b6bec6" x="81" y="10"/>
+            <title>Right</title>
+          </g>
+          <g id="Left-2" data-name="Left">
+            <rect id="_7-2" data-name="7" width="6" height="2" fill="#b6bec6" x="67" y="26"/>
+            <rect id="_6-2" data-name="6" width="6" height="2" fill="#b6bec6" x="59" y="26"/>
+            <rect id="_5-2" data-name="5" width="6" height="2" fill="#b6bec6" x="67" y="22"/>
+            <rect id="_4-2" data-name="4" width="6" height="2" fill="#b6bec6" x="59" y="22"/>
+            <rect id="_3-2" data-name="3" width="6" height="2" fill="#b6bec6" x="67" y="18"/>
+            <rect id="_2-2" data-name="2" width="6" height="2" fill="#b6bec6" x="59" y="18"/>
+            <rect id="_1-2" data-name="1" width="6" height="2" fill="#b6bec6" x="67" y="14"/>
+            <rect id="_0-2" data-name="0" width="6" height="2" fill="#b6bec6" x="59" y="14"/>
+            <title>Left</title>
+          </g>
+        </g>
+      </g>
+      <g id="CPX-AP-A-EP-M12">
+        <g id="CPX-AP-A_Base-3" data-name="CPX-AP-A Base">
+          <g id="Spacer-11" data-name="Spacer">
+            <rect id="Spacer-12" data-name="Spacer" width="2" height="107" fill="none" x="50"/>
+          </g>
+          <rect id="Base-3" data-name="Base" width="50" height="107" fill="#e5e8eb"/>
+          <g id="Festo_Logo-3" data-name="Festo Logo">
+            <path id="F-3" data-name="F" d="M.091,2.814A.093.093,0,0,1,0,2.72V.094A.093.093,0,0,1,.091,0h2.54a.093.093,0,0,1,.091.094V.469a.092.092,0,0,1-.091.094H.817A.092.092,0,0,0,.726.657v.375a.093.093,0,0,0,.091.094H2.45a.092.092,0,0,1,.091.094V1.6a.092.092,0,0,1-.09.093H.817a.093.093,0,0,0-.091.094V2.72a.093.093,0,0,1-.091.094Z" transform="translate(27.2 1.951)" fill="#0091dc"/>
+            <path id="E-3" data-name="E" d="M0,.094A.093.093,0,0,1,.091,0H2.813A.093.093,0,0,1,2.9.094V.469a.093.093,0,0,1-.091.094h-2A.092.092,0,0,0,.726.657v.375a.092.092,0,0,0,.091.094H2.631a.092.092,0,0,1,.091.094V1.6a.092.092,0,0,1-.091.093H.817a.093.093,0,0,0-.091.094v.375a.093.093,0,0,0,.091.094h2a.092.092,0,0,1,.091.094V2.72a.093.093,0,0,1-.091.094H.091A.093.093,0,0,1,0,2.72Z" transform="translate(30.102999999999998 1.951)" fill="#0091dc"/>
+            <path id="S-3" data-name="S" d="M0,1.126a.553.553,0,0,0,.544.562H2a.185.185,0,0,1,.182.188v.187A.184.184,0,0,1,2,2.252H.816a.093.093,0,0,1-.091-.094.092.092,0,0,0-.09-.094H.09A.092.092,0,0,0,0,2.157v.094a.554.554,0,0,0,.544.563H2.359A.554.554,0,0,0,2.9,2.252V1.688a.553.553,0,0,0-.544-.562H.907A.185.185,0,0,1,.726.938V.751A.184.184,0,0,1,.907.563H2.086a.092.092,0,0,1,.091.094.092.092,0,0,0,.09.094h.545A.092.092,0,0,0,2.9.657V.563A.554.554,0,0,0,2.359,0H.544A.554.554,0,0,0,0,.563Z" transform="translate(33.188 1.951)" fill="#0091dc"/>
+            <path id="T-3" data-name="T" d="M0,.094A.093.093,0,0,1,.092,0H2.812A.093.093,0,0,1,2.9.094V.469a.093.093,0,0,1-.091.094H1.906a.092.092,0,0,0-.09.094V2.72a.093.093,0,0,1-.091.094H1.18a.093.093,0,0,1-.091-.094V.657A.092.092,0,0,0,1,.563H.091A.093.093,0,0,1,0,.469V.094Z" transform="translate(36.272 1.951)" fill="#0091dc"/>
+            <path id="O-3" data-name="O" d="M2.322,2.822H.535a.508.508,0,0,1-.208-.044.533.533,0,0,1-.17-.121.565.565,0,0,1-.115-.179A.587.587,0,0,1,0,2.258V.565A.587.587,0,0,1,.042.345.566.566,0,0,1,.157.165.534.534,0,0,1,.327.044.507.507,0,0,1,.535,0H2.322a.509.509,0,0,1,.209.044A.532.532,0,0,1,2.7.165a.565.565,0,0,1,.115.18.589.589,0,0,1,.042.22V2.258a.588.588,0,0,1-.042.22.565.565,0,0,1-.115.179.532.532,0,0,1-.17.121A.509.509,0,0,1,2.322,2.822ZM.893.565A.173.173,0,0,0,.766.62.192.192,0,0,0,.714.753V2.069A.193.193,0,0,0,.766,2.2a.173.173,0,0,0,.127.055H1.965A.173.173,0,0,0,2.091,2.2a.193.193,0,0,0,.052-.133V.753A.192.192,0,0,0,2.091.62.173.173,0,0,0,1.965.565Z" transform="translate(39.402 1.951)" fill="#0091dc"/>
+          </g>
+          <line id="Line-3" data-name="Line" x2="49" transform="translate(0.5 29.5)" fill="none" stroke="#d8dce1" stroke-linecap="square" stroke-width="1"/>
+          <rect id="ApAddressPlaceHolder-9" data-name="ApAddressPlaceHolder" width="20" height="8" fill="#fff" x="28" y="95"/>
+        </g>
+        <g id="Auxiliary_Interfaces-3" data-name="Auxiliary Interfaces">
+          <circle id="TP2" cx="36.0" cy="90.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+            <title>TP2</title>
+          </circle>
+          <circle id="TP1" cx="14.0" cy="90.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+            <title>TP1</title>
+          </circle>
+          <circle id="M8" cx="14.499" cy="19.5" r="4" fill="#b6bec6" stroke="#b6bec6" stroke-width="2">
+            <title>M8</title>
+          </circle>
+        </g>
+        <g id="DIL_Switches" data-name="DIL Switches">
+          <rect id="Cover" width="50" height="17" fill="#d8dce1" y="59"/>
+          <path id="Switches" d="M24729,24838a5,5,0,0,1,0-10h21a5,5,0,0,1,0,10Z" transform="translate(-24714 -24765)" fill="#b6bec6"/>
+        </g>
+        <g id="LEDs-3" data-name="LEDs">
+          <rect id="TP2-2" data-name="TP2" width="6" height="2" fill="#b6bec6" x="37" y="22">
+            <title>TP2</title>
+          </rect>
+          <rect id="TP1-2" data-name="TP1" width="6" height="2" fill="#b6bec6" x="29" y="22">
+            <title>TP1</title>
+          </rect>
+          <rect id="MS" width="6" height="2" fill="#b6bec6" x="37" y="18">
+            <title>MS</title>
+          </rect>
+          <rect id="NS" width="6" height="2" fill="#b6bec6" x="29" y="18">
+            <title>NS</title>
+          </rect>
+          <rect id="MT" width="6" height="2" fill="#b6bec6" x="37" y="14">
+            <title>MT</title>
+          </rect>
+          <rect id="PL" width="6" height="2" fill="#b6bec6" x="29" y="14">
+            <title>PL</title>
+          </rect>
+          <rect id="SD" width="6" height="2" fill="#b6bec6" x="37" y="10">
+            <title>SD</title>
+          </rect>
+          <rect id="MD-3" data-name="MD" width="6" height="2" fill="#b6bec6" x="29" y="10">
+            <title>MD</title>
+          </rect>
+        </g>
+      </g>
+    </g>
+    <g id="Cover_Layer" data-name="Cover Layer">
+      <g id="Mask_for_unconfigured_device" data-name="Mask for unconfigured device">
+        <rect id="Mask" width="277" height="109" fill="#fff" opacity="0.42"/>
+      </g>
+      <text id="Unconfigured_device" data-name="Unconfigured device" fill="#333" font-size="10" font-family="SegoeUI, Segoe UI">
+        <tspan x="92.74000000000011" y="58.81899999999999">Unconfigured device</tspan>
+      </text>
+    </g>
+  </g>
+</svg>

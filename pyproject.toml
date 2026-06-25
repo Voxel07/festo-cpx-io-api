@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cpx-ap-topology-manager"
+version = "0.1.0"
+description = "FastAPI backend and utilities for the CPX-AP Topology Manager"
+requires-python = ">=3.10"
+dependencies = [
+    # Install festo-cpx-io from PyPI once published, e.g.:
+    #   "festo-cpx-io>=<version>",
+    # For local development install from the sibling repo:
+    #   pip install -e ../festo-cpx-io
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "python-multipart>=0.0.9",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
