@@ -36,4 +36,30 @@
       <title>Left</title>
     </g>
   </g>
+  <g id="Connectors" data-name="Connectors">
+    <circle id="X0" cx="17.0" cy="40.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="out">
+      <title>Connector X0 (OUT)</title>
+    </circle>
+    <circle id="X1" cx="33.0" cy="40.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="out">
+      <title>Connector X1 (OUT)</title>
+    </circle>
+    <circle id="X2" cx="17.0" cy="56.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="out">
+      <title>Connector X2 (OUT)</title>
+    </circle>
+    <circle id="X3" cx="33.0" cy="56.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="out">
+      <title>Connector X3 (OUT)</title>
+    </circle>
+    <circle id="X4" cx="17.0" cy="72.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="out">
+      <title>Connector X4 (OUT)</title>
+    </circle>
+    <circle id="X5" cx="33.0" cy="72.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="out">
+      <title>Connector X5 (OUT)</title>
+    </circle>
+    <circle id="X6" cx="17.0" cy="88.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="out">
+      <title>Connector X6 (OUT)</title>
+    </circle>
+    <circle id="X7" cx="33.0" cy="88.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="out">
+      <title>Connector X7 (OUT)</title>
+    </circle>
+  </g>
 </svg>

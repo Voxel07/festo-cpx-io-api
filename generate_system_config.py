@@ -1,6 +1,14 @@
-"""Generate a topology configuration file for a CPX-AP system."""
+"""Generate a topology configuration file for a CPX-AP system.
+
+Also provides connection validation: reads the connections.jsonc file, sets output
+channels on source modules, and reads input channels on target modules to verify
+the wiring is intact.
+"""
 
 import json
+from pathlib import Path
+from typing import Any
+
 from cpx_io.cpx_system.cpx_ap.cpx_ap import CpxAp
 from cpx_io.cpx_system.cpx_ap.ap_module import ApModule
 
@@ -116,6 +124,195 @@ def compare_topology(stored_path: str, ip_address: str, timeout: float = 0) -> d
         "removed": removed,
         "has_diff": bool(changes or added or removed),
     }
+
+
+# ─── Connection Validation ─────────────────────────────────────────────────────
+
+def _find_module_by_addr(cpx_ap: CpxAp, addr: int) -> ApModule:
+    """Return the module at the given bus address (0-based position)."""
+    for m in cpx_ap.modules:
+        if m.position == addr:
+            return m
+    raise ValueError(f"No module found at address {addr}")
+
+
+def _channel_index_from_port(port: str) -> int:
+    """Convert a port label like 'X0', 'X3' to a 0-based channel index."""
+    return int(port.lstrip("X"))
+
+
+def validate_single_connection(
+    cpx_ap: CpxAp,
+    conn: dict,
+    pulse_duration_s: float = 0.3,
+) -> dict:
+    """Test one I/O connection by pulsing the source output and reading the target input.
+
+    :param cpx_ap: Connected CPX-AP system instance
+    :param conn: Connection dict from connections.jsonc with keys:
+                 ``source_module_addr``, ``source_channel``,
+                 ``target_module_addr``, ``target_channel``
+    :param pulse_duration_s: How long (seconds) to hold the output HIGH
+    :return: Validation result dict with ``passed``, ``expected``, ``actual``,
+             ``source_addr``, ``target_addr``, ``source_channel``, ``target_channel``
+    """
+    import time
+
+    src_addr = conn["source_module_addr"]
+    tgt_addr = conn["target_module_addr"]
+    src_ch = conn["source_channel"]  # e.g. 'X0'
+    tgt_ch = conn["target_channel"]  # e.g. 'X0'
+
+    src_idx = _channel_index_from_port(src_ch)
+    tgt_idx = _channel_index_from_port(tgt_ch)
+
+    src_mod = _find_module_by_addr(cpx_ap, src_addr)
+    tgt_mod = _find_module_by_addr(cpx_ap, tgt_addr)
+
+    # Ensure LOW baseline
+    try:
+        src_mod.write_channel(src_idx, False)
+    except Exception:
+        pass  # some modules may not support individual channel writes
+    time.sleep(0.05)
+
+    # Read baseline input
+    baseline = tgt_mod.read_channel(tgt_idx)
+
+    # Pulse HIGH
+    try:
+        src_mod.write_channel(src_idx, True)
+    except Exception:
+        try:
+            # Fallback: try write_channels with a list
+            all_vals = [False] * len(src_mod.channels.outputs)
+            all_vals[src_idx] = True
+            src_mod.write_channels(all_vals)
+        except Exception as exc:
+            return {
+                "passed": False,
+                "error": f"Cannot write to source module: {exc}",
+                "source_addr": src_addr,
+                "target_addr": tgt_addr,
+                "source_channel": src_ch,
+                "target_channel": tgt_ch,
+            }
+
+    time.sleep(pulse_duration_s)
+    actual = tgt_mod.read_channel(tgt_idx)
+
+    # Restore LOW
+    try:
+        src_mod.write_channel(src_idx, False)
+    except Exception:
+        pass
+
+    passed = bool(actual) and not baseline
+
+    return {
+        "passed": passed,
+        "expected": True,
+        "actual": actual,
+        "baseline": baseline,
+        "source_addr": src_addr,
+        "target_addr": tgt_addr,
+        "source_channel": src_ch,
+        "target_channel": tgt_ch,
+    }
+
+
+def validate_connections(
+    ip_address: str,
+    connections_path: str = "connections.jsonc",
+    timeout: float = 0,
+    pulse_duration_s: float = 0.3,
+) -> dict:
+    """Validate all I/O connections defined in *connections_path* against the live system.
+
+    Opens a CPX-AP connection, iterates every connection entry, pulses the source
+    output, reads the target input, and returns a detailed report.
+
+    :returns: Dict with keys ``ip_address``, ``total``, ``passed``, ``failed``,
+              ``error``, ``results`` (list of per-connection dicts),
+              ``all_passed`` (bool)
+    """
+    import time
+
+    path = Path(connections_path)
+    if not path.exists():
+        return {
+            "ip_address": ip_address,
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "error": f"Connections file not found: {path.resolve()}",
+            "results": [],
+            "all_passed": False,
+        }
+
+    with open(path, encoding="utf-8") as f:
+        conn_data = json.load(f)
+
+    connections = conn_data.get("connections", [])
+    if not connections:
+        return {
+            "ip_address": ip_address,
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "error": "No connections defined in the file.",
+            "results": [],
+            "all_passed": True,
+        }
+
+    results: list[dict] = []
+    passed_count = 0
+
+    with CpxAp(ip_address=ip_address, timeout=timeout) as cpx_ap:
+        for conn in connections:
+            # Skip connections where source/target is a valve body (VABX) – those
+            # have no writable M12 ports in the standard way.
+            try:
+                result = validate_single_connection(cpx_ap, conn, pulse_duration_s)
+            except Exception as exc:
+                result = {
+                    "passed": False,
+                    "error": str(exc),
+                    "source_addr": conn.get("source_module_addr"),
+                    "target_addr": conn.get("target_module_addr"),
+                    "source_channel": conn.get("source_channel"),
+                    "target_channel": conn.get("target_channel"),
+                }
+            results.append(result)
+            if result.get("passed"):
+                passed_count += 1
+            time.sleep(0.05)
+
+    failed_count = len(results) - passed_count
+
+    return {
+        "ip_address": ip_address,
+        "total": len(results),
+        "passed": passed_count,
+        "failed": failed_count,
+        "results": results,
+        "all_passed": passed_count == len(results),
+    }
+
+
+# ─── Topology persistence with valve mounting info ────────────────────────────
+
+def save_topology_with_valves(
+    topology: dict,
+    output_path: str = "topology.jsonc",
+) -> None:
+    """Save *topology* to *output_path*, preserving ``MountedValves`` fields.
+
+    Unlike :func:`save_topology`, this does NOT re-read from the device – it
+    writes the in-memory topology as-is so that valve-mount edits are kept.
+    """
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(topology, f, indent=4)
 
 
 if __name__ == "__main__":

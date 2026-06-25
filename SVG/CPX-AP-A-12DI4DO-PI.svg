@@ -44,4 +44,54 @@
       <title>Left</title>
     </g>
   </g>
+  <g id="Connectors" data-name="Connectors">
+    <circle id="X0" cx="17.0" cy="72.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="out">
+      <title>Connector X0 (OUT)</title>
+    </circle>
+    <circle id="X1" cx="33.0" cy="72.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="out">
+      <title>Connector X1 (OUT)</title>
+    </circle>
+    <circle id="X2" cx="17.0" cy="88.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="out">
+      <title>Connector X2 (OUT)</title>
+    </circle>
+    <circle id="X3" cx="33.0" cy="88.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="out">
+      <title>Connector X3 (OUT)</title>
+    </circle>
+    <circle id="X4" cx="17.0" cy="40.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="in">
+      <title>Connector X4 (IN)</title>
+    </circle>
+    <circle id="X5" cx="33.0" cy="40.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="in">
+      <title>Connector X5 (IN)</title>
+    </circle>
+    <circle id="X6" cx="17.0" cy="46.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="in">
+      <title>Connector X6 (IN)</title>
+    </circle>
+    <circle id="X7" cx="33.0" cy="46.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="in">
+      <title>Connector X7 (IN)</title>
+    </circle>
+    <circle id="X8" cx="17.0" cy="52.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="in">
+      <title>Connector X8 (IN)</title>
+    </circle>
+    <circle id="X9" cx="33.0" cy="52.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="in">
+      <title>Connector X9 (IN)</title>
+    </circle>
+    <circle id="X10" cx="17.0" cy="58.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="in">
+      <title>Connector X10 (IN)</title>
+    </circle>
+    <circle id="X11" cx="33.0" cy="58.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="in">
+      <title>Connector X11 (IN)</title>
+    </circle>
+    <circle id="X12" cx="17.0" cy="64.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="in">
+      <title>Connector X12 (IN)</title>
+    </circle>
+    <circle id="X13" cx="33.0" cy="64.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="in">
+      <title>Connector X13 (IN)</title>
+    </circle>
+    <circle id="X14" cx="17.0" cy="36.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="in">
+      <title>Connector X14 (IN)</title>
+    </circle>
+    <circle id="X15" cx="33.0" cy="36.0" r="6" fill="#b6bec6" stroke="#b6bec6" stroke-width="2" data-kind="in">
+      <title>Connector X15 (IN)</title>
+    </circle>
+  </g>
 </svg>
