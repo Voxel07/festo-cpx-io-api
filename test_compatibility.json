@@ -20,7 +20,6 @@
         "output-toggle",
         "output-pulse",
         "connection-validation",
-        "condition-counter",
         "remanent-params"
       ]
     },
@@ -41,7 +40,6 @@
       "tests": [
         "input-read",
         "connection-validation",
-        "condition-counter",
         "remanent-params"
       ]
     },
@@ -58,6 +56,18 @@
         "io-link-read",
         "io-link-write",
         "connection-validation",
+        "remanent-params"
+      ]
+    },
+    "cc_modules": {
+      "description": "Modules that support the Condition Counter (CC) parameter (20094/20095). Currently only CPX-AP-I digital I/O modules with CC hardware support.",
+      "module_patterns": [
+        "CPX-AP-I-16DI",
+        "CPX-AP-I-16NDI",
+        "CPX-AP-I-16DIO",
+        "CPX-AP-I-16NDIO"
+      ],
+      "tests": [
         "condition-counter",
         "remanent-params"
       ]

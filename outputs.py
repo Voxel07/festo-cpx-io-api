@@ -11,7 +11,7 @@ TIME_OFF = 2
 setLow = [0] * NUMBER_OF_CHANNELS
 setHigh = [1] * NUMBER_OF_CHANNELS
 
-with CpxAp(ip_address="192.168.1.11", timeout=0) as myCPX:
+with CpxAp(ip_address="192.168.0.11", timeout=0) as myCPX:
 
     for module in myCPX.modules:
         print(f"Module name: {module.name}")

@@ -20,6 +20,8 @@ def _module_series(module: ApModule) -> str:
         return "CPX-AP-A"
     if "CPX-AP-I" in name:
         return "CPX-AP-I"
+    if name.upper().startswith("VABX"):
+        return "VABX"
     return "Other"
 
 
@@ -316,6 +318,6 @@ def save_topology_with_valves(
 
 
 if __name__ == "__main__":
-    _topology = generate_topology(ip_address="192.168.1.11", timeout=0)
+    _topology = generate_topology(ip_address="192.168.0.11", timeout=0)
     save_topology(_topology)
     print(json.dumps(_topology, indent=4))

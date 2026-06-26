@@ -8,7 +8,7 @@ Usage::
     from tests import REGISTRY
 
     entry = REGISTRY["validate-connections"]
-    result = entry["run"](ip_address="192.168.1.11", connections_path="connections.jsonc")
+    result = entry["run"](ip_address="192.168.0.11", connections_path="connections.jsonc")
 """
 from __future__ import annotations
 

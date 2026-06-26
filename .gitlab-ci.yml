@@ -1,0 +1,204 @@
+# GitLab CI pipeline for CPX-AP Hardware Test Automation
+#
+# Required CI/CD variables (set in GitLab → Settings → CI/CD → Variables):
+#   CONFIG_REPO_URL    - Git URL of the test-bench-configs repository
+#   CONFIG_REF         - Branch/tag of config repo (default: main)
+#   TESTBENCH_ID       - Test bench identifier (e.g. bench-lab-03)
+#   POCKETBASE_URL     - PocketBase server URL
+#   POCKETBASE_TOKEN   - PocketBase admin token (or use PB_USERNAME / PB_PASSWORD)
+#   PB_USERNAME        - PocketBase admin username
+#   PB_PASSWORD        - PocketBase admin password
+
+stages:
+  - validate
+  - plan
+  - test
+  - report
+
+variables:
+  CONFIG_REF: "main"
+  DRY_RUN: "false"
+  TEST_FILTER: ""
+  SAFETY_CLASS_FILTER: "safe"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+    - ../festo-cpx-io/
+
+# ── Stage 1: Configuration Validation ──────────────────────────────────────
+
+validate-config:
+  stage: validate
+  image: python:3.12
+  before_script:
+    - pip install --quiet pydantic
+  script:
+    - |
+      if [ -n "$CONFIG_REPO_URL" ]; then
+        git clone --depth 1 --branch "$CONFIG_REF" "$CONFIG_REPO_URL" /tmp/config
+        CONFIG_FILE="/tmp/config/${TESTBENCH_ID}.jsonc"
+      else
+        echo "No CONFIG_REPO_URL set — skipping config fetch"
+        CONFIG_FILE="topology.jsonc"
+      fi
+    - python -c "
+      from config_models import BenchConfig
+      import json, sys
+      with open('$CONFIG_FILE') as f:
+          raw = f.read()
+      # Strip JSONC comments
+      import re
+      raw = re.sub(r'//.*?\n|/\*.*?\*/', '', raw, flags=re.DOTALL)
+      config = BenchConfig.model_validate_json(raw)
+      print(f'✓ Config valid — {len(config.module_instances)} module(s), {len(config.test_definitions)} test(s)')
+      "
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "web"'
+  tags: [docker]
+
+# ── Stage 2: Dry-Run Planning ──────────────────────────────────────────────
+
+dry-run-plan:
+  stage: plan
+  image: python:3.12
+  before_script:
+    - pip install --quiet -e ../festo-cpx-io
+    - pip install --quiet fastapi uvicorn pydantic requests
+  script:
+    - |
+      export DRY_RUN=true
+      python -c "
+      from resolver import TestResolver, create_basic_test_definitions
+      from config_models import BenchConfig, TestBenchMetadata
+      import json
+
+      # Build minimal config from topology.jsonc
+      resolver = TestResolver()
+      defs = create_basic_test_definitions()
+      print(f'Default test definitions: {len(defs)}')
+      for t in defs:
+          print(f'  {t.test_id}: {t.name} [safety={t.safety_class.value}]')
+      print('Dry-run plan generation OK')
+      "
+  artifacts:
+    paths:
+      - plan.json
+    expire_in: 7 days
+  rules:
+    - if: '$DRY_RUN == "true"'
+  tags: [docker]
+
+# ── Stage 3: Hardware Tests ────────────────────────────────────────────────
+
+hardware-tests:
+  stage: test
+  image: python:3.12
+  resource_group: "$TESTBENCH_ID"  # GitLab resource group prevents concurrent bench use
+  before_script:
+    - pip install --quiet -e ../festo-cpx-io
+    - pip install --quiet fastapi uvicorn pydantic requests pytest
+    - |
+      if [ -n "$CONFIG_REPO_URL" ]; then
+        git clone --depth 1 --branch "$CONFIG_REF" "$CONFIG_REPO_URL" /tmp/config
+      fi
+  script:
+    - |
+      export PB_URL="${POCKETBASE_URL:-http://localhost:8090}"
+      export PB_USERNAME="${PB_USERNAME:-}"
+      export PB_PASSWORD="${PB_PASSWORD:-}"
+      export GITLAB_PIPELINE_ID="$CI_PIPELINE_ID"
+      export GITLAB_JOB_ID="$CI_JOB_ID"
+
+      if [ "$DRY_RUN" = "true" ]; then
+        echo "DRY_RUN=true — skipping hardware tests"
+        exit 0
+      fi
+
+      # Run tests via the FastAPI test runner
+      python -c "
+      from test_runner import run_all_tests
+      import json, os
+
+      ip = os.environ.get('CPX_IP', '192.168.0.11')
+      conn_path = os.environ.get('CONNECTIONS_PATH', 'connections.jsonc')
+      topo_path = os.environ.get('TOPOLOGY_PATH', 'topology.jsonc')
+
+      results = run_all_tests(ip, conn_path, topo_path)
+      with open('results.json', 'w') as f:
+          json.dump(results, f, indent=2, default=str)
+
+      passed = all(
+          v.get('passed', False)
+          for v in results.get('tests', {}).values()
+      )
+      print(f'All tests passed: {passed}')
+      if not passed:
+          exit(1)
+      "
+  after_script:
+    - |
+      # Upload results to PocketBase
+      if [ -f results.json ] && [ -n "$POCKETBASE_URL" ]; then
+        python -c "
+        from pocketbase_logger import pb_log
+        import json, os
+        with open('results.json') as f:
+            data = json.load(f)
+        pb_log.test_run_started(
+            run_id=os.environ.get('CI_JOB_ID', 'unknown'),
+            source='ci',
+            ip_address=data.get('ip_address', ''),
+            tests=list(data.get('tests', {}).keys()),
+        )
+        pb_log.test_run_completed(
+            run_id=os.environ.get('CI_JOB_ID', 'unknown'),
+            results=list(data.get('tests', {}).values()),
+        )
+        "
+      fi
+  artifacts:
+    paths:
+      - results.json
+      - logs/
+    expire_in: 30 days
+    reports:
+      junit: results.xml
+  tags: [hardware, "$TESTBENCH_ID"]
+  rules:
+    - if: '$DRY_RUN != "true"'
+  timeout: 30 minutes
+
+# ── Stage 4: Report Generation ─────────────────────────────────────────────
+
+generate-report:
+  stage: report
+  image: python:3.12
+  needs: [hardware-tests]
+  before_script:
+    - pip install --quiet requests
+  script:
+    - |
+      if [ -f results.json ]; then
+        python -c "
+        import json
+        with open('results.json') as f:
+            data = json.load(f)
+        tests = data.get('tests', {})
+        total = len(tests)
+        passed = sum(1 for v in tests.values() if v.get('passed', False))
+        print(f'=== Test Report ===')
+        print(f'Total: {total}, Passed: {passed}, Failed: {total - passed}')
+        for name, result in tests.items():
+            status = '✓' if result.get('passed') else '✗'
+            print(f'  {status} {name}')
+        "
+      fi
+  artifacts:
+    paths:
+      - results.json
+    expire_in: 30 days
+  rules:
+    - if: '$DRY_RUN != "true"'
+  tags: [docker]

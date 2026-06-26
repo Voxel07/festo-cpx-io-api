@@ -436,3 +436,6 @@ Review rules:
 - Do not hardcode module-specific logic into generic tests.
 - Keep future PostgreSQL migration in mind, but do not implement it now.
 - If information is missing, state exactly what information is missing and what assumption you used.
+
+
+In the end create a system diagram using marmaid uml to show the different systems and how they interact with each other

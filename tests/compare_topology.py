@@ -1,45 +1,32 @@
 """Topology comparison test.
 
-Loads a stored *topology.jsonc* and compares it field-by-field against the
-live CPX-AP device, reporting added/removed/changed modules.
+Uses :class:`hal.HardwareInterface` — never imports ``CpxAp`` directly.
 """
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
-from generate_system_config import generate_topology
+from hal import HardwareInterface
 from ._base import LogFn, noop_log
 
 
 def run(
     topology_path: str,
-    ip_address: str,
-    timeout: float = 0,
+    hw: HardwareInterface,
     log: LogFn = noop_log,
 ) -> dict:
-    """Compare *topology_path* against the live device at *ip_address*.
-
-    Returns a result dict::
-
-        {
-            "passed": bool,        # True when no differences found
-            "has_diff": bool,
-            "changes": [...],
-            "added": [...],
-            "removed": [...],
-            "stored": {...},
-            "live": {...},
-            "error": str | None,
-        }
-    """
+    """Compare *topology_path* against the live device via *hw*."""
     log("info", f"Loading stored topology from '{topology_path}' …")
+    t_start = time.time()
     path = Path(topology_path)
     if not path.exists():
         err = f"Topology file not found: {path.resolve()}"
         log("error", err)
         return {"passed": False, "has_diff": True, "error": err,
-                "changes": [], "added": [], "removed": []}
+                "changes": [], "added": [], "removed": [],
+                "duration_ms": round((time.time() - t_start) * 1000, 1)}
 
     with open(path, encoding="utf-8") as f:
         stored = json.load(f)
@@ -47,16 +34,36 @@ def run(
     stored_modules = stored.get("Topology", [])
     log("info", f"Stored topology has {len(stored_modules)} module(s)")
 
-    log("info", f"Reading live topology from {ip_address} …")
+    log("info", "Reading live topology …")
     try:
-        live = generate_topology(ip_address, timeout)
+        live_info = hw.read_topology()
     except Exception as exc:
         err = f"{type(exc).__name__}: {exc}"
         log("error", f"Device connection failed: {err}")
         return {"passed": False, "has_diff": True, "error": err,
-                "changes": [], "added": [], "removed": []}
+                "changes": [], "added": [], "removed": [],
+                "duration_ms": round((time.time() - t_start) * 1000, 1)}
 
-    live_modules = live.get("Topology", [])
+    def _derive_type(m) -> str:
+        """Derive module type string from channel counts (matches stored format)."""
+        if m.num_inouts > 0 or (m.num_inputs > 0 and m.num_outputs > 0):
+            return "In/Out"
+        if m.num_outputs > 0:
+            return "Output"
+        if m.num_inputs > 0:
+            return "Input"
+        return "Input"
+
+    live_modules = [
+        {
+            "Name": m.name, "Modulecode": m.module_code,
+            "ProductKey": m.product_key, "Adress": m.address,
+            "Series": m.series, "Type": _derive_type(m),
+            "NumOfInputs": m.num_inputs, "NumOfOutputs": m.num_outputs,
+            "NumOfInOuts": m.num_inouts,
+        }
+        for m in live_info
+    ]
     log("info", f"Live topology has {len(live_modules)} module(s)")
 
     stored_by_addr = {e["Adress"]: e for e in stored_modules}
@@ -103,5 +110,6 @@ def run(
         "added": added,
         "removed": removed,
         "stored": stored,
-        "live": live,
+        "live": live_modules,
+        "duration_ms": round((time.time() - t_start) * 1000, 1),
     }

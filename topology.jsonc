@@ -1,5 +1,5 @@
 {
-    "Name": "Topology 192.168.1.11",
+    "Name": "Topology 192.168.0.11",
     "Description": "Auto-generated topology from CPX-AP system",
     "Version": "1.0",
     "Topology": [
@@ -51,7 +51,7 @@
             "Name": "VABX-A-S-BV-V4A",
             "Modulecode": 8225,
             "ProductKey": "FLQBF0FZFYR",
-            "Series": "Other",
+            "Series": "VABX",
             "Adress": 4,
             "Type": "In/Out",
             "NumOfInputs": 8,
@@ -62,7 +62,7 @@
             "Name": "VABX-A-S-BV-V4B",
             "Modulecode": 8234,
             "ProductKey": "H6J95CVKKF5",
-            "Series": "Other",
+            "Series": "VABX",
             "Adress": 5,
             "Type": "In/Out",
             "NumOfInputs": 8,
