@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "topology_name": "Topology 192.168.1.11",
+  "topology_name": "Topology 192.168.0.11",
   "connections": [
     {
       "id": "io-8-X0-3-X0",
@@ -10,7 +10,28 @@
       "target_channel": "X0",
       "source_handle": "src-out-X0",
       "target_handle": "tgt-in-X0",
-      "label": "#8:X0 \u2192 #3:X0"
+      "label": "#8:X0 \u2192 #3:X0",
+      "waypoints": [
+        {
+          "x": 820.5341786645654,
+          "y": -12.555769150387533
+        },
+        {
+          "x": 522.5521273825142,
+          "y": -34.51858966320805
+        }
+      ]
     }
-  ]
+  ],
+  "mounted_valves": {
+    "4": [
+      0,
+      2
+    ],
+    "5": [
+      0,
+      1,
+      3
+    ]
+  }
 }

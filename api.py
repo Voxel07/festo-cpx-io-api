@@ -2,7 +2,7 @@
 
 Development workflow
 --------------------
-1. Start the API:      uvicorn api:app --reload   (from festo-cpx-io/)
+1. Start the API:      uvicorn api:app --reload   (from festo-cpx-io-api/)
 2. Start the dev UI:   cd C:/workspace/repos/fe/basicTesting && npm run dev
    The Vite dev server runs on http://localhost:5173 and proxies all
    /topology, /compare, /svg and /svg-map requests to FastAPI on :8000.
@@ -10,18 +10,20 @@ Development workflow
 Production workflow
 -------------------
 1. Build the frontend:  cd C:/workspace/repos/fe/basicTesting && npm run build
-   This writes the compiled assets into festo-cpx-io/dist/ (via vite.config.ts outDir).
+   This writes the compiled assets into festo-cpx-io-api/dist/ (via vite.config.ts outDir).
 2. Start the API:       uvicorn api:app
    FastAPI serves the built React app at http://localhost:8000.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
+import time
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -140,6 +142,7 @@ class ConnectionsPayload(BaseModel):
     topology_name: str | None = Field(None, description="Name of the topology these connections belong to")
     connections: list[dict] = Field(..., description="List of I/O connection objects")
     save_path: str = Field(..., description="File path to save the connections JSON")
+    mounted_valves: dict | None = Field(None, description="Mounted valve indices per module address")
 
 
 @app.post("/connections")
@@ -150,6 +153,8 @@ async def save_connections(payload: ConnectionsPayload):
         "topology_name": payload.topology_name,
         "connections": payload.connections,
     }
+    if payload.mounted_valves:
+        data["mounted_valves"] = payload.mounted_valves
     path = Path(payload.save_path)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -218,18 +223,160 @@ async def validate_connections_endpoint(request: ValidateConnectionsRequest):
     return JSONResponse(result)
 
 
-# ─── Test Run Lock ──────────────────────────────────────────────────────────
+# ─── IO Direct Control ─────────────────────────────────────────────────────
 
-import asyncio
+
+class SetOutputRequest(BaseModel):
+    ip_address: str = Field(..., description="IP of the CPX-AP gateway")
+    module_addr: int = Field(..., description="Module bus address (0-based position)")
+    channel: str = Field(..., description="Port label, e.g. 'X0'")
+    value: bool = Field(..., description="True = HIGH, False = LOW")
+    timeout: float = Field(0.0, ge=0)
+    channels_per_port: int = Field(1, ge=1, le=4, description="2 for M12-5P (2 channels per connector), 1 for M8 or single-channel")
+
+
+@app.post("/io/set-output")
+async def io_set_output(request: SetOutputRequest):
+    """Set a single output channel on a module HIGH or LOW.
+
+    Tries ``write_channel`` first; falls back to ``write_channels`` (all other
+    channels LOW) so valve terminals (VABX) are also supported.
+    """
+    import concurrent.futures
+
+    def _do():
+        from cpx_io.cpx_system.cpx_ap.cpx_ap import CpxAp
+        from generate_system_config import _find_module_by_addr
+        cpp = request.channels_per_port
+        port_num = int(request.channel.lstrip("X"))
+        base_idx = port_num * cpp
+        with CpxAp(ip_address=request.ip_address, timeout=request.timeout) as cpx_ap:
+            mod = _find_module_by_addr(cpx_ap, request.module_addr)
+            write_failed = False
+            for i in range(cpp):
+                try:
+                    mod.write_channel(base_idx + i, request.value)
+                except Exception:
+                    write_failed = True
+                    break
+            if write_failed:
+                num_out = len(mod.channels.outputs)
+                vals = [False] * max(num_out, base_idx + cpp)
+                for i in range(cpp):
+                    vals[base_idx + i] = request.value
+                mod.write_channels(vals)
+        return {
+            "ok": True,
+            "module_addr": request.module_addr,
+            "channel": request.channel,
+            "value": request.value,
+            "channels_written": list(range(base_idx, base_idx + cpp)),
+        }
+
+    loop = asyncio.get_running_loop()
+    try:
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            result = await loop.run_in_executor(pool, _do)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return JSONResponse(result)
+
+
+@app.get("/io/read-input")
+async def io_read_input(
+    ip_address: str = Query(..., description="IP of the CPX-AP gateway"),
+    module_addr: int = Query(..., description="Module bus address"),
+    channel: str = Query(..., description="Port label, e.g. 'X0'"),
+    timeout: float = Query(0.0, ge=0),
+    channels_per_port: int = Query(1, ge=1, le=4, description="2 for M12-5P, 1 for M8 / single-channel"),
+):
+    """Read one or more input channels from a module (all channels of an M12 connector).
+
+    Returns ``{"values": [bool, ...], "value": bool, "module_addr": int, "channel": str}``
+    where ``value`` is ``True`` only when all channels read HIGH.
+    """
+    import concurrent.futures
+
+    def _do():
+        from cpx_io.cpx_system.cpx_ap.cpx_ap import CpxAp
+        from generate_system_config import _find_module_by_addr
+        port_num = int(channel.lstrip("X"))
+        base_idx = port_num * channels_per_port
+        with CpxAp(ip_address=ip_address, timeout=timeout) as cpx_ap:
+            mod = _find_module_by_addr(cpx_ap, module_addr)
+            values = [bool(mod.read_channel(base_idx + i)) for i in range(channels_per_port)]
+        return {"values": values, "value": all(values), "module_addr": module_addr, "channel": channel}
+
+    loop = asyncio.get_running_loop()
+    try:
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            result = await loop.run_in_executor(pool, _do)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return JSONResponse(result)
+
+
+# ─── Test Run Lock + SSE streaming ─────────────────────────────────────────
 
 _test_run_lock = asyncio.Lock()
 _current_test_run: dict | None = None  # {run_id, status, progress, results, ...}
+
+# In-memory history — newest first, max 200 entries.
+# Populated when PocketBase is unavailable so HistoryTab always has data.
+_run_history: list[dict] = []
+
+# Per-run SSE queues: run_id → asyncio.Queue of log-entry dicts.
+# None is sent as a sentinel when the run ends.
+_log_queues: dict[str, asyncio.Queue] = {}
+
+
+# ─── SSE helpers ───────────────────────────────────────────────────────────
+
+async def _sse_generator(run_id: str, request: Request):
+    """Yield SSE frames for *run_id*, starting with any buffered log entries."""
+    # Replay existing logs so a late-connecting client catches up
+    if _current_test_run and _current_test_run.get("run_id") == run_id:
+        for entry in (_current_test_run.get("logs") or []):
+            yield f"data: {json.dumps(entry)}\n\n"
+
+    queue: asyncio.Queue = asyncio.Queue()
+    _log_queues[run_id] = queue
+    try:
+        while True:
+            if await request.is_disconnected():
+                break
+            try:
+                entry = await asyncio.wait_for(queue.get(), timeout=25.0)
+                if entry is None:  # sentinel — run finished
+                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                    break
+                yield f"data: {json.dumps(entry)}\n\n"
+            except asyncio.TimeoutError:
+                yield ": keepalive\n\n"
+    finally:
+        _log_queues.pop(run_id, None)
 
 
 @app.get("/test-run/status")
 async def test_run_status():
     """Return the current test-run state (id, status, progress, results)."""
     return JSONResponse(_current_test_run or {"status": "idle"})
+
+
+@app.get("/test-run/{run_id}/stream")
+async def stream_run_logs(run_id: str, request: Request):
+    """Server-Sent Events stream of log entries for *run_id*.
+
+    Connect with ``EventSource('/test-run/<run_id>/stream')`` from the
+    frontend.  The stream replays any already-emitted log entries so a
+    late connection still sees the full history.  A ``{"type":"done"}``
+    message is sent when the run ends, after which the stream closes.
+    """
+    return StreamingResponse(
+        _sse_generator(run_id, request),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 class StartTestRunRequest(BaseModel):
@@ -242,19 +389,18 @@ class StartTestRunRequest(BaseModel):
 
 @app.post("/test-run/start")
 async def start_test_run(request: StartTestRunRequest):
-    """Start a test run.  Blocks if another run is already in progress."""
+    """Start a test run.  Returns 409 if another run is already in progress."""
     global _current_test_run
 
     if _test_run_lock.locked():
         raise HTTPException(
             status_code=409,
-            detail=f"Another test run is in progress (source: {_current_test_run.get('source','unknown')}). Try again later.",
+            detail=f"Another test run is in progress (source: {(_current_test_run or {}).get('source','unknown')}). Try again later.",
         )
 
-    # Acquire the lock manually — the background task will release it
     await _test_run_lock.acquire()
 
-    run_id = f"run-{int(__import__('time').time())}"
+    run_id = f"run-{int(time.time())}"
     _current_test_run = {
         "run_id": run_id,
         "status": "running",
@@ -264,9 +410,10 @@ async def start_test_run(request: StartTestRunRequest):
         "progress": {"completed": 0, "total": len(request.tests), "current_test": None},
         "results": [],
         "checkpoints": [],
+        "logs": [],
+        "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
 
-    # Fire-and-forget: run tests in background
     asyncio.create_task(
         _execute_test_run(
             run_id=run_id,
@@ -281,6 +428,32 @@ async def start_test_run(request: StartTestRunRequest):
     return JSONResponse({"run_id": run_id, "status": "started"})
 
 
+def _extract_error_summary(result: dict) -> str:
+    """Build a human-readable error string from a result dict.
+
+    Walks nested ``results`` lists so that per-connection/per-module errors
+    are surfaced instead of returning a generic "Unknown error".
+    """
+    # Top-level error key is set by some tests on device-level failure
+    if result.get("error"):
+        return str(result["error"])
+
+    # Collect errors from sub-results (validate_connections, condition_counter…)
+    sub_errors: list[str] = []
+    for r in result.get("results", []):
+        if r.get("passed") is False and r.get("error"):
+            src = r.get("source_addr") or r.get("address")
+            tgt = r.get("target_addr")
+            loc = f"#{src}→#{tgt}" if tgt else (f"#{src}" if src else "")
+            msg = r.get("error", "")
+            sub_errors.append(f"{loc}: {msg}" if loc else msg)
+
+    if sub_errors:
+        return " | ".join(sub_errors[:5])  # cap to first 5 so log stays readable
+
+    return "no details available"
+
+
 async def _execute_test_run(
     run_id: str,
     ip_address: str,
@@ -288,24 +461,30 @@ async def _execute_test_run(
     topology_path: str,
     tests: list[str],
     source: str,
-):
-    """Background coroutine that runs the selected tests and updates _current_test_run."""
+) -> None:
+    """Background coroutine: runs selected tests, streams logs, updates history."""
     global _current_test_run
-    import time
+
     from pocketbase_logger import pb_log
 
-    def _log(level: str, msg: str):
+    loop = asyncio.get_running_loop()
+
+    def _log(level: str, msg: str) -> None:
+        """Thread-safe log that appends to run-state AND pushes to any SSE clients."""
         ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         entry = {"level": level, "message": msg, "timestamp": ts}
         if _current_test_run is not None:
-            _current_test_run.setdefault("logs", []).append(entry)
+            _current_test_run["logs"].append(entry)
+        # Thread-safe push to SSE queue (may be called from executor thread)
+        if run_id in _log_queues:
+            loop.call_soon_threadsafe(_log_queues[run_id].put_nowait, entry)
 
-    _log("info", f"Test run {run_id} started (source={source}, ip={ip_address})")
+    _log("info", f"Test run {run_id} started  source={source}  ip={ip_address}")
     pb_log.test_run_started(run_id, source, ip_address, tests)
 
     try:
         for idx, test_id in enumerate(tests):
-            _log("info", f"Starting test: {test_id}")
+            _log("info", f"━━━ [{idx + 1}/{len(tests)}] {test_id} ━━━")
             _current_test_run["progress"]["current_test"] = test_id
             _current_test_run["checkpoints"].append({
                 "test": test_id,
@@ -315,110 +494,146 @@ async def _execute_test_run(
             pb_log.checkpoint(run_id, test_id, "running")
 
             try:
-                result = await _run_single_test(test_id, ip_address, connections_path, topology_path)
+                result = await _run_single_test(
+                    test_id, ip_address, connections_path, topology_path, _log,
+                )
             except Exception as exc:
-                _log("error", f"Test '{test_id}' raised: {exc}")
-                result = {"test_id": test_id, "passed": False, "error": str(exc)}
+                import traceback
+                tb = traceback.format_exc()
+                _log("error", f"Test '{test_id}' raised unhandled exception: {exc}")
+                _log("error", tb)
+                result = {"test_id": test_id, "passed": False, "error": str(exc),
+                          "traceback": tb}
 
             _current_test_run["progress"]["completed"] = idx + 1
             _current_test_run["results"].append(result)
             cp = _current_test_run["checkpoints"][-1]
-            passed = result.get("passed", False)
+            passed = bool(result.get("passed", False))
 
             if passed:
                 cp["status"] = "passed"
-                _log("info", f"Test '{test_id}' PASSED")
+                _log("info", f"✓ {test_id} PASSED")
                 pb_log.checkpoint(run_id, test_id, "passed")
             else:
-                err = result.get("error", "Unknown error")
-                # Extract cpx_io error details if present
-                if isinstance(result.get("error"), dict):
-                    err = json.dumps(result["error"], default=str)
+                err = _extract_error_summary(result)
                 cp["status"] = "failed"
-                cp["error"] = str(err)[:500]
-                _log("error", f"Test '{test_id}' FAILED: {err}")
-                pb_log.checkpoint(run_id, test_id, "failed", str(err)[:500])
+                cp["error"] = err[:500]
+                _log("error", f"✗ {test_id} FAILED — {err}")
+                pb_log.checkpoint(run_id, test_id, "failed", err[:500])
                 pb_log.error(run_id, f"Test '{test_id}' failed: {err}")
 
         _current_test_run["status"] = "completed"
-        _log("info", "All tests completed")
+        _log("info", f"All {len(tests)} test(s) completed")
         pb_log.test_run_completed(run_id, _current_test_run["results"])
+
     except Exception as exc:
         _current_test_run["status"] = "error"
         _current_test_run["error"] = str(exc)
         _log("error", f"Test run crashed: {exc}")
         pb_log.error(run_id, f"Test run crashed: {exc}")
     finally:
+        # ── Persist to in-memory history ─────────────────────────────
+        if _current_test_run:
+            history_entry = {
+                "id": run_id,
+                "run_id": run_id,
+                "source": source,
+                "ip_address": ip_address,
+                "status": _current_test_run.get("status", "error"),
+                "tests": json.dumps(tests),
+                "results": json.dumps(_current_test_run.get("results", []), default=str),
+                "checkpoints": _current_test_run.get("checkpoints", []),
+                "logs": _current_test_run.get("logs", []),
+                "started_at": _current_test_run.get("started_at", ""),
+                "completed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "created": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+            _run_history.insert(0, history_entry)
+            if len(_run_history) > 200:
+                _run_history.pop()
+
+        # ── Signal SSE stream end then release lock ───────────────────
+        if run_id in _log_queues:
+            loop.call_soon_threadsafe(_log_queues[run_id].put_nowait, None)
         _test_run_lock.release()
 
 
-async def _run_single_test(test_id: str, ip_address: str, connections_path: str, topology_path: str) -> dict:
-    """Dispatch a single test by ID.  Runs synchronously via run_in_executor."""
+async def _run_single_test(
+    test_id: str,
+    ip_address: str,
+    connections_path: str,
+    topology_path: str,
+    log,
+) -> dict:
+    """Dispatch a single test by ID.  Runs blocking code via run_in_executor."""
     import concurrent.futures
-    from test_runner import (
-        test_condition_counter,
-        test_valve_condition_counter,
-        test_remanent_params,
-    )
+
+    from tests.validate_connections import run as run_validate
+    from tests.compare_topology import run as run_compare
+    from tests.condition_counter import run as run_cc
+    from tests.valve_condition_counter import run as run_vcc
+    from tests.remanent_params import run as run_rem
 
     loop = asyncio.get_running_loop()
 
     if test_id == "validate-connections":
         with concurrent.futures.ThreadPoolExecutor() as pool:
-            return await loop.run_in_executor(
+            raw = await loop.run_in_executor(
                 pool,
-                lambda: validate_connections(ip_address, connections_path),
+                lambda: run_validate(ip_address, connections_path, log=log),
             )
+        raw["passed"] = bool(raw.get("all_passed", False))
+        return raw
 
     if test_id == "compare-topology":
         with concurrent.futures.ThreadPoolExecutor() as pool:
-            return await loop.run_in_executor(
+            raw = await loop.run_in_executor(
                 pool,
-                lambda: compare_topology(topology_path, ip_address),
+                lambda: run_compare(topology_path, ip_address, log=log),
             )
+        return raw  # run_compare already sets "passed"
 
     if test_id == "condition-counter":
         with concurrent.futures.ThreadPoolExecutor() as pool:
             return await loop.run_in_executor(
                 pool,
-                lambda: _run_test_with_connection(
-                    ip_address, connections_path, test_condition_counter
-                ),
+                lambda: _run_with_cpx(ip_address, connections_path, run_cc, log),
             )
 
     if test_id == "valve-condition-counter":
         with concurrent.futures.ThreadPoolExecutor() as pool:
             return await loop.run_in_executor(
                 pool,
-                lambda: _run_test_with_connection(
-                    ip_address, connections_path, test_valve_condition_counter
-                ),
+                lambda: _run_with_cpx(ip_address, connections_path, run_vcc, log),
             )
 
     if test_id == "remanent-params":
         with concurrent.futures.ThreadPoolExecutor() as pool:
             return await loop.run_in_executor(
                 pool,
-                lambda: _run_test_with_connection(
-                    ip_address, connections_path, test_remanent_params
-                ),
+                lambda: _run_with_cpx(ip_address, connections_path, run_rem, log),
             )
 
-    return {"test_id": test_id, "passed": None, "error": f"Test '{test_id}' not yet implemented"}
+    return {"test_id": test_id, "passed": None,
+            "error": f"Test '{test_id}' not implemented"}
 
 
-def _run_test_with_connection(ip_address: str, connections_path: str, test_fn) -> dict:
-    """Helper: connect to CPX-AP, run *test_fn*, return aggregated result.
+def _run_with_cpx(ip_address: str, connections_path: str, test_fn, log) -> dict:
+    """Open a CpxAp connection, run *test_fn(cpx_ap, connections_path, log=log)*.
 
-    Captures and returns cpx_io errors as structured dicts so they reach the UI.
+    Returns an aggregated result dict with a top-level ``passed`` bool.
     """
     from cpx_io.cpx_system.cpx_ap.cpx_ap import CpxAp
 
+    log("info", f"Connecting to {ip_address} …")
     try:
         with CpxAp(ip_address=ip_address, timeout=0) as cpx_ap:
-            raw = test_fn(cpx_ap, connections_path)
+            log("info", f"Connected — {len(cpx_ap.modules)} module(s) on bus")
+            raw = test_fn(cpx_ap, connections_path, log=log)
     except Exception as exc:
-        return {"passed": False, "error": f"{type(exc).__name__}: {exc}", "cpx_io_error": True}
+        err = f"{type(exc).__name__}: {exc}"
+        log("error", f"Device connection failed: {err}")
+        return {"passed": False, "error": err, "cpx_io_error": True}
 
     if isinstance(raw, list):
         passed = all(r.get("passed", False) for r in raw if r.get("passed") is not None)
@@ -426,23 +641,56 @@ def _run_test_with_connection(ip_address: str, connections_path: str, test_fn) -
     return raw
 
 
-# ─── PocketBase History ────────────────────────────────────────────────────
+# ─── History ──────────────────────────────────────────────────────────────
 
 @app.get("/test-run/history")
 async def test_run_history(limit: int = 50):
-    """Return the most recent test runs from PocketBase."""
+    """Return recent test runs.
+
+    Tries PocketBase first; falls back to in-memory history when PocketBase
+    is unavailable so the History tab always shows data.
+    """
     from pocketbase_logger import pb_log
-    return JSONResponse(pb_log.get_run_history(limit))
+    runs = pb_log.get_run_history(limit)
+    if not runs:
+        runs = _run_history[:limit]
+    return JSONResponse(runs)
 
 
 @app.get("/test-run/{run_id}")
 async def test_run_detail(run_id: str):
-    """Return full detail for a specific test run."""
+    """Return full detail for a specific test run.
+
+    Checks in-memory history first, then PocketBase.
+    """
+    # In-memory lookup
+    mem = next((r for r in _run_history if r["run_id"] == run_id), None)
+    if mem:
+        return JSONResponse(mem)
+    # Currently active run
+    if _current_test_run and _current_test_run.get("run_id") == run_id:
+        return JSONResponse(_current_test_run)
+    # PocketBase
     from pocketbase_logger import pb_log
     detail = pb_log.get_run_detail(run_id)
     if detail is None:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
     return JSONResponse(detail)
+
+
+@app.get("/pocketbase/health")
+async def pocketbase_health():
+    """Check whether the PocketBase logging service is reachable."""
+    import requests as _req
+    from pocketbase_logger import PB_URL
+    try:
+        r = _req.get(f"{PB_URL}/api/health", timeout=3)
+        return JSONResponse({"status": "ok", "url": PB_URL, "http_status": r.status_code})
+    except Exception as exc:
+        return JSONResponse(
+            {"status": "unreachable", "url": PB_URL, "error": str(exc)},
+            status_code=503,
+        )
 
 
 # Mount the Vite-built static assets (JS bundles, CSS, etc.) LAST so that all
