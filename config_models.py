@@ -68,6 +68,14 @@ class PortKind(str, Enum):
 # ─── Channel / Port ───────────────────────────────────────────────────────────
 
 
+class ChannelLimits(BaseModel):
+    """Electrical/safety limits for a channel."""
+
+    max_voltage_v: float | None = Field(None, ge=0, description="Maximum voltage in Volts")
+    max_current_ma: float | None = Field(None, ge=0, description="Maximum current in milliamperes")
+    max_pressure_bar: float | None = Field(None, ge=0, description="Maximum pressure in bar")
+
+
 class ChannelDefinition(BaseModel):
     """Definition of a single channel/port on a module type."""
 
@@ -81,6 +89,7 @@ class ChannelDefinition(BaseModel):
     ui_anchor_x: float | None = Field(None, ge=0, le=1, description="UI anchor X (0-1 fraction of image)")
     ui_anchor_y: float | None = Field(None, ge=0, le=1, description="UI anchor Y (0-1 fraction of image)")
     ui_hotspot_radius: float | None = Field(None, ge=0, description="UI hotspot radius in pixels")
+    limits: ChannelLimits | None = Field(None, description="Electrical/safety limits for the channel")
 
 
 # ─── Module Type Definition ───────────────────────────────────────────────────
@@ -305,3 +314,306 @@ class BenchConfig(BaseModel):
                 f"Supported: {sorted(supported)}"
             )
         return self
+
+    @model_validator(mode="after")
+    def _check_duplicate_product_keys(self) -> BenchConfig:
+        """Warn about duplicate product keys (non-fatal by default)."""
+        keys = [m.product_key for m in self.module_instances if m.product_key]
+        seen: set[str] = set()
+        dupes = {k for k in keys if k in seen or seen.add(k)}
+        if dupes:
+            import warnings
+            warnings.warn(f"Duplicate product keys found: {sorted(dupes)}", UserWarning)
+        return self
+
+    @model_validator(mode="after")
+    def _check_wiring_channels(self) -> BenchConfig:
+        """Verify wiring references valid source and target channels."""
+        for w in self.wiring:
+            # Source checks
+            src_mod = next((m for m in self.module_instances if m.instance_id == w.source_instance_id), None)
+            if src_mod:
+                type_def = self.module_types.get(src_mod.module_type_ref)
+                if type_def and type_def.channels:
+                    ch_names = {c.name for c in type_def.channels}
+                    ch_indices = {str(c.index) for c in type_def.channels}
+                    valid_names = ch_names | ch_indices
+                    if w.source_channel not in valid_names:
+                        raise ValueError(
+                            f"Wiring '{w.id}': source channel '{w.source_channel}' "
+                            f"not found on module '{src_mod.instance_id}'"
+                        )
+            # Target checks
+            tgt_mod = next((m for m in self.module_instances if m.instance_id == w.target_instance_id), None)
+            if tgt_mod:
+                type_def = self.module_types.get(tgt_mod.module_type_ref)
+                if type_def and type_def.channels:
+                    ch_names = {c.name for c in type_def.channels}
+                    ch_indices = {str(c.index) for c in type_def.channels}
+                    valid_names = ch_names | ch_indices
+                    if w.target_channel not in valid_names:
+                        raise ValueError(
+                            f"Wiring '{w.id}': target channel '{w.target_channel}' "
+                            f"not found on module '{tgt_mod.instance_id}'"
+                        )
+        return self
+
+    @classmethod
+    def from_legacy(
+        cls,
+        topology_data: dict,
+        connections_data: dict,
+        bench_id: str = "default",
+        ip_address: str = "",
+    ) -> BenchConfig:
+        """Construct a modern BenchConfig from legacy topology and connections dicts."""
+        # Build test bench metadata
+        meta = TestBenchMetadata(
+            id=bench_id,
+            name=topology_data.get("Name", f"Bench {bench_id}"),
+            description=topology_data.get("Description", ""),
+            ip_address=ip_address or connections_data.get("topology_name", "").split(" ")[-1] or "192.168.0.11",
+            version=topology_data.get("Version", "1.0"),
+        )
+        
+        # Helper to map category
+        def infer_cat(entry: dict) -> ModuleCategory:
+            t = entry.get("Type", "").lower()
+            name = entry.get("Name", "").upper()
+            if "VABX" in name or "VALVE" in t:
+                return ModuleCategory.VALVE
+            if "in/out" in t or "inout" in t:
+                return ModuleCategory.INOUT
+            if "output" in t:
+                return ModuleCategory.OUTPUT
+            if "input" in t:
+                return ModuleCategory.INPUT
+            return ModuleCategory.BUS
+
+        # Helper to map capabilities
+        def infer_caps(entry: dict) -> list[str]:
+            caps = []
+            num_in = entry.get("NumOfInputs", 0)
+            num_out = entry.get("NumOfOutputs", 0)
+            num_io = entry.get("NumOfInOuts", 0)
+            name = entry.get("Name", "").upper()
+            
+            if num_in > 0:
+                caps.append("digital_input")
+            if num_out > 0:
+                caps.append("digital_output")
+            if num_io > 0:
+                caps.append("configurable_io")
+            if "VABX" in name:
+                caps.extend(["valve_output", "condition_counter", "remanent_params"])
+            if any(x in name for x in ("DI", "DO", "DIO", "HDO", "AI", "IOL", "VABX")):
+                caps.append("condition_counter")
+                caps.append("remanent_params")
+            if any(x in name for x in ("EP", "EC", "PN", "PB")):
+                caps.append("system_diagnosis")
+            return list(set(caps))
+
+        instances: list[ModuleInstance] = []
+        type_defs: dict[str, ModuleTypeDefinition] = {}
+        
+        # Legacy mounted valves
+        mounted_valves_raw = connections_data.get("mounted_valves", {})
+        mounted_valves = {int(k): [int(v) for v in vs] for k, vs in mounted_valves_raw.items()}
+
+        for item in topology_data.get("Topology", []):
+            addr = item.get("Adress", item.get("Address", 0))
+            m_code = item.get("Modulecode", 0)
+            p_key = item.get("ProductKey", f"PK_{addr}")
+            name = item.get("Name", "")
+            
+            inst_id = f"mod-{addr:03d}"
+            type_ref = f"type-{m_code}"
+            
+            # Infer category & capabilities
+            cat = infer_cat(item)
+            caps = infer_caps(item)
+            
+            # Build channel definitions dynamically
+            channels = []
+            num_in = item.get("NumOfInputs", 0)
+            num_out = item.get("NumOfOutputs", 0)
+            num_io = item.get("NumOfInOuts", 0)
+            
+            # Add input/output/inout channels
+            for ch_idx in range(max(num_in, num_out, num_io, 8)):
+                ch_caps = []
+                if num_out > 0 or cat == ModuleCategory.VALVE:
+                    ch_caps.append("digital_output")
+                if num_in > 0:
+                    ch_caps.append("digital_input")
+                if num_io > 0:
+                    ch_caps.append("configurable_io")
+                
+                channels.append(
+                    ChannelDefinition(
+                        index=ch_idx,
+                        name=f"X{ch_idx}",
+                        capabilities=ch_caps,
+                    )
+                )
+            
+            # Instantiate type if not already defined
+            if type_ref not in type_defs:
+                type_defs[type_ref] = ModuleTypeDefinition(
+                    module_code=m_code,
+                    product_family=item.get("Series", "CPX-AP"),
+                    capabilities=caps,
+                    num_inputs=num_in,
+                    num_outputs=num_out,
+                    num_configurable=num_io,
+                    valve_count=16 if cat == ModuleCategory.VALVE else 0,
+                    channels=channels,
+                )
+                
+            instances.append(
+                ModuleInstance(
+                    instance_id=inst_id,
+                    display_name=name,
+                    module_code=m_code,
+                    product_key=p_key,
+                    address=addr,
+                    category=cat,
+                    module_type_ref=type_ref,
+                    mounted_valves=mounted_valves.get(addr, []),
+                )
+            )
+
+        # Build wiring
+        wiring: list[WiringConnection] = []
+        for i, conn in enumerate(connections_data.get("connections", [])):
+            src_addr = conn.get("source_module_addr")
+            tgt_addr = conn.get("target_module_addr")
+            src_ch = conn.get("source_channel", "X0")
+            tgt_ch = conn.get("target_channel", "X0")
+            w_id = conn.get("id", f"wire-{i:03d}")
+            
+            wiring.append(
+                WiringConnection(
+                    id=w_id,
+                    source_instance_id=f"mod-{src_addr:03d}",
+                    source_channel=src_ch,
+                    target_instance_id=f"mod-{tgt_addr:03d}",
+                    target_channel=tgt_ch,
+                    waypoints=conn.get("waypoints", []),
+                )
+            )
+
+        return cls(
+            schema_version="1.0",
+            test_bench=meta,
+            module_types=type_defs,
+            module_instances=instances,
+            wiring=wiring,
+            test_definitions=create_basic_test_definitions(),
+        )
+
+
+def create_basic_test_definitions() -> list[TestDefinition]:
+    """Return a sensible default set of test definitions.
+
+    These cover the most common CPX-AP module types and can be overridden
+    in bench-specific config files.
+    """
+    return [
+        TestDefinition(
+            test_id="connection-validation",
+            name="Connection Validation",
+            version="1.0.0",
+            description="Pulse source outputs and verify target inputs to validate wiring",
+            required_capabilities=["digital_output", "digital_input"],
+            required_wiring_type=ConnectionType.PHYSICAL,
+            supported_categories=[ModuleCategory("output"), ModuleCategory("input"), ModuleCategory("inout")],
+            safety_class=SafetyClass.SAFE,
+            allowed_in_ci=True,
+            can_run_parallel=False,
+            parameters={"pulse_duration_s": 0.3},
+        ),
+        TestDefinition(
+            test_id="condition-counter",
+            name="Condition Counter",
+            version="1.0.0",
+            description="Read and verify condition counter parameters",
+            required_capabilities=["condition_counter"],
+            supported_categories=[ModuleCategory("output"), ModuleCategory("input"), ModuleCategory("inout")],
+            safety_class=SafetyClass.SAFE,
+            allowed_in_ci=True,
+            parameters={"cc_param_id": 20094, "cc_readback_param_id": 20095},
+        ),
+        TestDefinition(
+            test_id="valve-condition-counter",
+            name="Valve Condition Counter",
+            version="1.0.0",
+            description="Set CC setpoint, toggle valves past threshold, verify diagnosis",
+            required_capabilities=["condition_counter", "valve_output"],
+            supported_categories=[ModuleCategory("valve"), ModuleCategory("inout")],
+            safety_class=SafetyClass.CAUTION,
+            allowed_in_ci=True,
+            can_run_parallel=False,
+            parameters={"cc_param_id": 20094, "cc_readback_param_id": 20095, "toggle_cycles": 5},
+        ),
+        TestDefinition(
+            test_id="remanent-params",
+            name="Remanent Parameters",
+            version="1.0.0",
+            description="Write test values to remanent parameters, verify persistence after power cycle",
+            required_capabilities=["remanent_params"],
+            supported_categories=[
+                ModuleCategory("input"),
+                ModuleCategory("output"),
+                ModuleCategory("inout"),
+                ModuleCategory("valve"),
+                ModuleCategory("bus"),
+            ],
+            safety_class=SafetyClass.SAFE,
+            allowed_in_ci=True,
+            can_run_parallel=False,
+            parameters={"param_id_1": 20118, "param_id_2": 20119},
+        ),
+        TestDefinition(
+            test_id="valve-toggle",
+            name="Valve Toggle",
+            version="1.0.0",
+            description="Toggle all valve channels ON/OFF and verify state changes",
+            required_capabilities=["valve_output"],
+            supported_categories=[ModuleCategory("valve")],
+            safety_class=SafetyClass.CAUTION,
+            allowed_in_ci=True,
+            can_run_parallel=False,
+        ),
+        TestDefinition(
+            test_id="output-toggle",
+            name="Output Toggle",
+            version="1.0.0",
+            description="Toggle all digital output channels ON/OFF and verify state changes",
+            required_capabilities=["digital_output"],
+            supported_categories=[ModuleCategory("output"), ModuleCategory("inout")],
+            safety_class=SafetyClass.CAUTION,
+            allowed_in_ci=True,
+            can_run_parallel=False,
+        ),
+        TestDefinition(
+            test_id="compare-topology",
+            name="Topology Comparison",
+            version="1.0.0",
+            description="Compare stored topology against live hardware",
+            required_capabilities=[],
+            supported_categories=[ModuleCategory("bus")],
+            safety_class=SafetyClass.SAFE,
+            allowed_in_ci=True,
+        ),
+        TestDefinition(
+            test_id="system-diagnosis",
+            name="System Diagnosis",
+            version="1.0.0",
+            description="Read global system diagnosis registers",
+            required_capabilities=["system_diagnosis"],
+            supported_categories=[ModuleCategory("bus")],
+            safety_class=SafetyClass.SAFE,
+            allowed_in_ci=True,
+        ),
+    ]

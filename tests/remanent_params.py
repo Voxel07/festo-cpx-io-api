@@ -21,9 +21,12 @@ def run(
     log: LogFn = noop_log,
     param_id_1: int = 20118,
     param_id_2: int = 20119,
+    module_address: int | None = None,
 ) -> list[dict]:
     """Write test values and verify immediate read-back for all modules."""
     topology = hw.read_topology()
+    if module_address is not None:
+        topology = [m for m in topology if m.address == module_address]
     log("info", f"Remanent-params write phase on {len(topology)} module(s)")
     results: list[dict] = []
 

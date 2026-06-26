@@ -273,14 +273,7 @@
         "help": "",
         "hidden": false,
         "id": "fld_000002",
-        "max": 0,
-        "min": 0,
         "name": "source",
-        "pattern": "",
-        "presentable": false,
-        "primaryKey": false,
-        "required": false,
-        "system": false,
         "type": "text"
       },
       {
@@ -288,14 +281,7 @@
         "help": "",
         "hidden": false,
         "id": "fld_000003",
-        "max": 0,
-        "min": 0,
         "name": "ip_address",
-        "pattern": "",
-        "presentable": false,
-        "primaryKey": false,
-        "required": false,
-        "system": false,
         "type": "text"
       },
       {
@@ -303,14 +289,7 @@
         "help": "",
         "hidden": false,
         "id": "fld_000004",
-        "max": 0,
-        "min": 0,
         "name": "status",
-        "pattern": "",
-        "presentable": false,
-        "primaryKey": false,
-        "required": false,
-        "system": false,
         "type": "text"
       },
       {
@@ -340,14 +319,7 @@
         "help": "",
         "hidden": false,
         "id": "fld_000007",
-        "max": 0,
-        "min": 0,
         "name": "started_at",
-        "pattern": "",
-        "presentable": false,
-        "primaryKey": false,
-        "required": false,
-        "system": false,
         "type": "text"
       },
       {
@@ -355,14 +327,63 @@
         "help": "",
         "hidden": false,
         "id": "fld_000008",
-        "max": 0,
-        "min": 0,
         "name": "completed_at",
-        "pattern": "",
-        "presentable": false,
-        "primaryKey": false,
-        "required": false,
-        "system": false,
+        "type": "text"
+      },
+      {
+        "autogeneratePattern": "",
+        "help": "",
+        "hidden": false,
+        "id": "fld_000010",
+        "name": "test_bench_id",
+        "type": "text"
+      },
+      {
+        "autogeneratePattern": "",
+        "help": "",
+        "hidden": false,
+        "id": "fld_000011",
+        "name": "test_code_commit",
+        "type": "text"
+      },
+      {
+        "autogeneratePattern": "",
+        "help": "",
+        "hidden": false,
+        "id": "fld_000012",
+        "name": "config_commit",
+        "type": "text"
+      },
+      {
+        "autogeneratePattern": "",
+        "help": "",
+        "hidden": false,
+        "id": "fld_000013",
+        "name": "gitlab_pipeline_id",
+        "type": "text"
+      },
+      {
+        "autogeneratePattern": "",
+        "help": "",
+        "hidden": false,
+        "id": "fld_000014",
+        "name": "gitlab_job_id",
+        "type": "text"
+      },
+      {
+        "autogeneratePattern": "",
+        "help": "",
+        "hidden": false,
+        "id": "fld_000015",
+        "name": "resolved_plan_id",
+        "type": "text"
+      },
+      {
+        "autogeneratePattern": "",
+        "help": "",
+        "hidden": false,
+        "id": "fld_000016",
+        "name": "schema_version",
         "type": "text"
       },
       {
@@ -401,7 +422,120 @@
         "type": "autodate"
       }
     ],
-    "indexes": [],
+    "indexes": [
+      "CREATE INDEX `idx_runs_bench` ON `festo_test_runs` (`test_bench_id`)"
+    ],
+    "system": false
+  },
+  {
+    "id": "pbc_0000000004",
+    "listRule": "",
+    "viewRule": "",
+    "createRule": "",
+    "updateRule": "",
+    "deleteRule": null,
+    "name": "festo_measurements",
+    "type": "base",
+    "fields": [
+      {
+        "autogeneratePattern": "",
+        "help": "",
+        "hidden": false,
+        "id": "fld_000301",
+        "name": "run_id",
+        "required": true,
+        "type": "text"
+      },
+      {
+        "autogeneratePattern": "",
+        "help": "",
+        "hidden": false,
+        "id": "fld_000302",
+        "name": "test_result_id",
+        "type": "text"
+      },
+      {
+        "autogeneratePattern": "",
+        "help": "",
+        "hidden": false,
+        "id": "fld_000303",
+        "name": "name",
+        "required": true,
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "fld_000304",
+        "name": "value",
+        "type": "number"
+      },
+      {
+        "autogeneratePattern": "",
+        "help": "",
+        "hidden": false,
+        "id": "fld_000305",
+        "name": "unit",
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "fld_000306",
+        "name": "limit_lower",
+        "type": "number"
+      },
+      {
+        "hidden": false,
+        "id": "fld_000307",
+        "name": "limit_upper",
+        "type": "number"
+      },
+      {
+        "autogeneratePattern": "",
+        "help": "",
+        "hidden": false,
+        "id": "fld_000308",
+        "name": "timestamp",
+        "type": "text"
+      },
+      {
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "help": "",
+        "hidden": false,
+        "id": "text3208210256",
+        "max": 15,
+        "min": 15,
+        "name": "id",
+        "pattern": "^[a-z0-9]+$",
+        "presentable": false,
+        "primaryKey": true,
+        "required": true,
+        "system": true,
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "autodate2990389176",
+        "name": "created",
+        "onCreate": true,
+        "onUpdate": false,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      },
+      {
+        "hidden": false,
+        "id": "autodate3332085495",
+        "name": "updated",
+        "onCreate": false,
+        "onUpdate": true,
+        "presentable": false,
+        "system": false,
+        "type": "autodate"
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX `idx_meas_run` ON `festo_measurements` (`run_id`)"
+    ],
     "system": false
   }
 ]

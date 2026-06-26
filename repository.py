@@ -41,6 +41,8 @@ class TestRunRecord:
     config_commit: str = ""
     gitlab_pipeline_id: str = ""
     gitlab_job_id: str = ""
+    resolved_plan_id: str = ""
+    schema_version: str = ""
     tests: list[str] = field(default_factory=list)
     started_at: str = ""
     completed_at: str = ""
@@ -133,13 +135,21 @@ class ResultRepository(ABC):
 # ─── PocketBase implementation ───────────────────────────────────────────────
 
 
+# ── Collection names — must match pocketbase_schema.json ────────────────────
+COLL_TEST_RUNS = "festo_test_runs"
+COLL_CHECKPOINTS = "festo_checkpoints"
+COLL_SYSTEM_LOGS = "festo_system_logs"
+COLL_MEASUREMENTS = "festo_measurements"
+
+
 class PocketBaseRepository(ResultRepository):
     """PocketBase-backed repository.
 
-    Collections used:
-    - ``test_runs``     — top-level run records
-    - ``checkpoints``   — per-test-instance results
-    - ``system_logs``   — structured log events
+    Collections used (must match ``pocketbase_schema.json``):
+    - ``festo_test_runs``     — top-level run records
+    - ``festo_checkpoints``   — per-test-instance results
+    - ``festo_system_logs``   — structured log events
+    - ``festo_measurements``  — structured measurement data
     """
 
     def __init__(
@@ -227,7 +237,7 @@ class PocketBaseRepository(ResultRepository):
 
     def create_test_run(self, record: TestRunRecord) -> bool:
         return self._post(
-            "test_runs",
+            COLL_TEST_RUNS,
             {
                 "run_id": record.run_id,
                 "test_bench_id": record.test_bench_id,
@@ -238,16 +248,18 @@ class PocketBaseRepository(ResultRepository):
                 "config_commit": record.config_commit,
                 "gitlab_pipeline_id": record.gitlab_pipeline_id,
                 "gitlab_job_id": record.gitlab_job_id,
+                "resolved_plan_id": record.resolved_plan_id,
+                "schema_version": record.schema_version,
                 "tests": json.dumps(record.tests),
                 "started_at": record.started_at or _utc_now(),
             },
         )
 
     def update_test_run(self, run_id: str, status: str) -> bool:
-        existing = self._find_record("test_runs", f"(run_id='{run_id}')")
+        existing = self._find_record(COLL_TEST_RUNS, f"(run_id='{run_id}')")
         if existing:
             return self._patch(
-                "test_runs",
+                COLL_TEST_RUNS,
                 existing["id"],
                 {"status": status, "completed_at": _utc_now()},
             )
@@ -255,7 +267,7 @@ class PocketBaseRepository(ResultRepository):
 
     def add_test_result(self, record: TestResultRecord) -> bool:
         return self._post(
-            "checkpoints",
+            COLL_CHECKPOINTS,
             {
                 "run_id": record.run_id,
                 "test": record.test_id,
@@ -276,28 +288,23 @@ class PocketBaseRepository(ResultRepository):
         )
 
     def add_measurement(self, record: MeasurementRecord) -> bool:
-        # Fallback: store in system_logs until a dedicated measurements collection exists
         return self._post(
-            "system_logs",
+            COLL_MEASUREMENTS,
             {
                 "run_id": record.run_id,
-                "level": "measurement",
-                "message": record.name,
-                "details": json.dumps(
-                    {
-                        "value": record.value,
-                        "unit": record.unit,
-                        "limit_lower": record.limit_lower,
-                        "limit_upper": record.limit_upper,
-                    }
-                ),
+                "test_result_id": record.test_result_id,
+                "name": record.name,
+                "value": record.value,
+                "unit": record.unit,
+                "limit_lower": record.limit_lower,
+                "limit_upper": record.limit_upper,
                 "timestamp": record.timestamp or _utc_now(),
             },
         )
 
     def add_log_event(self, record: LogEventRecord) -> bool:
         return self._post(
-            "system_logs",
+            COLL_SYSTEM_LOGS,
             {
                 "run_id": record.run_id,
                 "level": record.level,
@@ -317,7 +324,7 @@ class PocketBaseRepository(ResultRepository):
             if bench_id:
                 params["filter"] = f"(test_bench_id='{bench_id}')"
             resp = requests.get(
-                f"{self._url}/api/collections/test_runs/records",
+                f"{self._url}/api/collections/{COLL_TEST_RUNS}/records",
                 params=params,
                 headers=self._headers(),
                 timeout=5,
@@ -329,13 +336,13 @@ class PocketBaseRepository(ResultRepository):
         return []
 
     def get_run_detail(self, run_id: str) -> dict[str, Any] | None:
-        run = self._find_record("test_runs", f"(run_id='{run_id}')")
+        run = self._find_record(COLL_TEST_RUNS, f"(run_id='{run_id}')")
         if run is None:
             return None
         # Fetch related checkpoints
         try:
             cp_resp = requests.get(
-                f"{self._url}/api/collections/checkpoints/records",
+                f"{self._url}/api/collections/{COLL_CHECKPOINTS}/records",
                 params={
                     "filter": f"(run_id='{run_id}')",
                     "sort": "created",

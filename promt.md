@@ -438,4 +438,4 @@ Review rules:
 - If information is missing, state exactly what information is missing and what assumption you used.
 
 
-In the end create a system diagram using marmaid uml to show the different systems and how they interact with each other
+

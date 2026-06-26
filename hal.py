@@ -223,6 +223,77 @@ def _module_to_info(mod: Any) -> ModuleInfo:
     )
 
 
+# ─── Cross-Process Lock ────────────────────────────────────────────────────────
+
+class CrossProcessLock:
+    """A cross-process file-based lock to prevent concurrent hardware access."""
+
+    def __init__(self, ip_address: str) -> None:
+        import tempfile
+        from pathlib import Path
+        safe_ip = ip_address.replace(".", "_").replace(":", "_")
+        self.lock_file = Path(tempfile.gettempdir()) / f"festo_bench_{safe_ip}.lock"
+        self.is_locked = False
+
+    def acquire(self, timeout: float = 60.0, poll_interval: float = 0.5) -> None:
+        import os
+        import time
+        start_time = time.time()
+        pid = os.getpid()
+        while True:
+            try:
+                # Attempt atomic lock file creation
+                fd = os.open(self.lock_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                with os.fdopen(fd, "w") as f:
+                    f.write(f"{pid}\n{time.time()}\n")
+                self.is_locked = True
+                return
+            except FileExistsError:
+                # File exists, check if process is alive or lock is stale
+                try:
+                    with open(self.lock_file, "r") as f:
+                        lines = f.readlines()
+                    lock_pid = int(lines[0].strip())
+                    lock_time = float(lines[1].strip())
+                except (IndexError, ValueError, OSError):
+                    # Corrupt or unreadable file — break lock
+                    self._force_release()
+                    continue
+
+                # Check if process is alive (works on Unix & Windows python 3.2+)
+                process_alive = True
+                try:
+                    os.kill(lock_pid, 0)
+                except OSError:
+                    process_alive = False
+
+                # Stale check: 30 minutes
+                is_stale = (time.time() - lock_time) > 1800
+
+                if not process_alive or is_stale:
+                    self._force_release()
+                    continue
+
+                if time.time() - start_time > timeout:
+                    raise TimeoutError(
+                        f"Timeout waiting for hardware lock on bench at '{self.lock_file.name}'. "
+                        f"Locked by PID {lock_pid}."
+                    )
+                time.sleep(poll_interval)
+
+    def release(self) -> None:
+        if self.is_locked:
+            self._force_release()
+            self.is_locked = False
+
+    def _force_release(self) -> None:
+        try:
+            if self.lock_file.exists():
+                self.lock_file.unlink()
+        except OSError:
+            pass
+
+
 # ─── Safe session ─────────────────────────────────────────────────────────────
 
 
@@ -242,10 +313,22 @@ class SafeSession(AbstractContextManager["HardwareInterface"]):
         self._hw = hw
         self._ip = ip_address
         self._timeout = timeout
+        self._lock = CrossProcessLock(ip_address)
 
     def __enter__(self) -> HardwareInterface:
-        self._hw.connect(self._ip, self._timeout)
-        return self._hw
+        self._lock.acquire(timeout=60.0)
+        try:
+            self._hw.connect(self._ip, self._timeout)
+            # Guarantee safe start state: reset all outputs to LOW on connect.
+            # A previous crash may have left outputs HIGH.
+            try:
+                self._hw.reset_all_outputs()
+            except Exception:
+                pass  # Best-effort — some modules may not have outputs
+            return self._hw
+        except Exception:
+            self._lock.release()
+            raise
 
     def __exit__(
         self,
@@ -258,5 +341,9 @@ class SafeSession(AbstractContextManager["HardwareInterface"]):
         except Exception:
             pass
         finally:
-            self._hw.disconnect()
+            try:
+                self._hw.disconnect()
+            except Exception:
+                pass
+            self._lock.release()
         return False  # don't suppress exceptions

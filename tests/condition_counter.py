@@ -29,6 +29,7 @@ def run(
     cc_param_id: int = 20094,
     cc_readback_param_id: int = 20095,
     toggle_cycles: int = DEFAULT_TOGGLE_CYCLES,
+    connections: list[dict] | None = None,
 ) -> list[dict]:
     """Validate Condition Counter wiring for every defined connection.
 
@@ -38,7 +39,8 @@ def run(
       3. Read final CC actual on target module
       4. Verify CC incremented ≥ *toggle_cycles*
     """
-    connections = load_connections(connections_path)
+    if connections is None:
+        connections = load_connections(connections_path)
     if not connections:
         log("warning", f"No connections found in '{connections_path}'")
         return [{"test": "condition-counter", "passed": None,

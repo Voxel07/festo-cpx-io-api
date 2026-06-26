@@ -41,6 +41,7 @@ PB_PASSWORD = os.environ.get("PB_PASSWORD", "")
 COLL_TEST_RUNS   = "festo_test_runs"
 COLL_CHECKPOINTS = "festo_checkpoints"
 COLL_SYSTEM_LOGS = "festo_system_logs"
+COLL_MEASUREMENTS = "festo_measurements"
 
 # ─── Internal state ───────────────────────────────────────────────────────────
 
@@ -128,6 +129,13 @@ def _ensure_collections() -> None:
             {"name": "results", "type": "json"},
             {"name": "started_at", "type": "text"},
             {"name": "completed_at", "type": "text"},
+            {"name": "test_bench_id", "type": "text"},
+            {"name": "test_code_commit", "type": "text"},
+            {"name": "config_commit", "type": "text"},
+            {"name": "gitlab_pipeline_id", "type": "text"},
+            {"name": "gitlab_job_id", "type": "text"},
+            {"name": "resolved_plan_id", "type": "text"},
+            {"name": "schema_version", "type": "text"},
         ],
         COLL_CHECKPOINTS: [
             {"name": "run_id", "type": "text", "required": True},
@@ -141,6 +149,16 @@ def _ensure_collections() -> None:
             {"name": "level", "type": "text"},
             {"name": "message", "type": "text"},
             {"name": "details", "type": "json"},
+            {"name": "timestamp", "type": "text"},
+        ],
+        COLL_MEASUREMENTS: [
+            {"name": "run_id", "type": "text", "required": True},
+            {"name": "test_result_id", "type": "text"},
+            {"name": "name", "type": "text", "required": True},
+            {"name": "value", "type": "number"},
+            {"name": "unit", "type": "text"},
+            {"name": "limit_lower", "type": "number"},
+            {"name": "limit_upper", "type": "number"},
             {"name": "timestamp", "type": "text"},
         ],
     }
@@ -179,7 +197,18 @@ class PocketBaseLogger:
     """Stateless logger that writes to PocketBase collections."""
 
     def test_run_started(
-        self, run_id: str, source: str, ip_address: str, tests: list[str],
+        self,
+        run_id: str,
+        source: str,
+        ip_address: str,
+        tests: list[str],
+        test_bench_id: str = "",
+        test_code_commit: str = "",
+        config_commit: str = "",
+        gitlab_pipeline_id: str = "",
+        gitlab_job_id: str = "",
+        resolved_plan_id: str = "",
+        schema_version: str = "",
     ) -> None:
         _post(COLL_TEST_RUNS, {
             "run_id": run_id,
@@ -188,6 +217,13 @@ class PocketBaseLogger:
             "status": "running",
             "tests": json.dumps(tests),
             "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "test_bench_id": test_bench_id,
+            "test_code_commit": test_code_commit,
+            "config_commit": config_commit,
+            "gitlab_pipeline_id": gitlab_pipeline_id,
+            "gitlab_job_id": gitlab_job_id,
+            "resolved_plan_id": resolved_plan_id,
+            "schema_version": schema_version,
         })
 
     def test_run_completed(self, run_id: str, results: list[dict]) -> None:
@@ -232,6 +268,27 @@ class PocketBaseLogger:
             "test": test,
             "status": status,
             "error": error or "",
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        })
+
+    def measurement(
+        self,
+        run_id: str,
+        name: str,
+        value: float,
+        unit: str = "",
+        limit_lower: float | None = None,
+        limit_upper: float | None = None,
+        test_result_id: str = "",
+    ) -> None:
+        _post(COLL_MEASUREMENTS, {
+            "run_id": run_id,
+            "test_result_id": test_result_id,
+            "name": name,
+            "value": value,
+            "unit": unit,
+            "limit_lower": limit_lower if limit_lower is not None else "",
+            "limit_upper": limit_upper if limit_upper is not None else "",
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         })
 

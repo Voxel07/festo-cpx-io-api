@@ -110,54 +110,21 @@ hardware-tests:
       export PB_PASSWORD="${PB_PASSWORD:-}"
       export GITLAB_PIPELINE_ID="$CI_PIPELINE_ID"
       export GITLAB_JOB_ID="$CI_JOB_ID"
+      export CPX_IP="${CPX_IP:-192.168.0.11}"
+      export TESTBENCH_ID="${TESTBENCH_ID:-default}"
 
       if [ "$DRY_RUN" = "true" ]; then
         echo "DRY_RUN=true — skipping hardware tests"
         exit 0
       fi
 
-      # Run tests via the FastAPI test runner
-      python -c "
-      from test_runner import run_all_tests
-      import json, os
-
-      ip = os.environ.get('CPX_IP', '192.168.0.11')
-      conn_path = os.environ.get('CONNECTIONS_PATH', 'connections.jsonc')
-      topo_path = os.environ.get('TOPOLOGY_PATH', 'topology.jsonc')
-
-      results = run_all_tests(ip, conn_path, topo_path)
-      with open('results.json', 'w') as f:
-          json.dump(results, f, indent=2, default=str)
-
-      passed = all(
-          v.get('passed', False)
-          for v in results.get('tests', {}).values()
-      )
-      print(f'All tests passed: {passed}')
-      if not passed:
-          exit(1)
-      "
-  after_script:
-    - |
-      # Upload results to PocketBase
-      if [ -f results.json ] && [ -n "$POCKETBASE_URL" ]; then
-        python -c "
-        from pocketbase_logger import pb_log
-        import json, os
-        with open('results.json') as f:
-            data = json.load(f)
-        pb_log.test_run_started(
-            run_id=os.environ.get('CI_JOB_ID', 'unknown'),
-            source='ci',
-            ip_address=data.get('ip_address', ''),
-            tests=list(data.get('tests', {}).keys()),
-        )
-        pb_log.test_run_completed(
-            run_id=os.environ.get('CI_JOB_ID', 'unknown'),
-            results=list(data.get('tests', {}).values()),
-        )
-        "
+      if [ -f "/tmp/config/${TESTBENCH_ID}.jsonc" ]; then
+        BENCH_CFG="--bench-config=/tmp/config/${TESTBENCH_ID}.jsonc"
+      else
+        BENCH_CFG=""
       fi
+
+      pytest tests/test_suite.py --junitxml=results.xml $BENCH_CFG --safety-class="${SAFETY_CLASS_FILTER:-safe}" --test-filter="${TEST_FILTER:-}"
   artifacts:
     paths:
       - results.json

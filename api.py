@@ -250,7 +250,43 @@ async def validate_connections_endpoint(request: ValidateConnectionsRequest):
     return JSONResponse(result)
 
 
-# ─── IO Direct Control ─────────────────────────────────────────────────────
+# ── Manual output auto-reset safety ──────────────────────────────────────────
+# When an output is set HIGH via /io/set-output, a timer automatically resets
+# it to LOW after _IO_AUTO_RESET_S seconds.  This prevents forgotten HIGH
+# outputs during manual wire-test sessions.
+import threading as _thr
+
+_IO_AUTO_RESET_S = int(os.environ.get("IO_AUTO_RESET_S", "60"))
+_io_timers: dict[str, _thr.Timer] = {}
+_io_timers_lock = _thr.Lock()
+
+
+def _auto_reset_output(
+    ip: str, module_addr: int, channel: str, cpp: int, timeout: float,
+) -> None:
+    """Background callback that resets an output to LOW."""
+    from hal import CpxApHardware, CrossProcessLock
+
+    port_num = int(channel.lstrip("X"))
+    base_idx = port_num * cpp
+    hw = CpxApHardware()
+    lock = CrossProcessLock(ip)
+    try:
+        lock.acquire(timeout=5.0)
+    except Exception:
+        return  # best-effort reset, skip if locked to avoid hangs
+    try:
+        hw.connect(ip, timeout)
+        for i in range(cpp):
+            hw.write_output(module_addr, base_idx + i, False)
+    except Exception:
+        pass  # best-effort
+    finally:
+        try:
+            hw.disconnect()
+        except Exception:
+            pass
+        lock.release()
 
 
 class SetOutputRequest(BaseModel):
@@ -268,27 +304,40 @@ async def io_set_output(request: SetOutputRequest):
 
     Connects, sets the output, and disconnects.  Does NOT use SafeSession
     because outputs should persist for manual testing from the frontend.
+
+    When setting HIGH, a safety timer automatically resets the output to LOW
+    after IO_AUTO_RESET_S seconds (default 60).  Setting LOW cancels any
+    pending timer.
     """
     import concurrent.futures
 
+    timer_key = f"{request.ip_address}:{request.module_addr}:{request.channel}"
+
     def _do():
-        from hal import CpxApHardware
+        from hal import CpxApHardware, CrossProcessLock
         cpp = request.channels_per_port
         port_num = int(request.channel.lstrip("X"))
         base_idx = port_num * cpp
         hw = CpxApHardware()
+        lock = CrossProcessLock(request.ip_address)
+        lock.acquire(timeout=5.0)
         try:
             hw.connect(request.ip_address, request.timeout)
             for i in range(cpp):
                 hw.write_output(request.module_addr, base_idx + i, request.value)
         finally:
-            hw.disconnect()
+            try:
+                hw.disconnect()
+            except Exception:
+                pass
+            lock.release()
         return {
             "ok": True,
             "module_addr": request.module_addr,
             "channel": request.channel,
             "value": request.value,
             "channels_written": list(range(base_idx, base_idx + cpp)),
+            "auto_reset_s": _IO_AUTO_RESET_S if request.value else None,
         }
 
     loop = asyncio.get_running_loop()
@@ -297,6 +346,25 @@ async def io_set_output(request: SetOutputRequest):
             result = await loop.run_in_executor(pool, _do)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    # ── Manage auto-reset timer ──
+    with _io_timers_lock:
+        # Cancel any existing timer for this output
+        old = _io_timers.pop(timer_key, None)
+        if old is not None:
+            old.cancel()
+
+        if request.value and _IO_AUTO_RESET_S > 0:
+            timer = _thr.Timer(
+                _IO_AUTO_RESET_S,
+                _auto_reset_output,
+                args=(request.ip_address, request.module_addr, request.channel,
+                      request.channels_per_port, request.timeout),
+            )
+            timer.daemon = True
+            timer.start()
+            _io_timers[timer_key] = timer
+
     return JSONResponse(result)
 
 
@@ -941,13 +1009,61 @@ def _execute_test_run_safe(
             loop.call_soon_threadsafe(_log_queues[run_id].put_nowait, entry)
 
     _log("info", f"Test run {run_id} started  source={source}  ip={ip_address}")
-    _pb(pb_log.test_run_started, run_id, source, ip_address, tests)
+    
+    # Load BenchConfig
+    from config_models import BenchConfig
+    bench_config = None
+    try:
+        if os.path.exists(topology_path) and os.path.exists(connections_path):
+            with open(topology_path, encoding="utf-8") as f:
+                topo_raw = json.load(f)
+            with open(connections_path, encoding="utf-8") as f:
+                conn_raw = json.load(f)
+            bench_config = BenchConfig.from_legacy(
+                topology_data=topo_raw,
+                connections_data=conn_raw,
+                bench_id=os.environ.get("TESTBENCH_ID", "default"),
+                ip_address=ip_address,
+            )
+    except Exception as exc:
+        _log("warning", f"Could not load legacy config as BenchConfig: {exc}")
+
+    # Build execution plan instances
+    plan_instances = []
+    if bench_config:
+        try:
+            from resolver import TestResolver, TestFilter
+            resolver = TestResolver()
+            for t_id in tests:
+                p = resolver.resolve(bench_config, TestFilter(test_id=t_id))
+                plan_instances.extend(p.instances)
+        except Exception as exc:
+            _log("error", f"Resolver failed to plan execution: {exc}")
+
+    # Notify PocketBase
+    commit_sha = os.environ.get("CI_COMMIT_SHA", "")
+    config_commit = os.environ.get("CONFIG_COMMIT", "")
+    _pb(
+        pb_log.test_run_started,
+        run_id,
+        source,
+        ip_address,
+        tests,
+        os.environ.get("TESTBENCH_ID", "default"),
+        commit_sha,
+        config_commit,
+        os.environ.get("CI_PIPELINE_ID", ""),
+        os.environ.get("CI_JOB_ID", ""),
+        "", # resolved_plan_id
+        "1.0" # schema_version
+    )
 
     hw = CpxApHardware()
     try:
         with SafeSession(hw, ip_address) as iface:
-            for idx, test_id in enumerate(tests):
-                _log("info", f"━━━ [{idx + 1}/{len(tests)}] {test_id} ━━━")
+            for idx, inst in enumerate(plan_instances):
+                test_id = inst.test_id
+                _log("info", f"━━━ [{idx + 1}/{len(plan_instances)}] {test_id} (Module #{inst.module_address}) ━━━")
                 if _current_test_run is not None:
                     _current_test_run["progress"]["current_test"] = test_id
                     _current_test_run["checkpoints"].append({
@@ -956,9 +1072,37 @@ def _execute_test_run_safe(
                 _pb(pb_log.checkpoint, run_id, test_id, "running")
 
                 try:
-                    result = _run_single_test_hw(
-                        iface, test_id, ip_address, connections_path, topology_path, _log,
-                    )
+                    # Per-test timeout (seconds) — prevents a stuck test
+                    # from holding hardware indefinitely.
+                    _TEST_TIMEOUT_S = int(os.environ.get("TEST_TIMEOUT_S", "300"))
+                    import threading
+                    _test_result_box: list[dict] = []
+                    _test_exc_box: list[Exception] = []
+
+                    def _run_test_target():
+                        try:
+                            r = _run_single_test_hw(
+                                iface, inst, bench_config, connections_path, topology_path, _log,
+                            )
+                            _test_result_box.append(r)
+                        except Exception as e:
+                            _test_exc_box.append(e)
+
+                    t = threading.Thread(target=_run_test_target, daemon=True)
+                    t.start()
+                    t.join(timeout=_TEST_TIMEOUT_S)
+
+                    if t.is_alive():
+                        _log("error", f"Test '{test_id}' timed out after {_TEST_TIMEOUT_S}s")
+                        result = {"test_id": test_id, "passed": False,
+                                  "error": f"Test timed out after {_TEST_TIMEOUT_S}s"}
+                    elif _test_exc_box:
+                        raise _test_exc_box[0]
+                    elif _test_result_box:
+                        result = _test_result_box[0]
+                    else:
+                        result = {"test_id": test_id, "passed": False,
+                                  "error": "Test returned no result"}
                 except Exception as exc:
                     tb = traceback.format_exc()
                     _log("error", f"Test '{test_id}' raised unhandled exception: {exc}")
@@ -974,7 +1118,14 @@ def _execute_test_run_safe(
                     replaced_existing = False
                     for i, existing in enumerate(results_list):
                         if isinstance(existing, dict) and existing.get("test_id") == test_id:
-                            results_list[i] = result
+                            if isinstance(existing, dict) and "results" in existing and "results" in result:
+                                existing["results"].extend(result["results"])
+                                existing["passed"] = existing.get("passed", True) and result.get("passed", True)
+                                existing["all_passed"] = existing["passed"]
+                                if "duration_ms" in existing and "duration_ms" in result and result["duration_ms"] is not None:
+                                    existing["duration_ms"] = round((existing["duration_ms"] or 0) + result["duration_ms"], 1)
+                            else:
+                                results_list[i] = result
                             replaced_existing = True
                             break
                     if not replaced_existing:
@@ -994,7 +1145,7 @@ def _execute_test_run_safe(
                             _pb(pb_log.checkpoint, run_id, test_id, "failed", err[:500])
                             _pb(pb_log.error, run_id, f"Test '{test_id}' failed: {err}")
 
-            _log("info", f"All {len(tests)} test(s) completed")
+            _log("info", f"All {len(plan_instances)} test(s) completed")
     except Exception as exc:
         if _current_test_run is not None:
             _current_test_run["status"] = "error"
@@ -1029,13 +1180,15 @@ def _execute_test_run_safe(
 
 def _run_single_test_hw(
     hw,
-    test_id: str,
-    ip_address: str,
+    resolved_instance,
+    bench_config,
     connections_path: str,
     topology_path: str,
     log,
 ) -> dict:
     """Dispatch a single test using a pre-connected HardwareInterface."""
+    test_id = resolved_instance.test_id
+    addr = resolved_instance.module_address
 
     def _init_live_results(modules: list):
         """Pre-populate all modules as pending so the UI shows them immediately."""
@@ -1076,7 +1229,6 @@ def _run_single_test_hw(
         results = _current_test_run.get("results")
         if not isinstance(results, list):
             return
-        # Find or create the current test's entry
         entry = None
         for r in results:
             if isinstance(r, dict) and r.get("test_id") == test_id:
@@ -1087,7 +1239,6 @@ def _run_single_test_hw(
             results.append(entry)
         sub = entry.get("results")
         if isinstance(sub, list):
-            # Replace pending entry for this module if it exists, else append
             mod_addr = mod_result.get("address")
             replaced = False
             if mod_addr is not None:
@@ -1099,7 +1250,6 @@ def _run_single_test_hw(
                         break
             if not replaced:
                 sub.append(mod_result)
-            # Update running totals
             all_ok = all(
                 r.get("passed", False)
                 for r in sub
@@ -1121,73 +1271,142 @@ def _run_single_test_hw(
     from tests.remanent_params import run as run_rem
     from tests.output_toggle import run as run_output_toggle
 
-    test_map: dict[str, callable] = {
-        "validate-connections": lambda: run_validate(hw, connections_path, log=log),
-        "compare-topology": lambda: run_compare(topology_path, hw, log=log),
-        "condition-counter": lambda: run_cc(hw, connections_path, log=log),
-        "valve-condition-counter": lambda: run_vcc(hw, log=log),
-        "remanent-params": lambda: run_rem(hw, connections_path, log=log),
-        "output-toggle": lambda: (
-            _init_live_results([m for m in hw.read_topology() if m.num_outputs > 0 or m.num_inouts > 0]),
-            run_output_toggle(hw, connections_path, log=log,
-                on_module=lambda addr: _update_current_module(addr),
-                on_result=lambda r: _push_live_module_result(r))
-        )[1],
-    }
+    raw = None
 
-    if test_id in test_map:
-        raw = test_map[test_id]()
-        # Normalize: wrap plain lists so all results are uniform dicts
-        if isinstance(raw, list):
-            # Ensure every sub-result has an 'address' for the frontend (#? fix)
-            for r in raw:
+    if test_id == "connection-validation":
+        wire = next((w for w in bench_config.wiring if w.id == resolved_instance.wiring_id), None)
+        if wire:
+            src_mod = next((m for m in bench_config.module_instances if m.instance_id == wire.source_instance_id), None)
+            tgt_mod = next((m for m in bench_config.module_instances if m.instance_id == wire.target_instance_id), None)
+            if src_mod and tgt_mod:
+                conn = {
+                    "source_module_addr": src_mod.address,
+                    "source_channel": wire.source_channel,
+                    "target_module_addr": tgt_mod.address,
+                    "target_channel": wire.target_channel,
+                }
+                raw = run_validate(
+                    hw_or_ip=hw,
+                    log=log,
+                    connections=[conn],
+                    pulse_duration_s=resolved_instance.parameters.get("pulse_duration_s", 0.3)
+                )
+
+    elif test_id == "condition-counter":
+        conns = []
+        for wire in bench_config.wiring:
+            if wire.target_instance_id == resolved_instance.module_instance_id:
+                src_mod = next((m for m in bench_config.module_instances if m.instance_id == wire.source_instance_id), None)
+                tgt_mod = next((m for m in bench_config.module_instances if m.instance_id == wire.target_instance_id), None)
+                if src_mod and tgt_mod:
+                    conns.append({
+                        "source_module_addr": src_mod.address,
+                        "source_channel": wire.source_channel,
+                        "target_module_addr": tgt_mod.address,
+                        "target_channel": wire.target_channel,
+                    })
+        if conns:
+            raw = run_cc(
+                hw=hw,
+                log=log,
+                cc_param_id=resolved_instance.parameters.get("cc_param_id", 20094),
+                cc_readback_param_id=resolved_instance.parameters.get("cc_readback_param_id", 20095),
+                toggle_cycles=resolved_instance.parameters.get("toggle_cycles", 3),
+                connections=conns
+            )
+
+    elif test_id == "remanent-params":
+        raw = run_rem(
+            hw=hw,
+            log=log,
+            param_id_1=resolved_instance.parameters.get("param_id_1", 20118),
+            param_id_2=resolved_instance.parameters.get("param_id_2", 20119),
+            module_address=resolved_instance.module_address
+        )
+
+    elif test_id == "valve-condition-counter":
+        raw = run_vcc(
+            hw=hw,
+            log=log,
+            toggle_cycles=resolved_instance.parameters.get("toggle_cycles", 5),
+            cc_param_id=resolved_instance.parameters.get("cc_param_id", 20094),
+            cc_readback_param_id=resolved_instance.parameters.get("cc_readback_param_id", 20095),
+            module_address=resolved_instance.module_address
+        )
+
+    elif test_id in ("valve-toggle", "output-toggle"):
+        _init_live_results([m for m in hw.read_topology() if m.address == resolved_instance.module_address])
+        _update_current_module(resolved_instance.module_address)
+        raw = run_output_toggle(
+            hw=hw,
+            log=log,
+            pulse_duration_s=resolved_instance.parameters.get("pulse_duration_s", 0.2),
+            module_address=resolved_instance.module_address,
+            on_result=lambda r: _push_live_module_result(r)
+        )
+
+    elif test_id == "compare-topology":
+        raw = run_compare(
+            stored_path=topology_path,
+            hw=hw,
+            log=log
+        )
+
+    elif test_id == "system-diagnosis":
+        try:
+            diag = hw.read_diagnosis(addr)
+            raw = {"passed": diag is not None, "diagnosis": str(diag), "results": [{"module": str(addr), "passed": diag is not None}]}
+        except Exception as exc:
+            raw = {"passed": False, "error": str(exc), "results": [{"module": str(addr), "passed": False, "error": str(exc)}]}
+
+    if raw is None:
+        raw = {"test_id": test_id, "passed": None, "error": f"Test '{test_id}' not implemented or skipped"}
+
+    if isinstance(raw, list):
+        for r in raw:
+            if isinstance(r, dict) and "address" not in r:
+                if "source_addr" in r:
+                    r["address"] = r["source_addr"]
+                elif "module_addr" in r:
+                    r["address"] = r["module_addr"]
+        passed = all(
+            r.get("passed", False)
+            for r in raw
+            if isinstance(r, dict) and r.get("passed") is not None
+        )
+        total_ms = sum(
+            r.get("duration_ms", 0)
+            for r in raw
+            if isinstance(r, dict)
+        )
+        raw = {
+            "results": raw,
+            "all_passed": passed,
+            "passed": passed,
+            "test_id": test_id,
+            "duration_ms": round(total_ms, 1) if total_ms > 0 else None,
+        }
+    elif isinstance(raw, dict):
+        if "all_passed" in raw:
+            raw["passed"] = bool(raw.get("all_passed", False))
+        raw.setdefault("test_id", test_id)
+        sub = raw.get("results", [])
+        if isinstance(sub, list):
+            for r in sub:
                 if isinstance(r, dict) and "address" not in r:
                     if "source_addr" in r:
                         r["address"] = r["source_addr"]
                     elif "module_addr" in r:
                         r["address"] = r["module_addr"]
-            passed = all(
-                r.get("passed", False)
-                for r in raw
-                if isinstance(r, dict) and r.get("passed") is not None
-            )
-            # Sum sub-result durations for the test-level total
-            total_ms = sum(
-                r.get("duration_ms", 0)
-                for r in raw
-                if isinstance(r, dict)
-            )
-            raw = {
-                "results": raw,
-                "all_passed": passed,
-                "passed": passed,
-                "test_id": test_id,
-                "duration_ms": round(total_ms, 1) if total_ms > 0 else None,
-            }
-        elif isinstance(raw, dict):
-            if "all_passed" in raw:
-                raw["passed"] = bool(raw.get("all_passed", False))
-            raw.setdefault("test_id", test_id)
-            # Sum sub-result durations if present, and patch missing 'address'
-            sub = raw.get("results", [])
-            if isinstance(sub, list):
-                for r in sub:
-                    if isinstance(r, dict) and "address" not in r:
-                        if "source_addr" in r:
-                            r["address"] = r["source_addr"]
-                        elif "module_addr" in r:
-                            r["address"] = r["module_addr"]
-                if "duration_ms" not in raw:
-                    total_ms = sum(
-                        r.get("duration_ms", 0)
-                        for r in sub
-                        if isinstance(r, dict)
-                    )
-                    if total_ms > 0:
-                        raw["duration_ms"] = round(total_ms, 1)
-        return raw
-
-    return {"test_id": test_id, "passed": None, "error": f"Test '{test_id}' not implemented"}
+            if "duration_ms" not in raw:
+                total_ms = sum(
+                    r.get("duration_ms", 0)
+                    for r in sub
+                    if isinstance(r, dict)
+                )
+                if total_ms > 0:
+                    raw["duration_ms"] = round(total_ms, 1)
+    return raw
 
 
 # Mount the Vite-built static assets (JS bundles, CSS, etc.) LAST so that all

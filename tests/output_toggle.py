@@ -20,6 +20,7 @@ def run(
     pause_between_modules_s: float = 0.3,
     on_module: callable = None,  # (address: int) -> None — called before each module
     on_result: callable = None,  # (result: dict) -> None — called after each module (live push)
+    module_address: int | None = None,
 ) -> list[dict]:
     """Toggle each output channel on every output-capable module.
 
@@ -37,6 +38,8 @@ def run(
     """
     topology = hw.read_topology()
     output_mods = [m for m in topology if m.num_outputs > 0 or m.num_inouts > 0]
+    if module_address is not None:
+        output_mods = [m for m in output_mods if m.address == module_address]
 
     if not output_mods:
         log("warning", "No output-capable modules found on bus")

@@ -38,6 +38,7 @@ def run(
     log: LogFn = noop_log,
     cc_param_id: int = 20094,
     cc_readback_param_id: int = 20095,
+    module_address: int | None = None,
 ) -> list[dict]:
     """Test CC behaviour on VABX valve terminals.
 
@@ -48,6 +49,8 @@ def run(
       4. Verify CC incremented ≥ N
     """
     topology = hw.read_topology()
+    if module_address is not None:
+        topology = [m for m in topology if m.address == module_address]
     compat = load_compatibility()
 
     # ── Filter: only valve terminals listed in compatibility matrix ──

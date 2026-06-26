@@ -67,13 +67,15 @@ def run(
     timeout: float = 0,
     pulse_duration_s: float = 0.3,
     log: LogFn = noop_log,
+    connections: list[dict] | None = None,
 ) -> dict:
     """Validate all I/O connections listed in *connections_path*.
 
     Accepts either a pre-connected :class:`HardwareInterface` or an IP address
     string (creates a temporary :class:`SafeSession`).
     """
-    connections = load_connections(connections_path)
+    if connections is None:
+        connections = load_connections(connections_path)
     if not connections:
         log("warning", f"No connections found in '{connections_path}'")
         return {

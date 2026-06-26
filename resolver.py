@@ -29,6 +29,7 @@ from config_models import (
     SafetyClass,
     TestDefinition,
     WiringConnection,
+    create_basic_test_definitions,
 )
 
 
@@ -238,7 +239,7 @@ class TestResolver:
 
         # ── Apply filters ──
         if filters:
-            instances = self._apply_filters(instances, filters)
+            instances = self._apply_filters(instances, filters, config)
 
         # ── Deduplicate by unique_id ──
         seen: set[str] = set()
@@ -308,10 +309,17 @@ class TestResolver:
     def _apply_filters(
         instances: list[ResolvedTestInstance],
         filters: TestFilter,
+        config: BenchConfig,
     ) -> list[ResolvedTestInstance]:
         result = instances
         if filters.test_id:
-            result = [i for i in result if i.test_id == filters.test_id]
+            tid = filters.test_id
+            if tid == "validate-connections":
+                result = [i for i in result if i.test_id == "connection-validation"]
+            elif tid == "output-toggle":
+                result = [i for i in result if i.test_id in ("output-toggle", "valve-toggle")]
+            else:
+                result = [i for i in result if i.test_id == tid]
         if filters.module_instance_id:
             result = [i for i in result if i.module_instance_id == filters.module_instance_id]
         if filters.module_code:
@@ -319,8 +327,8 @@ class TestResolver:
         if filters.product_key:
             result = [i for i in result if i.product_key == filters.product_key]
         if filters.capability:
-            # Soft filter — keeps instances that might match
-            pass
+            required_caps = {td.test_id: td.required_capabilities for td in config.test_definitions}
+            result = [i for i in result if filters.capability in required_caps.get(i.test_id, [])]
         if filters.safety_class:
             result = [i for i in result if i.safety_class == filters.safety_class]
         return result
@@ -335,105 +343,3 @@ class TestResolver:
         out.parent.mkdir(parents=True, exist_ok=True)
         with open(out, "w", encoding="utf-8") as f:
             json.dump(plan.to_dict(), f, indent=2)
-
-
-# ─── Convenience ──────────────────────────────────────────────────────────────
-
-
-def create_basic_test_definitions() -> list[TestDefinition]:
-    """Return a sensible default set of test definitions.
-
-    These cover the most common CPX-AP module types and can be overridden
-    in bench-specific config files.
-    """
-    return [
-        TestDefinition(
-            test_id="connection-validation",
-            name="Connection Validation",
-            version="1.0.0",
-            description="Pulse source outputs and verify target inputs to validate wiring",
-            required_capabilities=["digital_output", "digital_input"],
-            required_wiring_type=ConnectionType.PHYSICAL,
-            supported_categories=[ModuleCategory("output"), ModuleCategory("input"), ModuleCategory("inout")],
-            safety_class=SafetyClass.SAFE,
-            allowed_in_ci=True,
-            can_run_parallel=False,
-            parameters={"pulse_duration_s": 0.3},
-        ),
-        TestDefinition(
-            test_id="condition-counter",
-            name="Condition Counter",
-            version="1.0.0",
-            description="Read and verify condition counter parameters",
-            required_capabilities=["condition_counter"],
-            supported_categories=[ModuleCategory("output"), ModuleCategory("input"), ModuleCategory("inout")],
-            safety_class=SafetyClass.SAFE,
-            allowed_in_ci=True,
-            parameters={"cc_param_id": 20094, "cc_readback_param_id": 20095},
-        ),
-        TestDefinition(
-            test_id="valve-condition-counter",
-            name="Valve Condition Counter",
-            version="1.0.0",
-            description="Set CC setpoint, toggle valves past threshold, verify diagnosis",
-            required_capabilities=["condition_counter", "valve_output"],
-            supported_categories=[ModuleCategory("valve"), ModuleCategory("inout")],
-            safety_class=SafetyClass.CAUTION,
-            allowed_in_ci=True,
-            can_run_parallel=False,
-            parameters={"cc_param_id": 20094, "cc_readback_param_id": 20095, "toggle_cycles": 5},
-        ),
-        TestDefinition(
-            test_id="remanent-params",
-            name="Remanent Parameters",
-            version="1.0.0",
-            description="Write test values to remanent parameters, verify persistence after power cycle",
-            required_capabilities=["remanent_params"],
-            supported_categories=[
-                ModuleCategory("input"),
-                ModuleCategory("output"),
-                ModuleCategory("inout"),
-                ModuleCategory("valve"),
-                ModuleCategory("bus"),
-            ],
-            safety_class=SafetyClass.SAFE,
-            allowed_in_ci=True,
-            can_run_parallel=False,
-            parameters={"param_id_1": 20118, "param_id_2": 20119},
-        ),
-        TestDefinition(
-            test_id="valve-toggle",
-            name="Valve Toggle",
-            version="1.0.0",
-            description="Toggle all valve channels ON/OFF and verify state changes",
-            required_capabilities=["valve_output"],
-            supported_categories=[ModuleCategory("valve")],
-            safety_class=SafetyClass.CAUTION,
-            allowed_in_ci=True,
-            can_run_parallel=False,
-        ),
-        TestDefinition(
-            test_id="compare-topology",
-            name="Topology Comparison",
-            version="1.0.0",
-            description="Compare stored topology against live hardware",
-            required_capabilities=[],
-            supported_categories=[],
-            safety_class=SafetyClass.SAFE,
-            allowed_in_ci=True,
-        ),
-        TestDefinition(
-            test_id="system-diagnosis",
-            name="System Diagnosis",
-            version="1.0.0",
-            description="Read global system diagnosis registers",
-            required_capabilities=["system_diagnosis"],
-            supported_categories=[ModuleCategory("bus")],
-            safety_class=SafetyClass.SAFE,
-            allowed_in_ci=True,
-        ),
-    ]
-
-
-# Import needed for default test definitions
-from config_models import ModuleCategory  # noqa: E402, F811

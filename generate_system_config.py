@@ -61,8 +61,14 @@ def module_to_topology_entry(module: ApModule) -> dict:
 
 def generate_topology(ip_address: str, timeout: float = 0) -> dict:
     """Connect to a CPX-AP system and return its topology as a dict."""
-    with CpxAp(ip_address=ip_address, timeout=timeout) as cpx_ap:
-        entries = [module_to_topology_entry(m) for m in cpx_ap.modules]
+    from hal import CrossProcessLock
+    lock = CrossProcessLock(ip_address)
+    lock.acquire(timeout=30.0)
+    try:
+        with CpxAp(ip_address=ip_address, timeout=timeout) as cpx_ap:
+            entries = [module_to_topology_entry(m) for m in cpx_ap.modules]
+    finally:
+        lock.release()
 
     return {
         "Name": f"Topology {ip_address}",
@@ -270,25 +276,31 @@ def validate_connections(
     results: list[dict] = []
     passed_count = 0
 
-    with CpxAp(ip_address=ip_address, timeout=timeout) as cpx_ap:
-        for conn in connections:
-            # Skip connections where source/target is a valve body (VABX) – those
-            # have no writable M12 ports in the standard way.
-            try:
-                result = validate_single_connection(cpx_ap, conn, pulse_duration_s)
-            except Exception as exc:
-                result = {
-                    "passed": False,
-                    "error": str(exc),
-                    "source_addr": conn.get("source_module_addr"),
-                    "target_addr": conn.get("target_module_addr"),
-                    "source_channel": conn.get("source_channel"),
-                    "target_channel": conn.get("target_channel"),
-                }
-            results.append(result)
-            if result.get("passed"):
-                passed_count += 1
-            time.sleep(0.05)
+    from hal import CrossProcessLock
+    lock = CrossProcessLock(ip_address)
+    lock.acquire(timeout=30.0)
+    try:
+        with CpxAp(ip_address=ip_address, timeout=timeout) as cpx_ap:
+            for conn in connections:
+                # Skip connections where source/target is a valve body (VABX) – those
+                # have no writable M12 ports in the standard way.
+                try:
+                    result = validate_single_connection(cpx_ap, conn, pulse_duration_s)
+                except Exception as exc:
+                    result = {
+                        "passed": False,
+                        "error": str(exc),
+                        "source_addr": conn.get("source_module_addr"),
+                        "target_addr": conn.get("target_module_addr"),
+                        "source_channel": conn.get("source_channel"),
+                        "target_channel": conn.get("target_channel"),
+                    }
+                results.append(result)
+                if result.get("passed"):
+                    passed_count += 1
+                time.sleep(0.05)
+    finally:
+        lock.release()
 
     failed_count = len(results) - passed_count
 
