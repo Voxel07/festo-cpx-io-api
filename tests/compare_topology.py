@@ -17,22 +17,49 @@ def run(
     hw: HardwareInterface,
     log: LogFn = noop_log,
 ) -> dict:
-    """Compare *topology_path* against the live device via *hw*."""
-    log("info", f"Loading stored topology from '{topology_path}' …")
     t_start = time.time()
-    path = Path(topology_path)
-    if not path.exists():
-        err = f"Topology file not found: {path.resolve()}"
+    from config_models import BenchConfig
+    try:
+        config = BenchConfig.model_validate_json(Path(topology_path).read_text(encoding="utf-8"))
+    except Exception as exc:
+        err = f"Could not load BenchConfig: {exc}"
         log("error", err)
         return {"passed": False, "has_diff": True, "error": err,
                 "changes": [], "added": [], "removed": [],
                 "duration_ms": round((time.time() - t_start) * 1000, 1)}
 
-    with open(path, encoding="utf-8") as f:
-        stored = json.load(f)
+    stored_modules = []
+    for inst in config.module_instances:
+        type_def = config.module_types.get(inst.module_type_ref)
+        num_in = type_def.num_inputs if type_def else 0
+        num_out = type_def.num_outputs if type_def else 0
+        num_io = type_def.num_configurable if type_def else 0
+        series = type_def.product_family if type_def else ""
 
-    stored_modules = stored.get("Topology", [])
-    log("info", f"Stored topology has {len(stored_modules)} module(s)")
+        cat = inst.category.value
+        m_type = "Input"
+        if cat == "valve":
+            m_type = "Valve"
+        elif cat == "inout":
+            m_type = "In/Out"
+        elif cat == "output":
+            m_type = "Output"
+        elif cat == "bus":
+            m_type = "Bus"
+
+        stored_modules.append({
+            "Name": inst.display_name,
+            "Modulecode": inst.module_code,
+            "ProductKey": inst.product_key,
+            "Adress": inst.address,
+            "Series": series,
+            "Type": m_type,
+            "NumOfInputs": num_in,
+            "NumOfOutputs": num_out,
+            "NumOfInOuts": num_io,
+        })
+
+    log("info", f"Stored config has {len(stored_modules)} module(s)")
 
     log("info", "Reading live topology …")
     try:
@@ -46,6 +73,11 @@ def run(
 
     def _derive_type(m) -> str:
         """Derive module type string from channel counts (matches stored format)."""
+        name_up = m.name.upper()
+        if any(x in name_up for x in ("EP", "EC", "PN", "PB", "EPLI")):
+            return "Bus"
+        if m.name.upper().startswith("VABX"):
+            return "Valve"
         if m.num_inouts > 0 or (m.num_inputs > 0 and m.num_outputs > 0):
             return "In/Out"
         if m.num_outputs > 0:
@@ -109,7 +141,7 @@ def run(
         "changes": changes,
         "added": added,
         "removed": removed,
-        "stored": stored,
-        "live": live_modules,
+        "stored": {"Topology": stored_modules},
+        "live": {"Topology": live_modules},
         "duration_ms": round((time.time() - t_start) * 1000, 1),
     }

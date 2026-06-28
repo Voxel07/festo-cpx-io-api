@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from hal import HardwareInterface
+from valve_channels import expand_valve_indices, channels_per_valve
 from ._base import (
     LogFn, is_module_compatible, is_valve_terminal, load_compatibility, noop_log,
 )
@@ -154,20 +155,25 @@ def run(
                 continue
 
             # ── Step 2: Toggle each mounted valve output ──────────────
+            # Expand valve slot indices → hardware channel indices
+            # (V4A/V4B/V4C: 2 channels/valve; VEAM: 1 channel/valve)
+            all_channels = expand_valve_indices(mounted, mod_info.name)
+            cpv = channels_per_valve(mod_info.name)
             step2_ts = time.time()
             cycles = toggle_cycles + 2
             log("info", f"  [2] Toggling {len(mounted)} valve(s) × {cycles} cycles "
-                 f"(channels: {mounted}) …")
+                 f"(valves: {mounted}, channels: {all_channels}, {cpv}c/valve) …")
             for cycle in range(cycles):
-                for ch in mounted:
+                for ch in all_channels:
                     hw.write_output(addr, ch, True)
                 time.sleep(0.05)
-                for ch in mounted:
+                for ch in all_channels:
                     hw.write_output(addr, ch, False)
                 time.sleep(0.05)
             result["steps"].append({
                 "step": 2, "label": f"Toggle valves ×{cycles}",
-                "channels": mounted, "cycles": cycles, "passed": True,
+                "valves": mounted, "channels": all_channels,
+                "channels_per_valve": cpv, "cycles": cycles, "passed": True,
                 "duration_ms": round((time.time() - step2_ts) * 1000, 1),
             })
 
@@ -177,12 +183,13 @@ def run(
             step3_ts = time.time()
             try:
                 cc_raw = hw.read_parameter(addr, cc_readback_param_id)
-                # VABX returns a list (per-channel instances); extract
-                # only the mounted channels for comparison.
+                # VABX returns a list indexed by valve slot (not hardware channel).
+                # Extract only the mounted valve slots for comparison.
                 if isinstance(cc_raw, list):
                     cc_act = min(cc_raw[i] for i in mounted) if mounted else 0
                     result["cc_actual"] = cc_raw
-                    result["cc_per_channel"] = {i: cc_raw[i] for i in mounted}
+                    result["cc_per_valve"] = {i: cc_raw[i] for i in mounted}
+                    result["channels_per_valve"] = cpv
                 else:
                     cc_act = cc_raw
                     result["cc_actual"] = cc_act

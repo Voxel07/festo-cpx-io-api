@@ -32,14 +32,6 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from generate_system_config import (
-    generate_topology,
-    save_topology,
-    save_topology_with_valves,
-    compare_topology,
-    validate_connections,
-)
-
 # ── New architecture components ───────────────────────────────────────────────
 try:
     from hal import CpxApHardware, SafeSession
@@ -69,23 +61,28 @@ app = FastAPI(
 )
 
 # Serve SVG product images at /svg/<filename>
-app.mount("/svg", StaticFiles(directory="SVG"), name="svg")
+# app.mount("/svg", StaticFiles(directory="SVG"), name="svg")
 
 # Serve the compiled Vite app (dist/) in production.
 # Must be mounted AFTER the API routes so it only catches remaining paths.
 _DIST = Path("dist")
 
 
-class TopologyRequest(BaseModel):
+class ConfigGenerateRequest(BaseModel):
     ip_address: str = Field(..., examples=["192.168.0.11"], description="IP address of the CPX-AP gateway")
-    timeout: float = Field(0.0, ge=0, description="Modbus timeout in seconds (0 = keep device setting)")
-    save_path: str | None = Field(None, description="Optional file path to save topology.jsonc")
+    timeout: float = Field(0.0, ge=0, description="Modbus timeout in seconds")
+    save_path: str = Field("bench_config.json", description="File path to save the generated BenchConfig")
 
 
-class CompareRequest(BaseModel):
+class ConfigCompareRequest(BaseModel):
     ip_address: str = Field(..., examples=["192.168.0.11"], description="IP address of the CPX-AP gateway")
-    timeout: float = Field(0.0, ge=0, description="Modbus timeout in seconds (0 = keep device setting)")
-    stored_path: str = Field(..., description="Path to the stored topology.jsonc file to compare against")
+    timeout: float = Field(0.0, ge=0, description="Modbus timeout in seconds")
+    config_path: str = Field("bench_config.json", description="Path to the stored bench_config.json to compare against")
+
+
+class ConfigSavePayload(BaseModel):
+    config: BenchConfig = Field(..., description="Full BenchConfig structure")
+    save_path: str = Field("bench_config.json", description="File path to save the BenchConfig JSON")
 
 
 @app.get("/", response_class=FileResponse, include_in_schema=False)
@@ -107,146 +104,91 @@ async def svg_map():
         return JSONResponse(json.load(f))
 
 
-@app.post("/topology")
-async def get_topology(request: TopologyRequest):
-    """Generate the topology for the given CPX-AP system.
-
-    Returns the topology JSON and optionally saves it to a file.
-    """
+@app.post("/config/generate")
+async def generate_config(request: ConfigGenerateRequest):
+    """Query live hardware to discover modules and generate a modern BenchConfig structure."""
     try:
-        topology = generate_topology(request.ip_address, request.timeout)
+        from hal import CpxApHardware, SafeSession
+        hw = CpxApHardware()
+        with SafeSession(hw, request.ip_address, timeout=request.timeout) as iface:
+            modules = iface.read_topology()
+        config = BenchConfig.from_hardware(modules, request.ip_address)
+
+        # Preserve existing wiring and mounted_valves from the current file (if any)
+        save_path = Path(request.save_path)
+        if save_path.exists():
+            try:
+                existing = BenchConfig.model_validate_json(save_path.read_text(encoding="utf-8"))
+                # Merge wiring
+                if existing.wiring:
+                    config.wiring = existing.wiring
+                # Merge mounted_valves per module instance (match by address)
+                existing_valves: dict[int, list[int]] = {}
+                for inst in (existing.module_instances or []):
+                    mv = inst.mounted_valves
+                    if mv is not None and len(mv) >= 0:
+                        existing_valves[inst.address] = list(mv)
+                for inst in (config.module_instances or []):
+                    if inst.address in existing_valves:
+                        inst.mounted_valves = existing_valves[inst.address]
+            except Exception:
+                pass  # existing file is corrupt or missing — proceed with fresh config
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    saved_to: str | None = None
-    if request.save_path:
-        try:
-            save_path = Path(request.save_path)
-            save_path.parent.mkdir(parents=True, exist_ok=True)
-            save_topology(topology, str(save_path))
-            saved_to = str(save_path.resolve())
-        except OSError as exc:
-            raise HTTPException(status_code=500, detail=f"Could not save file: {exc}") from exc
-
-    return JSONResponse({"topology": topology, "saved_to": saved_to})
-
-
-@app.get("/topology")
-async def get_topology_query(
-    ip_address: str = Query(..., description="IP address of the CPX-AP gateway"),
-    timeout: float = Query(0.0, ge=0, description="Modbus timeout in seconds"),
-    save_path: str | None = Query(None, description="Optional path to save topology.jsonc"),
-):
-    """Generate topology via GET request (useful for quick testing in a browser)."""
-    return await get_topology(TopologyRequest(ip_address=ip_address, timeout=timeout, save_path=save_path))
-
-
-@app.post("/compare")
-async def compare(request: CompareRequest):
-    """Compare a stored topology file against the live CPX-AP system.
-
-    Returns stored and live topologies plus a structured diff:
-    * ``changes``  - field-level differences for modules present in both
-    * ``added``    - modules present in live but absent in the stored file
-    * ``removed``  - modules present in the stored file but absent in live
-    * ``has_diff`` - True when any difference was found
-    """
-    stored_path = Path(request.stored_path)
-    if not stored_path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"Stored topology file not found: {stored_path.resolve()}",
-        )
     try:
-        result = compare_topology(str(stored_path), request.ip_address, request.timeout)
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-    return JSONResponse(result)
-
-
-class ConnectionsPayload(BaseModel):
-    topology_name: str | None = Field(None, description="Name of the topology these connections belong to")
-    connections: list[dict] = Field(..., description="List of I/O connection objects")
-    save_path: str = Field(..., description="File path to save the connections JSON")
-    mounted_valves: dict | None = Field(None, description="Mounted valve indices per module address")
-
-
-@app.post("/connections")
-async def save_connections(payload: ConnectionsPayload):
-    """Persist I/O connections drawn in the topology editor to a JSON file."""
-    data = {
-        "version": "1.0",
-        "topology_name": payload.topology_name,
-        "connections": payload.connections,
-    }
-    if payload.mounted_valves:
-        data["mounted_valves"] = payload.mounted_valves
-    path = Path(payload.save_path)
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        save_path = Path(request.save_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        save_path.write_text(config.model_dump_json(indent=2), encoding="utf-8")
     except OSError as exc:
-        raise HTTPException(status_code=500, detail=f"Could not save: {exc}") from exc
-    return JSONResponse({"saved_to": str(path.resolve())})
+        raise HTTPException(status_code=500, detail=f"Could not save file: {exc}") from exc
+
+    return JSONResponse({"config": config.model_dump(), "saved_to": str(save_path.resolve())})
 
 
-@app.get("/connections")
-async def load_connections(file_path: str = Query(..., description="Path to the connections JSON file")):
-    """Load a previously saved connections file."""
+@app.get("/config")
+async def load_config(file_path: str = Query("bench_config.json", description="Path to the BenchConfig JSON file")):
+    """Load a previously saved unified BenchConfig file."""
     path = Path(file_path)
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"File not found: {path.resolve()}")
-    with open(path, encoding="utf-8") as f:
-        return JSONResponse(json.load(f))
-
-
-class SaveTopologyPayload(BaseModel):
-    topology: dict = Field(..., description="Full topology JSON including MountedValves fields")
-    save_path: str = Field("topology.jsonc", description="File path to save")
-
-
-@app.post("/topology/save-with-valves")
-async def save_topology_valves(payload: SaveTopologyPayload):
-    """Save an in-memory topology (with valve-mount edits) to a JSON file.
-
-    Unlike ``POST /topology``, this does NOT re-read from the device — it
-    persists the topology exactly as provided so that valve-config edits
-    (``MountedValves``) are kept.
-    """
     try:
-        path = Path(payload.save_path)
+        config = BenchConfig.model_validate_json(path.read_text(encoding="utf-8"))
+        return JSONResponse(config.model_dump())
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid configuration format: {exc}")
+
+
+@app.post("/config")
+async def save_config(payload: ConfigSavePayload):
+    """Persist a complete BenchConfig structure (topology + connections) to a JSON file."""
+    path = Path(payload.save_path)
+    try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        save_topology_with_valves(payload.topology, str(path))
+        path.write_text(payload.config.model_dump_json(indent=2), encoding="utf-8")
     except OSError as exc:
-        raise HTTPException(status_code=500, detail=f"Could not save: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"Could not save config: {exc}") from exc
     return JSONResponse({"saved_to": str(path.resolve())})
 
 
-class ValidateConnectionsRequest(BaseModel):
-    ip_address: str = Field(..., description="IP address of the CPX-AP gateway")
-    connections_path: str = Field("connections.jsonc", description="Path to connections JSON file")
-    timeout: float = Field(0.0, ge=0, description="Modbus timeout in seconds")
-    pulse_duration_s: float = Field(0.3, ge=0.1, le=5.0,
-                                    description="How long to hold output HIGH for each connection")
-
-
-@app.post("/validate-connections")
-async def validate_connections_endpoint(request: ValidateConnectionsRequest):
-    """Validate I/O connections by pulsing each source output and reading the target input.
-
-    Returns a detailed per-connection pass/fail report.
-    """
-    try:
-        result = validate_connections(
-            ip_address=request.ip_address,
-            connections_path=request.connections_path,
-            timeout=request.timeout,
-            pulse_duration_s=request.pulse_duration_s,
+@app.post("/config/compare")
+async def compare_config(request: ConfigCompareRequest):
+    """Compare a stored BenchConfig module instances against the live CPX-AP system."""
+    stored_path = Path(request.config_path)
+    if not stored_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Stored configuration file not found: {stored_path.resolve()}",
         )
+    try:
+        from hal import CpxApHardware, SafeSession
+        from tests.compare_topology import run as run_compare
+        hw = CpxApHardware()
+        with SafeSession(hw, request.ip_address, timeout=request.timeout) as iface:
+            result = run_compare(str(stored_path), iface)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
     return JSONResponse(result)
 
 
@@ -404,6 +346,103 @@ async def io_read_input(
     return JSONResponse(result)
 
 
+class SetAllOutputsRequest(BaseModel):
+    ip_address: str = Field(..., description="IP of the CPX-AP gateway")
+    module_addr: int = Field(..., description="Module bus address (0-based position)")
+    value: bool = Field(..., description="True = all HIGH, False = all LOW")
+    timeout: float = Field(0.0, ge=0)
+    channels: list[int] | None = Field(None, description="Specific hardware channel indices to set; omit to set all writable channels")
+    valve_indices: list[int] | None = Field(None, description="0-based valve slot indices (VABX only); expanded to hardware channels via valve_channels mapping")
+    module_name: str = Field("", description="Module display name, used with valve_indices to resolve channels-per-valve")
+
+
+@app.post("/io/set-all-outputs")
+async def io_set_all_outputs(request: SetAllOutputsRequest):
+    """Set all writable output/inout channels of a module HIGH or LOW.
+
+    When *channels* is provided, only those channel indices are set.
+    When *valve_indices* is provided (VABX bodies), they are expanded to
+    hardware channels using the per-product-family channel mapping
+    (2 channels/valve for V4A/V4B/V4C, 1 for VEAM, etc.).
+    Otherwise all ``outputs`` + ``inouts`` channels are discovered and set.
+
+    Each channel set to HIGH spawns the usual auto-reset safety timer.
+    Returns the list of channel indices that were written.
+    """
+    import concurrent.futures
+
+    # ── Expand valve_indices → hardware channels ──
+    if request.valve_indices is not None and request.module_name:
+        from valve_channels import expand_valve_indices
+        expanded = expand_valve_indices(request.valve_indices, request.module_name)
+        if request.channels:
+            request.channels = sorted(set(list(request.channels) + expanded))
+        else:
+            request.channels = expanded
+
+    def _do():
+        from hal import CpxApHardware, CrossProcessLock
+        hw = CpxApHardware()
+        lock = CrossProcessLock(request.ip_address)
+        lock.acquire(timeout=5.0)
+        try:
+            hw.connect(request.ip_address, request.timeout)
+            mod = hw._get_module(request.module_addr)
+
+            if request.channels is not None:
+                indices = list(request.channels)
+            else:
+                out_indices = [c.index for c in mod.channels.outputs if c.direction == "out"]
+                inout_indices = [c.index for c in mod.channels.inouts]
+                indices = sorted(set(out_indices + inout_indices))
+
+            if not indices:
+                raise ValueError(f"No writable channels found on module at #{request.module_addr}")
+
+            for idx in indices:
+                hw.write_output(request.module_addr, idx, request.value)
+
+        finally:
+            try:
+                hw.disconnect()
+            except Exception:
+                pass
+            lock.release()
+        return {
+            "ok": True,
+            "module_addr": request.module_addr,
+            "value": request.value,
+            "channels_written": indices,
+            "auto_reset_s": _IO_AUTO_RESET_S if request.value else None,
+        }
+
+    loop = asyncio.get_running_loop()
+    try:
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            result = await loop.run_in_executor(pool, _do)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    # ── Manage auto-reset timers for each channel ──
+    if request.value and _IO_AUTO_RESET_S > 0:
+        with _io_timers_lock:
+            for idx in result["channels_written"]:
+                timer_key = f"{request.ip_address}:{request.module_addr}:X{idx}"
+                old = _io_timers.pop(timer_key, None)
+                if old is not None:
+                    old.cancel()
+                timer = _thr.Timer(
+                    _IO_AUTO_RESET_S,
+                    _auto_reset_output,
+                    args=(request.ip_address, request.module_addr, f"X{idx}", 1, request.timeout),
+                )
+                timer.daemon = True
+                timer.start()
+                _io_timers[timer_key] = timer
+
+    return JSONResponse(result)
+
+
 # ─── Test Run Lock + SSE streaming ─────────────────────────────────────────
 
 _test_run_lock = asyncio.Lock()
@@ -469,8 +508,7 @@ async def stream_run_logs(run_id: str, request: Request):
 
 class StartTestRunRequest(BaseModel):
     ip_address: str = Field(..., description="IP address of the CPX-AP gateway")
-    connections_path: str = Field("connections.jsonc", description="Path to connections file")
-    topology_path: str = Field("topology.jsonc", description="Path to topology file")
+    config_path: str = Field("bench_config.json", description="Path to unified bench configuration file")
     tests: list[str] = Field(..., description="List of test IDs to run")
     source: str = Field("web", description="Initiator: 'web' or 'ci'")
 
@@ -512,8 +550,7 @@ async def start_test_run(request: StartTestRunRequest):
         _execute_test_run_safe,
         run_id,
         request.ip_address,
-        request.connections_path,
-        request.topology_path,
+        request.config_path,
         request.tests,
         request.source,
         loop,  # <-- event loop passed explicitly
@@ -553,207 +590,40 @@ def _extract_error_summary(result: dict) -> str:
     return "no details available"
 
 
-async def _execute_test_run(
-    run_id: str,
-    ip_address: str,
-    connections_path: str,
-    topology_path: str,
-    tests: list[str],
-    source: str,
-) -> None:
-    """Background coroutine: runs selected tests, streams logs, updates history."""
-    global _current_test_run
+def _merge_sub_results(existing: list, incoming: list) -> None:
+    """Merge *incoming* sub-results into *existing* by address/module key.
 
-    from pocketbase_logger import pb_log
-
-    loop = asyncio.get_running_loop()
-
-    def _log(level: str, msg: str) -> None:
-        """Thread-safe log that appends to run-state AND pushes to any SSE clients."""
-        ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        entry = {"level": level, "message": msg, "timestamp": ts}
-        if _current_test_run is not None:
-            _current_test_run["logs"].append(entry)
-        # Thread-safe push to SSE queue (may be called from executor thread)
-        if run_id in _log_queues:
-            loop.call_soon_threadsafe(_log_queues[run_id].put_nowait, entry)
-
-    _log("info", f"Test run {run_id} started  source={source}  ip={ip_address}")
-    pb_log.test_run_started(run_id, source, ip_address, tests)
-
-    try:
-        for idx, test_id in enumerate(tests):
-            _log("info", f"━━━ [{idx + 1}/{len(tests)}] {test_id} ━━━")
-            _current_test_run["progress"]["current_test"] = test_id
-            _current_test_run["checkpoints"].append({
-                "test": test_id,
-                "status": "running",
-                "timestamp": time.time(),
-            })
-            pb_log.checkpoint(run_id, test_id, "running")
-
-            try:
-                result = await _run_single_test(
-                    test_id, ip_address, connections_path, topology_path, _log,
-                )
-            except Exception as exc:
-                import traceback
-                tb = traceback.format_exc()
-                _log("error", f"Test '{test_id}' raised unhandled exception: {exc}")
-                _log("error", tb)
-                result = {"test_id": test_id, "passed": False, "error": str(exc),
-                          "traceback": tb}
-
-            _current_test_run["progress"]["completed"] = idx + 1
-            _current_test_run["results"].append(result)
-            cp = _current_test_run["checkpoints"][-1]
-            passed = result.get("passed")
-
-            if passed is True:
-                cp["status"] = "passed"
-                _log("info", f"✓ {test_id} PASSED")
-                pb_log.checkpoint(run_id, test_id, "passed")
-            elif passed is None:
-                # All sub-results were skipped (no compatible modules)
-                cp["status"] = "skipped"
-                cp["note"] = "No compatible modules found"
-                _log("warning", f"⚠ {test_id} SKIPPED — no compatible modules")
-                pb_log.checkpoint(run_id, test_id, "skipped")
-            else:
-                err = _extract_error_summary(result)
-                cp["status"] = "failed"
-                cp["error"] = err[:500]
-                _log("error", f"✗ {test_id} FAILED — {err}")
-                pb_log.checkpoint(run_id, test_id, "failed", err[:500])
-                pb_log.error(run_id, f"Test '{test_id}' failed: {err}")
-
-        _current_test_run["status"] = "completed"
-        _log("info", f"All {len(tests)} test(s) completed")
-        pb_log.test_run_completed(run_id, _current_test_run["results"])
-
-    except Exception as exc:
-        _current_test_run["status"] = "error"
-        _current_test_run["error"] = str(exc)
-        _log("error", f"Test run crashed: {exc}")
-        pb_log.error(run_id, f"Test run crashed: {exc}")
-    finally:
-        # ── Persist to in-memory history ─────────────────────────────
-        if _current_test_run:
-            history_entry = {
-                "id": run_id,
-                "run_id": run_id,
-                "source": source,
-                "ip_address": ip_address,
-                "status": _current_test_run.get("status", "error"),
-                "tests": json.dumps(tests),
-                "results": json.dumps(_current_test_run.get("results", []), default=str),
-                "checkpoints": _current_test_run.get("checkpoints", []),
-                "logs": _current_test_run.get("logs", []),
-                "started_at": _current_test_run.get("started_at", ""),
-                "completed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "created": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            }
-            _run_history.insert(0, history_entry)
-            if len(_run_history) > 200:
-                _run_history.pop()
-
-        # ── Signal SSE stream end then release lock ───────────────────
-        if run_id in _log_queues:
-            loop.call_soon_threadsafe(_log_queues[run_id].put_nowait, None)
-        _test_run_lock.release()
-
-
-async def _run_single_test(
-    test_id: str,
-    ip_address: str,
-    connections_path: str,
-    topology_path: str,
-    log,
-) -> dict:
-    """Dispatch a single test by ID.  Runs blocking code via run_in_executor."""
-    import concurrent.futures
-
-    from tests.validate_connections import run as run_validate
-    from tests.compare_topology import run as run_compare
-    from tests.condition_counter import run as run_cc
-    from tests.valve_condition_counter import run as run_vcc
-    from tests.remanent_params import run as run_rem
-
-    loop = asyncio.get_running_loop()
-
-    if test_id == "validate-connections":
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            raw = await loop.run_in_executor(
-                pool,
-                lambda: run_validate(ip_address, connections_path, log=log),
-            )
-        raw["passed"] = bool(raw.get("all_passed", False))
-        return raw
-
-    if test_id == "compare-topology":
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            raw = await loop.run_in_executor(
-                pool,
-                lambda: run_compare(topology_path, ip_address, log=log),
-            )
-        return raw  # run_compare already sets "passed"
-
-    hal_tests = {
-        "condition-counter": run_cc,
-        "valve-condition-counter": run_vcc,
-        "remanent-params": run_rem,
-    }
-    if test_id in hal_tests:
-        fn = hal_tests[test_id]
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            return await loop.run_in_executor(
-                pool,
-                lambda: _run_with_hw(ip_address, connections_path, fn, log),
-            )
-
-    return {"test_id": test_id, "passed": None,
-            "error": f"Test '{test_id}' not implemented"}
-
-
-def _run_with_hw(ip_address: str, connections_path: str, test_fn, log) -> dict:
-    """Open a SafeSession, run *test_fn(hw, connections_path, log=log)*.
-
-    Uses :class:`SafeSession` for guaranteed output reset.  Accepts either
-    a HardwareInterface-accepting test function or a legacy CpxAp-accepting one.
+    Replaces matching entries (same ``address`` or ``module``) instead of
+    appending, so live-pushed results don't duplicate when the final result
+    arrives.
     """
-    from hal import CpxApHardware, SafeSession
+    if not isinstance(existing, list) or not isinstance(incoming, list):
+        return
 
-    log("info", f"Connecting to {ip_address} …")
-    try:
-        hw = CpxApHardware()
-        with SafeSession(hw, ip_address) as iface:
-            topology = iface.read_topology()
-            log("info", f"Connected — {len(topology)} module(s) on bus")
-            # Try HAL signature first: test_fn(hw, connections_path, log=log)
-            import inspect
-            sig = inspect.signature(test_fn)
-            params = list(sig.parameters.keys())
-            if len(params) >= 1 and params[0] in ("hw", "iface", "cpx_ap"):
-                raw = test_fn(iface, connections_path, log=log)
-            else:
-                raw = test_fn(iface, connections_path, log=log)
-    except Exception as exc:
-        err = f"{type(exc).__name__}: {exc}"
-        log("error", f"Device connection failed: {err}")
-        return {"passed": False, "error": err, "cpx_io_error": True}
+    def _key(r: dict) -> str | None:
+        """Stable lookup key for a sub-result dict."""
+        addr = r.get("address") or r.get("module") or r.get("module_addr")
+        return str(addr) if addr is not None else None
 
-    if isinstance(raw, list):
-        valid = [r for r in raw if r.get("passed") is not None]
-        if not valid:
-            passed = None  # all skipped — no actual test ran
+    # Build index of existing entries by key
+    index: dict[str, int] = {}
+    for i, r in enumerate(existing):
+        if isinstance(r, dict):
+            k = _key(r)
+            if k is not None:
+                index[k] = i
+
+    for r in incoming:
+        if not isinstance(r, dict):
+            continue
+        k = _key(r)
+        if k is not None and k in index:
+            existing[index[k]] = r   # replace in-place
         else:
-            passed = all(r.get("passed", False) for r in valid)
-        return {"results": raw, "all_passed": passed, "passed": passed}
-    return raw
+            existing.append(r)
 
 
-# Legacy alias
-_run_with_cpx = _run_with_hw
+
 
 
 # ─── History ──────────────────────────────────────────────────────────────
@@ -832,56 +702,12 @@ async def dry_run(request: DryRunRequest):
     try:
         # Build a minimal bench config from live topology
         hw = CpxApHardware()
-        with SafeSession(hw, request.ip_address) as iface:
+        with SafeSession(hw, request.ip_address, timeout=10.0) as iface:
             topology = iface.read_topology()
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    # Convert live modules to config models
-    from config_models import (
-        ModuleInstance, ModuleTypeDefinition, TestBenchMetadata, ChannelDefinition,
-    )
-
-    instances: list[ModuleInstance] = []
-    type_defs: dict[str, ModuleTypeDefinition] = {}
-
-    for i, m in enumerate(topology):
-        inst_id = f"mod-{m.address:03d}"
-        type_ref = f"type-{m.module_code}"
-
-        instances.append(ModuleInstance(
-            instance_id=inst_id,
-            display_name=m.name,
-            module_code=m.module_code,
-            product_key=m.product_key,
-            address=m.address,
-            category=_infer_category(m),
-            module_type_ref=type_ref,
-        ))
-
-        if type_ref not in type_defs:
-            caps = _infer_capabilities(m)
-            type_defs[type_ref] = ModuleTypeDefinition(
-                module_code=m.module_code,
-                product_family=m.series,
-                capabilities=caps,
-                num_inputs=m.num_inputs,
-                num_outputs=m.num_outputs,
-                num_configurable=m.num_inouts,
-                valve_count=0,
-            )
-
-    bench_config = BenchConfig(
-        schema_version="1.0",
-        test_bench=TestBenchMetadata(
-            id=request.bench_id,
-            name=f"Bench {request.bench_id}",
-            ip_address=request.ip_address,
-        ),
-        module_types=type_defs,
-        module_instances=instances,
-        test_definitions=create_basic_test_definitions(),
-    )
+    bench_config = BenchConfig.from_hardware(topology, request.ip_address, request.bench_id)
 
     # Build filters
     filters = TestFilter(test_id=request.test_filter)
@@ -921,47 +747,12 @@ async def ci_environment():
     })
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _infer_category(m) -> ModuleCategory:
-    if m.is_valve:
-        return ModuleCategory.VALVE
-    if m.is_inout:
-        return ModuleCategory.INOUT
-    if m.is_output:
-        return ModuleCategory.OUTPUT
-    if m.is_input:
-        return ModuleCategory.INPUT
-    return ModuleCategory.BUS
-
-
-def _infer_capabilities(m) -> list[str]:
-    caps: list[str] = []
-    if m.num_inputs > 0:
-        caps.append("digital_input")
-    if m.num_outputs > 0:
-        caps.append("digital_output")
-    if m.num_inouts > 0:
-        caps.append("configurable_io")
-    if m.is_valve:
-        caps.extend(["valve_output", "condition_counter", "remanent_params"])
-    # Most CPX-AP modules support CC and remanent params
-    name_upper = m.name.upper()
-    if any(x in name_upper for x in ("DI", "DO", "DIO", "HDO", "AI", "IOL", "VABX")):
-        caps.append("condition_counter")
-        caps.append("remanent_params")
-    if "EP" in name_upper or "EC" in name_upper or "PN" in name_upper or "PB" in name_upper:
-        caps.append("system_diagnosis")
-    return list(set(caps))
-
-
 # ── Update test run execution to use SafeSession ─────────────────────────────
 
 def _execute_test_run_safe(
     run_id: str,
     ip_address: str,
-    connections_path: str,
-    topology_path: str,
+    config_path: str,
     tests: list[str],
     source: str,
     loop=None,  # asyncio event loop from caller (runs in thread)
@@ -1009,58 +800,106 @@ def _execute_test_run_safe(
             loop.call_soon_threadsafe(_log_queues[run_id].put_nowait, entry)
 
     _log("info", f"Test run {run_id} started  source={source}  ip={ip_address}")
-    
-    # Load BenchConfig
-    from config_models import BenchConfig
-    bench_config = None
-    try:
-        if os.path.exists(topology_path) and os.path.exists(connections_path):
-            with open(topology_path, encoding="utf-8") as f:
-                topo_raw = json.load(f)
-            with open(connections_path, encoding="utf-8") as f:
-                conn_raw = json.load(f)
-            bench_config = BenchConfig.from_legacy(
-                topology_data=topo_raw,
-                connections_data=conn_raw,
-                bench_id=os.environ.get("TESTBENCH_ID", "default"),
-                ip_address=ip_address,
-            )
-    except Exception as exc:
-        _log("warning", f"Could not load legacy config as BenchConfig: {exc}")
 
-    # Build execution plan instances
-    plan_instances = []
-    if bench_config:
+    try:
+        # Load BenchConfig
+        from config_models import BenchConfig
+        bench_config = None
         try:
-            from resolver import TestResolver, TestFilter
-            resolver = TestResolver()
-            for t_id in tests:
-                p = resolver.resolve(bench_config, TestFilter(test_id=t_id))
-                plan_instances.extend(p.instances)
+            if os.path.exists(config_path):
+                import warnings
+                with warnings.catch_warnings(record=True) as caught_warnings:
+                    warnings.simplefilter("always")
+                    bench_config = BenchConfig.model_validate_json(Path(config_path).read_text(encoding="utf-8"))
+                for w in caught_warnings:
+                    _log("warning", f"Config validation warning: {w.message}")
         except Exception as exc:
-            _log("error", f"Resolver failed to plan execution: {exc}")
+            _log("warning", f"Could not load BenchConfig: {exc}")
 
-    # Notify PocketBase
-    commit_sha = os.environ.get("CI_COMMIT_SHA", "")
-    config_commit = os.environ.get("CONFIG_COMMIT", "")
-    _pb(
-        pb_log.test_run_started,
-        run_id,
-        source,
-        ip_address,
-        tests,
-        os.environ.get("TESTBENCH_ID", "default"),
-        commit_sha,
-        config_commit,
-        os.environ.get("CI_PIPELINE_ID", ""),
-        os.environ.get("CI_JOB_ID", ""),
-        "", # resolved_plan_id
-        "1.0" # schema_version
-    )
+        # Build execution plan instances
+        plan_instances = []
+        if bench_config:
+            try:
+                from resolver import TestResolver, TestFilter
+                resolver = TestResolver()
+                for t_id in tests:
+                    p = resolver.resolve(bench_config, TestFilter(test_id=t_id))
+                    plan_instances.extend(p.instances)
+            except Exception as exc:
+                _log("error", f"Resolver failed to plan execution: {exc}")
 
-    hw = CpxApHardware()
-    try:
-        with SafeSession(hw, ip_address) as iface:
+        # Notify PocketBase
+        commit_sha = os.environ.get("CI_COMMIT_SHA", "")
+        config_commit = os.environ.get("CONFIG_COMMIT", "")
+        _pb(
+            pb_log.test_run_started,
+            run_id,
+            source,
+            ip_address,
+            tests,
+            os.environ.get("TESTBENCH_ID", "default"),
+            commit_sha,
+            config_commit,
+            os.environ.get("CI_PIPELINE_ID", ""),
+            os.environ.get("CI_JOB_ID", ""),
+            "", # resolved_plan_id
+            "1.0" # schema_version
+        )
+
+        if not plan_instances:
+            _log("warning", f"No modules matched the selected test(s): {', '.join(tests)}")
+            _log("warning", f"Check configuration ({config_path}) and wiring for compatibility.")
+            # Mark all selected tests as skipped
+            for t_id in tests:
+                if _current_test_run is not None:
+                    _current_test_run["checkpoints"].append({
+                        "test": t_id, "status": "skipped", "timestamp": time.time(),
+                        "error": "No compatible module found",
+                    })
+                    _current_test_run["results"].append({
+                        "test_id": t_id, "passed": None,
+                        "error": "No compatible module found — skipped",
+                    })
+            return
+
+        # Update progress total to reflect resolved instance count (not raw test-ID count)
+        if _current_test_run is not None:
+            _current_test_run["progress"]["total"] = len(plan_instances)
+
+        # Pre-populate results with pending entries for every planned
+        # (test, module) pair so the frontend can show module progress
+        # before execution begins.
+        if _current_test_run is not None and plan_instances:
+            # Build address→name lookup from bench config
+            addr_to_name: dict[int, str] = {}
+            if bench_config:
+                for mi in bench_config.module_instances:
+                    addr_to_name[mi.address] = mi.display_name
+            # Group instances by test_id
+            seen_tests: dict[str, list] = {}
+            for inst in plan_instances:
+                seen_tests.setdefault(inst.test_id, []).append(inst)
+            for t_id, instances in seen_tests.items():
+                sub = []
+                for inst in instances:
+                    name = addr_to_name.get(inst.module_address, "")
+                    sub.append({
+                        "module": str(inst.module_address),
+                        "module_name": name,
+                        "address": inst.module_address,
+                        "passed": None,
+                        "status": "pending",
+                    })
+                _current_test_run["results"].append({
+                    "test_id": t_id,
+                    "passed": None,
+                    "results": sub,
+                    "duration_ms": 0,
+                })
+
+        _log("info", "Acquiring hardware lock...")
+        hw = CpxApHardware()
+        with SafeSession(hw, ip_address, timeout=10.0) as iface:
             for idx, inst in enumerate(plan_instances):
                 test_id = inst.test_id
                 _log("info", f"━━━ [{idx + 1}/{len(plan_instances)}] {test_id} (Module #{inst.module_address}) ━━━")
@@ -1082,7 +921,7 @@ def _execute_test_run_safe(
                     def _run_test_target():
                         try:
                             r = _run_single_test_hw(
-                                iface, inst, bench_config, connections_path, topology_path, _log,
+                                iface, inst, bench_config, config_path, _log,
                             )
                             _test_result_box.append(r)
                         except Exception as e:
@@ -1112,14 +951,15 @@ def _execute_test_run_safe(
 
                 if _current_test_run is not None:
                     _current_test_run["progress"]["completed"] = idx + 1
-                    # Replace existing live-results entry if present (e.g. from _init_live_results),
-                    # otherwise append
+                    # Merge into existing live-results entry (e.g. from _push_live_module_result),
+                    # deduplicating by module address instead of blindly extending.
                     results_list = _current_test_run["results"]
                     replaced_existing = False
                     for i, existing in enumerate(results_list):
                         if isinstance(existing, dict) and existing.get("test_id") == test_id:
                             if isinstance(existing, dict) and "results" in existing and "results" in result:
-                                existing["results"].extend(result["results"])
+                                # Merge sub-results by address to avoid duplicates from live pushes
+                                _merge_sub_results(existing["results"], result["results"])
                                 existing["passed"] = existing.get("passed", True) and result.get("passed", True)
                                 existing["all_passed"] = existing["passed"]
                                 if "duration_ms" in existing and "duration_ms" in result and result["duration_ms"] is not None:
@@ -1182,8 +1022,7 @@ def _run_single_test_hw(
     hw,
     resolved_instance,
     bench_config,
-    connections_path: str,
-    topology_path: str,
+    config_path: str,
     log,
 ) -> dict:
     """Dispatch a single test using a pre-connected HardwareInterface."""
@@ -1191,7 +1030,13 @@ def _run_single_test_hw(
     addr = resolved_instance.module_address
 
     def _init_live_results(modules: list):
-        """Pre-populate all modules as pending so the UI shows them immediately."""
+        """Update pre-populated pending entries with real topology module names.
+
+        The global pre-population already created pending entries per
+        (test_id, module_address).  This call enriches them with the
+        actual module name from the hardware topology instead of
+        appending duplicates.
+        """
         if _current_test_run is None:
             return
         results = _current_test_run.get("results")
@@ -1208,12 +1053,30 @@ def _run_single_test_hw(
         sub = entry.get("results")
         if isinstance(sub, list):
             for m in modules:
-                sub.append({
-                    "module": str(m.address),
-                    "module_name": m.name,
-                    "passed": None,
-                    "status": "pending",
-                })
+                m_addr = str(m.address)
+                # Replace matching entry by address if it already exists
+                replaced = False
+                for i, existing in enumerate(sub):
+                    if isinstance(existing, dict):
+                        existing_addr = str(existing.get("address") or existing.get("module") or "")
+                        if existing_addr == m_addr:
+                            sub[i] = {
+                                "module": m_addr,
+                                "module_name": m.name,
+                                "address": m.address,
+                                "passed": existing.get("passed"),
+                                "status": existing.get("status", "pending"),
+                            }
+                            replaced = True
+                            break
+                if not replaced:
+                    sub.append({
+                        "module": m_addr,
+                        "module_name": m.name,
+                        "address": m.address,
+                        "passed": None,
+                        "status": "pending",
+                    })
 
     def _update_current_module(addr):
         """Thread-safe update of current module in progress."""
@@ -1314,6 +1177,9 @@ def _run_single_test_hw(
                 toggle_cycles=resolved_instance.parameters.get("toggle_cycles", 3),
                 connections=conns
             )
+        else:
+            raw = {"test_id": test_id, "passed": None,
+                   "error": f"No wiring targets module #{resolved_instance.module_address} — skipped"}
 
     elif test_id == "remanent-params":
         raw = run_rem(
@@ -1347,7 +1213,7 @@ def _run_single_test_hw(
 
     elif test_id == "compare-topology":
         raw = run_compare(
-            stored_path=topology_path,
+            topology_path=config_path,
             hw=hw,
             log=log
         )

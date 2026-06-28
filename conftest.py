@@ -4,8 +4,8 @@ import json
 import time
 from pathlib import Path
 from hal import CpxApHardware, SafeSession
-from config_models import BenchConfig, TestFilter, SafetyClass
-from resolver import TestResolver
+from config_models import BenchConfig, SafetyClass
+from resolver import TestResolver, TestFilter
 from repository import PocketBaseRepository, TestRunRecord, TestResultRecord
 
 # Global state for pytest session

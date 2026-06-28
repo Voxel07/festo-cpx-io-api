@@ -204,6 +204,10 @@ class TestDefinition(BaseModel):
     safety_class: SafetyClass = Field(SafetyClass.SAFE)
     allowed_in_ci: bool = Field(True, description="Whether this test can run in CI pipelines")
     can_run_parallel: bool = Field(False, description="Whether test instances can run in parallel")
+    singleton: bool = Field(
+        False,
+        description="If True, only one instance is created regardless of how many modules match (e.g. system-wide tests)",
+    )
     parameters: dict[str, Any] = Field(
         default_factory=dict,
         description="Default test parameters (pulse_duration_s, toggle_cycles, etc.)",
@@ -359,96 +363,80 @@ class BenchConfig(BaseModel):
         return self
 
     @classmethod
-    def from_legacy(
+    def from_hardware(
         cls,
-        topology_data: dict,
-        connections_data: dict,
+        live_modules: list[Any],
+        ip_address: str,
         bench_id: str = "default",
-        ip_address: str = "",
     ) -> BenchConfig:
-        """Construct a modern BenchConfig from legacy topology and connections dicts."""
+        """Construct a modern BenchConfig directly from live hardware topology."""
         # Build test bench metadata
         meta = TestBenchMetadata(
             id=bench_id,
-            name=topology_data.get("Name", f"Bench {bench_id}"),
-            description=topology_data.get("Description", ""),
-            ip_address=ip_address or connections_data.get("topology_name", "").split(" ")[-1] or "192.168.0.11",
-            version=topology_data.get("Version", "1.0"),
+            name=f"Bench {bench_id}",
+            description="Auto-generated configuration from live hardware",
+            ip_address=ip_address,
+            version="1.0",
         )
-        
-        # Helper to map category
-        def infer_cat(entry: dict) -> ModuleCategory:
-            t = entry.get("Type", "").lower()
-            name = entry.get("Name", "").upper()
-            if "VABX" in name or "VALVE" in t:
+
+        def infer_cat(name: str, is_valve: bool, num_in: int, num_out: int, num_io: int) -> ModuleCategory:
+            name_up = name.upper()
+            if is_valve or "VABX" in name_up:
                 return ModuleCategory.VALVE
-            if "in/out" in t or "inout" in t:
+            if num_io > 0 or (num_in > 0 and num_out > 0):
                 return ModuleCategory.INOUT
-            if "output" in t:
+            if any(x in name_up for x in ("EP", "EC", "PN", "PB", "EPLI")) or "bus" in name_up:
+                return ModuleCategory.BUS
+            if num_out > 0:
                 return ModuleCategory.OUTPUT
-            if "input" in t:
+            if num_in > 0:
                 return ModuleCategory.INPUT
             return ModuleCategory.BUS
 
-        # Helper to map capabilities
-        def infer_caps(entry: dict) -> list[str]:
+        def infer_caps(name: str, num_in: int, num_out: int, num_io: int) -> list[str]:
             caps = []
-            num_in = entry.get("NumOfInputs", 0)
-            num_out = entry.get("NumOfOutputs", 0)
-            num_io = entry.get("NumOfInOuts", 0)
-            name = entry.get("Name", "").upper()
-            
+            name_up = name.upper()
             if num_in > 0:
                 caps.append("digital_input")
             if num_out > 0:
                 caps.append("digital_output")
             if num_io > 0:
                 caps.append("configurable_io")
-            if "VABX" in name:
+            if "VABX" in name_up:
                 caps.extend(["valve_output", "condition_counter", "remanent_params"])
-            if any(x in name for x in ("DI", "DO", "DIO", "HDO", "AI", "IOL", "VABX")):
+            if any(x in name_up for x in ("DI", "DO", "DIO", "HDO", "AI", "IOL", "VABX")):
                 caps.append("condition_counter")
                 caps.append("remanent_params")
-            if any(x in name for x in ("EP", "EC", "PN", "PB")):
+            if any(x in name_up for x in ("EP", "EC", "PN", "PB")):
                 caps.append("system_diagnosis")
             return list(set(caps))
 
         instances: list[ModuleInstance] = []
         type_defs: dict[str, ModuleTypeDefinition] = {}
-        
-        # Legacy mounted valves
-        mounted_valves_raw = connections_data.get("mounted_valves", {})
-        mounted_valves = {int(k): [int(v) for v in vs] for k, vs in mounted_valves_raw.items()}
 
-        for item in topology_data.get("Topology", []):
-            addr = item.get("Adress", item.get("Address", 0))
-            m_code = item.get("Modulecode", 0)
-            p_key = item.get("ProductKey", f"PK_{addr}")
-            name = item.get("Name", "")
-            
+        for m in live_modules:
+            addr = m.address
+            m_code = m.module_code
+            p_key = m.product_key
+            name = m.name
+
             inst_id = f"mod-{addr:03d}"
             type_ref = f"type-{m_code}"
-            
-            # Infer category & capabilities
-            cat = infer_cat(item)
-            caps = infer_caps(item)
-            
+
+            cat = infer_cat(name, m.is_valve, m.num_inputs, m.num_outputs, m.num_inouts)
+            caps = infer_caps(name, m.num_inputs, m.num_outputs, m.num_inouts)
+
             # Build channel definitions dynamically
             channels = []
-            num_in = item.get("NumOfInputs", 0)
-            num_out = item.get("NumOfOutputs", 0)
-            num_io = item.get("NumOfInOuts", 0)
-            
-            # Add input/output/inout channels
-            for ch_idx in range(max(num_in, num_out, num_io, 8)):
+            for ch_idx in range(max(m.num_inputs, m.num_outputs, m.num_inouts, 8)):
                 ch_caps = []
-                if num_out > 0 or cat == ModuleCategory.VALVE:
+                if m.num_outputs > 0 or cat == ModuleCategory.VALVE:
                     ch_caps.append("digital_output")
-                if num_in > 0:
+                if m.num_inputs > 0:
                     ch_caps.append("digital_input")
-                if num_io > 0:
+                if m.num_inouts > 0:
                     ch_caps.append("configurable_io")
-                
+
                 channels.append(
                     ChannelDefinition(
                         index=ch_idx,
@@ -456,20 +444,19 @@ class BenchConfig(BaseModel):
                         capabilities=ch_caps,
                     )
                 )
-            
-            # Instantiate type if not already defined
+
             if type_ref not in type_defs:
                 type_defs[type_ref] = ModuleTypeDefinition(
                     module_code=m_code,
-                    product_family=item.get("Series", "CPX-AP"),
+                    product_family=m.series or "CPX-AP",
                     capabilities=caps,
-                    num_inputs=num_in,
-                    num_outputs=num_out,
-                    num_configurable=num_io,
+                    num_inputs=m.num_inputs,
+                    num_outputs=m.num_outputs,
+                    num_configurable=m.num_inouts,
                     valve_count=16 if cat == ModuleCategory.VALVE else 0,
                     channels=channels,
                 )
-                
+
             instances.append(
                 ModuleInstance(
                     instance_id=inst_id,
@@ -479,27 +466,7 @@ class BenchConfig(BaseModel):
                     address=addr,
                     category=cat,
                     module_type_ref=type_ref,
-                    mounted_valves=mounted_valves.get(addr, []),
-                )
-            )
-
-        # Build wiring
-        wiring: list[WiringConnection] = []
-        for i, conn in enumerate(connections_data.get("connections", [])):
-            src_addr = conn.get("source_module_addr")
-            tgt_addr = conn.get("target_module_addr")
-            src_ch = conn.get("source_channel", "X0")
-            tgt_ch = conn.get("target_channel", "X0")
-            w_id = conn.get("id", f"wire-{i:03d}")
-            
-            wiring.append(
-                WiringConnection(
-                    id=w_id,
-                    source_instance_id=f"mod-{src_addr:03d}",
-                    source_channel=src_ch,
-                    target_instance_id=f"mod-{tgt_addr:03d}",
-                    target_channel=tgt_ch,
-                    waypoints=conn.get("waypoints", []),
+                    mounted_valves=[],
                 )
             )
 
@@ -508,7 +475,7 @@ class BenchConfig(BaseModel):
             test_bench=meta,
             module_types=type_defs,
             module_instances=instances,
-            wiring=wiring,
+            wiring=[],
             test_definitions=create_basic_test_definitions(),
         )
 
@@ -525,7 +492,7 @@ def create_basic_test_definitions() -> list[TestDefinition]:
             name="Connection Validation",
             version="1.0.0",
             description="Pulse source outputs and verify target inputs to validate wiring",
-            required_capabilities=["digital_output", "digital_input"],
+            required_capabilities=["digital_output"],
             required_wiring_type=ConnectionType.PHYSICAL,
             supported_categories=[ModuleCategory("output"), ModuleCategory("input"), ModuleCategory("inout")],
             safety_class=SafetyClass.SAFE,

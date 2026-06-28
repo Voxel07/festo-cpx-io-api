@@ -8,7 +8,8 @@ def pytest_generate_tests(metafunc):
         import os
         import json
         from pathlib import Path
-        from config_models import BenchConfig, TestFilter, SafetyClass
+        from config_models import BenchConfig, SafetyClass
+        from resolver import TestFilter
         from resolver import TestResolver
 
         # Get config path option

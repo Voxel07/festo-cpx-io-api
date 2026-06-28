@@ -162,6 +162,7 @@ class TestResolver:
         addr_to_id: dict[int, str] = {m.address: m.instance_id for m in config.module_instances}
 
         for test_def in config.test_definitions:
+            singleton_emitted = False  # track for singleton tests
             for mod in config.module_instances:
                 if not self._matches_category(test_def, mod):
                     continue
@@ -171,6 +172,10 @@ class TestResolver:
                     continue
 
                 is_negative = mod.is_negative_test_target
+
+                # ── Singleton guard: system-wide tests emit exactly one instance ──
+                if test_def.singleton and singleton_emitted:
+                    continue
 
                 # ── Module-level test (no channel/wiring needed) ──
                 if not test_def.required_wiring_type:
@@ -188,27 +193,7 @@ class TestResolver:
                             safety_class=test_def.safety_class,
                         )
                     )
-
-                # ── Channel-level tests ──
-                type_def = config.module_types.get(mod.module_type_ref)
-                if type_def and type_def.channels:
-                    for ch in type_def.channels:
-                        if self._channel_satisfies(test_def, ch.capabilities):
-                            instances.append(
-                                ResolvedTestInstance(
-                                    test_id=test_def.test_id,
-                                    test_name=test_def.name,
-                                    test_version=test_def.version,
-                                    module_instance_id=mod.instance_id,
-                                    module_code=mod.module_code,
-                                    product_key=mod.product_key,
-                                    module_address=mod.address,
-                                    channel_id=ch.name or f"ch{ch.index}",
-                                    parameters=dict(test_def.parameters),
-                                    is_negative_test=is_negative,
-                                    safety_class=test_def.safety_class,
-                                )
-                            )
+                    singleton_emitted = True  # mark after first module-level instance
 
                 # ── Wiring-based tests ──
                 if test_def.required_wiring_type:
@@ -236,6 +221,7 @@ class TestResolver:
                                 safety_class=test_def.safety_class,
                             )
                         )
+                        singleton_emitted = True  # first wiring instance for singleton tests
 
         # ── Apply filters ──
         if filters:

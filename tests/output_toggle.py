@@ -9,6 +9,7 @@ import time
 from typing import Any
 
 from hal import HardwareInterface, ModuleInfo
+from valve_channels import channels_per_valve
 from ._base import LogFn, noop_log
 
 
@@ -56,12 +57,17 @@ def run(
 
     for mod in output_mods:
         total_channels = mod.num_outputs + mod.num_inouts
+        cpv = channels_per_valve(mod.name) if mod.is_valve else 0
+        extra_info = ""
+        if mod.is_valve and cpv > 0:
+            n_valves = total_channels // cpv
+            extra_info = f"  ({n_valves} valves × {cpv}c/valve)"
         if on_module:
             try:
                 on_module(mod.address)
             except Exception:
                 pass
-        log("info", f"  ── #{mod.address} {mod.name} ({total_channels} channel(s)) ──")
+        log("info", f"  ── #{mod.address} {mod.name} ({total_channels} channel(s){extra_info}) ──")
         t_start = time.time()
         channels: list[dict[str, Any]] = []
 
@@ -97,7 +103,12 @@ def run(
                 })
 
                 status = "✓" if passed else "✗ (readback LOW)"
-                log("info", f"    ch {ch}: {status}  ({ch_dur}ms)")
+                valve_note = ""
+                if mod.is_valve and cpv > 0:
+                    vi = ch // cpv
+                    sub = ch % cpv
+                    valve_note = f"  [V{vi + 1} {'A' if sub == 0 else 'B'}]" if cpv > 1 else f"  [V{vi + 1}]"
+                log("info", f"    ch {ch}:{valve_note} {status}  ({ch_dur}ms)")
 
             except Exception as exc:
                 ch_dur = round((time.time() - ch_start) * 1000, 1)

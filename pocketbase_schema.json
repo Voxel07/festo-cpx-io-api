@@ -120,7 +120,9 @@
         "type": "autodate"
       }
     ],
-    "indexes": [],
+    "indexes": [
+      "CREATE INDEX `idx_checkpoints_run` ON `festo_checkpoints` (`run_id`)"
+    ],
     "system": false
   },
   {
@@ -240,7 +242,9 @@
         "type": "autodate"
       }
     ],
-    "indexes": [],
+    "indexes": [
+      "CREATE INDEX `idx_logs_run` ON `festo_system_logs` (`run_id`)"
+    ],
     "system": false
   },
   {
@@ -423,6 +427,7 @@
       }
     ],
     "indexes": [
+      "CREATE UNIQUE INDEX `idx_runs_run_id` ON `festo_test_runs` (`run_id`)",
       "CREATE INDEX `idx_runs_bench` ON `festo_test_runs` (`test_bench_id`)"
     ],
     "system": false

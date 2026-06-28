@@ -267,10 +267,14 @@ class CrossProcessLock:
                 except OSError:
                     process_alive = False
 
+                # If the lock is held by our own process or our parent (uvicorn manager),
+                # it's a stale lock from a previous reload/worker run.
+                is_own_chain = (lock_pid == os.getpid() or (hasattr(os, "getppid") and lock_pid == os.getppid()))
+
                 # Stale check: 30 minutes
                 is_stale = (time.time() - lock_time) > 1800
 
-                if not process_alive or is_stale:
+                if not process_alive or is_stale or is_own_chain:
                     self._force_release()
                     continue
 

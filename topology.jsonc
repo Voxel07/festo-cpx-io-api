@@ -101,17 +101,6 @@
             "NumOfInputs": 0,
             "NumOfOutputs": 8,
             "NumOfInOuts": 0
-        },
-        {
-            "Name": "CPX-AP-A-8HDO-M12-5P",
-            "Modulecode": 12314,
-            "ProductKey": "A_A8HDO_001",
-            "Series": "CPX-AP-A",
-            "Adress": 9,
-            "Type": "Output",
-            "NumOfInputs": 0,
-            "NumOfOutputs": 8,
-            "NumOfInOuts": 0
         }
     ]
 }
