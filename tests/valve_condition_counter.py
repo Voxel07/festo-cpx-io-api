@@ -20,6 +20,38 @@ from ._base import (
     LogFn, is_module_compatible, is_valve_terminal, load_compatibility, noop_log,
 )
 
+TEST_DEFINITION = {
+    "test_id": "valve-condition-counter",
+    "name": "Valve Condition Counter",
+    "version": "1.0.0",
+    "description": "Set CC setpoint, toggle valves past threshold, verify diagnosis",
+    "required_capabilities": [
+        "condition_counter",
+        "valve_output"
+    ],
+    "supported_categories": [
+        "valve",
+        "inout"
+    ],
+    "safety_class": "caution",
+    "allowed_in_ci": True,
+    "can_run_parallel": False,
+    "singleton": False,
+    "parameters": {
+        "cc_param_id": 20094,
+        "cc_readback_param_id": 20095,
+        "toggle_cycles": 5
+    },
+    "compatible_modules": [
+        "VABX-A-S-BV-V4A",
+        "VABX-A-S-BV-V4B",
+        "VABX-A-S-BV-V4C",
+        "VABX-A-BV-S-*",
+        "VABX-A-VE-S",
+        "VABX-A-VP-*"
+    ]
+}
+
 
 def _load_mounted_valves(connections_path: str) -> dict[int, list[int]]:
     """Return ``{module_address: [valve_channel, ...]}`` from connections."""

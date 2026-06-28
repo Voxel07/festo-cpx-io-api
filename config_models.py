@@ -12,6 +12,8 @@ Usage::
 
 from __future__ import annotations
 
+import re
+
 from enum import Enum
 from typing import Annotated, Any
 
@@ -228,6 +230,10 @@ class TestDefinition(BaseModel):
         default_factory=list,
         description="Exclude specific product keys",
     )
+    compatible_modules: list[str] = Field(
+        default_factory=list,
+        description="Glob patterns of module names compatible with this test",
+    )
 
 
 # ─── UI Visualization Metadata ────────────────────────────────────────────────
@@ -253,6 +259,95 @@ class UIVisualizationMetadata(BaseModel):
     channel_anchors: list[UIChannelAnchor] = Field(default_factory=list)
 
 
+def get_module_capabilities(display_name: str, category: str) -> list[str]:
+    name_up = display_name.upper()
+    caps = []
+    
+    # Check category/name for input
+    if category == "input" or "DI" in name_up or "DIO" in name_up or "DIDO" in name_up or "VABX" in name_up:
+        caps.append("digital_input")
+        
+    # Check category/name for output
+    if category == "output" or "DO" in name_up or "DIO" in name_up or "DIDO" in name_up or "VABX" in name_up:
+        caps.append("digital_output")
+        
+    # Check category/name for valve
+    if category == "valve" or "VABX" in name_up:
+        caps.extend(["valve_output"])
+        
+    # Condition counter & Remanent params support
+    if any(x in name_up for x in ("DI", "DO", "DIO", "HDO", "AI", "IOL", "VABX")):
+        caps.extend(["condition_counter", "remanent_params"])
+        
+    # System diagnosis support for bus/interface modules
+    if category == "bus" or any(x in name_up for x in ("EP", "EC", "PN", "PB", "EPLI")):
+        caps.append("system_diagnosis")
+        
+    return list(set(caps))
+
+
+def infer_type_definition_from_instance(mod: ModuleInstance) -> ModuleTypeDefinition:
+    name = mod.display_name.upper()
+    code = mod.module_code
+    category = mod.category
+    
+    num_in = 0
+    num_out = 0
+    num_io = 0
+    valve_count = 0
+    
+    if "VABX" in name or category == ModuleCategory.VALVE:
+        num_in = 8
+        num_out = 8
+        valve_count = 16
+    else:
+        # Match input channels (DI or AI)
+        di_match = re.search(r'(\d+)(?:DI|AI)', name)
+        if di_match:
+            num_in = int(di_match.group(1))
+            
+        # Match output channels (DO, HDO, or AO)
+        do_match = re.search(r'(\d+)(?:DO|HDO|AO)', name)
+        if do_match:
+            num_out = int(do_match.group(1))
+        
+    product_family = "CPX-AP-A" if "CPX-AP-A" in name else ("CPX-AP-I" if "CPX-AP-I" in name else "CPX-AP")
+    if "VABX" in name:
+        product_family = "VABX"
+        
+    caps = get_module_capabilities(mod.display_name, category.value)
+    
+    channels = []
+    max_ch = max(num_in, num_out, num_io, 8)
+    for ch_idx in range(max_ch):
+        ch_caps = []
+        if num_out > 0 or category == ModuleCategory.VALVE:
+            ch_caps.append("digital_output")
+        if num_in > 0:
+            ch_caps.append("digital_input")
+        if num_io > 0:
+            ch_caps.append("configurable_io")
+            
+        channels.append(
+            ChannelDefinition(
+                index=ch_idx,
+                name=f"X{ch_idx}",
+                capabilities=ch_caps,
+            )
+        )
+        
+    return ModuleTypeDefinition(
+        module_code=code,
+        product_family=product_family,
+        capabilities=caps,
+        num_inputs=num_in,
+        num_outputs=num_out,
+        num_configurable=num_io,
+        valve_count=valve_count,
+        channels=channels,
+    )
+
+
 # ─── Top-level Bench Configuration ────────────────────────────────────────────
 
 
@@ -270,7 +365,16 @@ class BenchConfig(BaseModel):
     test_definitions: list[TestDefinition] = Field(default_factory=list)
     ui_metadata: UIVisualizationMetadata = Field(default_factory=UIVisualizationMetadata)
 
-    # ── Validators ─────────────────────────────────────────────────────────
+    @model_validator(mode="after")
+    def _populate_module_types(self) -> BenchConfig:
+        if not self.module_types:
+            types = {}
+            for mod in self.module_instances:
+                type_ref = mod.module_type_ref or f"type-{mod.module_code}"
+                if type_ref not in types:
+                    types[type_ref] = infer_type_definition_from_instance(mod)
+            self.module_types = types
+        return self
 
     @model_validator(mode="after")
     def _check_duplicate_instance_ids(self) -> BenchConfig:
@@ -473,10 +577,10 @@ class BenchConfig(BaseModel):
         return cls(
             schema_version="1.0",
             test_bench=meta,
-            module_types=type_defs,
+            module_types={},
             module_instances=instances,
             wiring=[],
-            test_definitions=create_basic_test_definitions(),
+            test_definitions=[],
         )
 
 

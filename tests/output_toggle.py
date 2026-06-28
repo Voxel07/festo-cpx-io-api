@@ -12,6 +12,64 @@ from hal import HardwareInterface, ModuleInfo
 from valve_channels import channels_per_valve
 from ._base import LogFn, noop_log
 
+TEST_DEFINITIONS = [
+    {
+        "test_id": "output-toggle",
+        "name": "Output Toggle",
+        "version": "1.0.0",
+        "description": "Toggle all digital output channels ON/OFF and verify state changes",
+        "required_capabilities": [
+            "digital_output"
+        ],
+        "supported_categories": [
+            "output",
+            "inout"
+        ],
+        "safety_class": "caution",
+        "allowed_in_ci": True,
+        "can_run_parallel": False,
+        "singleton": False,
+        "parameters": {},
+        "compatible_modules": [
+            "CPX-AP-A-*DO*",
+            "CPX-AP-A-*HDO*",
+            "CPX-AP-A-*DIO*",
+            "CPX-AP-A-*DIDO*",
+            "CPX-AP-A-*DI*DO*",
+            "CPX-AP-I-*DO*",
+            "CPX-AP-I-*DIO*",
+            "CPX-AP-A-*IOL*",
+            "CPX-AP-I-*IOL*",
+            "VABX-A-*"
+        ]
+    },
+    {
+        "test_id": "valve-toggle",
+        "name": "Valve Toggle",
+        "version": "1.0.0",
+        "description": "Toggle all valve channels ON/OFF and verify state changes",
+        "required_capabilities": [
+            "valve_output"
+        ],
+        "supported_categories": [
+            "valve"
+        ],
+        "safety_class": "caution",
+        "allowed_in_ci": True,
+        "can_run_parallel": False,
+        "singleton": False,
+        "parameters": {},
+        "compatible_modules": [
+            "VABX-A-S-BV-V4A",
+            "VABX-A-S-BV-V4B",
+            "VABX-A-S-BV-V4C",
+            "VABX-A-BV-S-*",
+            "VABX-A-VE-S",
+            "VABX-A-VP-*"
+        ]
+    }
+]
+
 
 def run(
     hw: HardwareInterface,

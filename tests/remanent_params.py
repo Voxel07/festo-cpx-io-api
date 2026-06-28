@@ -10,6 +10,34 @@ from typing import Any
 from hal import HardwareInterface
 from ._base import LogFn, noop_log
 
+TEST_DEFINITION = {
+    "test_id": "remanent-params",
+    "name": "Remanent Parameters",
+    "version": "1.0.0",
+    "description": "Write test values to remanent parameters, verify persistence after power cycle",
+    "required_capabilities": [
+        "remanent_params"
+    ],
+    "supported_categories": [
+        "input",
+        "output",
+        "inout",
+        "valve",
+        "bus"
+    ],
+    "safety_class": "safe",
+    "allowed_in_ci": True,
+    "can_run_parallel": False,
+    "singleton": False,
+    "parameters": {
+        "param_id_1": 20118,
+        "param_id_2": 20119
+    },
+    "compatible_modules": [
+        "*"
+    ]
+}
+
 
 _TEST_VAL_1 = 0xAA55
 _TEST_VAL_2 = 0x55AA

@@ -11,6 +11,32 @@ from pathlib import Path
 from hal import HardwareInterface
 from ._base import LogFn, noop_log
 
+TEST_DEFINITION = {
+    "test_id": "compare-topology",
+    "name": "Topology Comparison",
+    "version": "1.0.0",
+    "description": "Compare stored topology against live hardware",
+    "required_capabilities": [],
+    "supported_categories": [
+        "bus"
+    ],
+    "safety_class": "safe",
+    "allowed_in_ci": True,
+    "can_run_parallel": False,
+    "singleton": True,
+    "parameters": {},
+    "compatible_modules": [
+        "CPX-AP-A-EP*",
+        "CPX-AP-A-EC*",
+        "CPX-AP-A-PN*",
+        "CPX-AP-A-PB*",
+        "CPX-AP-I-EP*",
+        "CPX-AP-I-EC*",
+        "CPX-AP-I-PN*",
+        "CPX-AP-I-PB*"
+    ]
+}
+
 
 def run(
     topology_path: str,

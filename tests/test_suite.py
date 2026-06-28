@@ -65,7 +65,7 @@ def pytest_generate_tests(metafunc):
 
 
 @pytest.mark.hardware
-def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTestInstance, bench_config: BenchConfig):
+def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTestInstance, bench_config: BenchConfig, bench_config_path: str):
     test_id = resolved_instance.test_id
     addr = resolved_instance.module_address
     
@@ -165,17 +165,17 @@ def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTes
         from tests.compare_topology import run as run_compare
         # Compare topology for the entire bus
         res = run_compare(
-            stored_path="topology.jsonc",
+            topology_path=bench_config_path or "bench_config.json",
             hw=hw,
             log=log
         )
         assert res.get("passed") or res.get("all_passed"), f"Topology Comparison failed: {res}"
 
     elif test_id == "system-diagnosis":
-        # System diagnosis
-        diag = hw.read_diagnosis(addr)
-        log("info", f"Global System Diagnosis: {diag}")
-        assert diag is not None, "Failed to read system diagnosis"
+        from tests.system_diagnosis import run as run_sysdiag
+        res = run_sysdiag(hw=hw, module_address=resolved_instance.module_address)
+        log("info", f"Global System Diagnosis: {res.get('diagnosis')}")
+        assert res.get("passed"), "Failed to read system diagnosis"
 
     else:
         pytest.skip(f"Test type '{test_id}' has no runner defined in test_suite.py")

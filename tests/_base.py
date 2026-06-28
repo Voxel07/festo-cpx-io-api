@@ -37,6 +37,20 @@ def _matches_any_pattern(name: str, patterns: list[str]) -> bool:
 
 def get_compatible_tests(module_name: str, compat: dict | None = None) -> set[str]:
     """Return the set of test IDs that *module_name* is compatible with."""
+    try:
+        from resolver import load_all_test_definitions
+        raw_defs = load_all_test_definitions()
+        tests = set()
+        for d in raw_defs:
+            patterns = d.get("compatible_modules", [])
+            test_id = d.get("test_id")
+            if any(fnmatch.fnmatch(module_name, p) for p in patterns):
+                tests.add(test_id)
+        if tests:
+            return tests
+    except Exception:
+        pass
+
     if compat is None:
         compat = load_compatibility()
     tests: set[str] = set()

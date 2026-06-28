@@ -30,7 +30,40 @@ from config_models import (
     TestDefinition,
     WiringConnection,
     create_basic_test_definitions,
+    get_module_capabilities,
 )
+
+
+def load_all_test_definitions() -> list[dict]:
+    import importlib.util
+    import os
+    from pathlib import Path
+    
+    test_defs = []
+    tests_dir = Path(__file__).parent / "tests"
+    if not tests_dir.exists():
+        tests_dir = Path("tests")
+        
+    if not tests_dir.exists():
+        return []
+        
+    for file in tests_dir.glob("*.py"):
+        if file.name in ("__init__.py", "_base.py", "test_suite.py"):
+            continue
+        try:
+            module_name = f"tests.{file.stem}"
+            spec = importlib.util.spec_from_file_location(module_name, file)
+            if spec and spec.loader:
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                if hasattr(mod, "TEST_DEFINITIONS"):
+                    test_defs.extend(getattr(mod, "TEST_DEFINITIONS"))
+                elif hasattr(mod, "TEST_DEFINITION"):
+                    test_defs.append(getattr(mod, "TEST_DEFINITION"))
+        except Exception as exc:
+            print(f"Error loading test definition from {file}: {exc}")
+            
+    return test_defs
 
 
 # ─── Data types ───────────────────────────────────────────────────────────────
@@ -158,15 +191,19 @@ class TestResolver:
 
         instances: list[ResolvedTestInstance] = []
 
-        # Build lookup: address → instance_id
-        addr_to_id: dict[int, str] = {m.address: m.instance_id for m in config.module_instances}
+        test_defs = config.test_definitions
+        if not test_defs:
+            raw_defs = load_all_test_definitions()
+            test_defs = [TestDefinition.model_validate(d) for d in raw_defs]
 
-        for test_def in config.test_definitions:
+        for test_def in test_defs:
             singleton_emitted = False  # track for singleton tests
             for mod in config.module_instances:
                 if not self._matches_category(test_def, mod):
                     continue
                 if not self._matches_capabilities(test_def, config, mod):
+                    continue
+                if not self._matches_compatibility_pattern(test_def, mod):
                     continue
                 if not self._matches_include_exclude(test_def, mod):
                     continue
@@ -260,9 +297,17 @@ class TestResolver:
             return True
         type_def = config.module_types.get(mod.module_type_ref)
         if type_def is None:
-            return False
-        mod_caps = set(type_def.capabilities)
+            # Fallback: infer capabilities dynamically if module_types is not in config
+            mod_caps = set(get_module_capabilities(mod.display_name, mod.category.value))
+        else:
+            mod_caps = set(type_def.capabilities)
         return mod_caps.issuperset(test.required_capabilities)
+
+    @staticmethod
+    def _matches_compatibility_pattern(test: TestDefinition, mod: ModuleInstance) -> bool:
+        if not test.compatible_modules:
+            return True
+        return any(fnmatch.fnmatch(mod.display_name, pattern) for pattern in test.compatible_modules)
 
     @staticmethod
     def _matches_include_exclude(test: TestDefinition, mod: ModuleInstance) -> bool:
@@ -313,7 +358,11 @@ class TestResolver:
         if filters.product_key:
             result = [i for i in result if i.product_key == filters.product_key]
         if filters.capability:
-            required_caps = {td.test_id: td.required_capabilities for td in config.test_definitions}
+            test_defs = config.test_definitions
+            if not test_defs:
+                raw_defs = load_all_test_definitions()
+                test_defs = [TestDefinition.model_validate(d) for d in raw_defs]
+            required_caps = {td.test_id: td.required_capabilities for td in test_defs}
             result = [i for i in result if filters.capability in required_caps.get(i.test_id, [])]
         if filters.safety_class:
             result = [i for i in result if i.safety_class == filters.safety_class]

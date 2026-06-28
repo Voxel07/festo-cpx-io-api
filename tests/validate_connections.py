@@ -12,6 +12,41 @@ import time
 from hal import HardwareInterface, SafeSession, CpxApHardware
 from ._base import LogFn, load_connections, channel_index_from_port, noop_log
 
+TEST_DEFINITION = {
+    "test_id": "connection-validation",
+    "name": "Connection Validation",
+    "version": "1.0.0",
+    "description": "Pulse source outputs and verify target inputs to validate wiring",
+    "required_capabilities": [
+        "digital_output"
+    ],
+    "required_wiring_type": "physical",
+    "supported_categories": [
+        "output",
+        "input",
+        "inout"
+    ],
+    "safety_class": "safe",
+    "allowed_in_ci": True,
+    "can_run_parallel": False,
+    "singleton": False,
+    "parameters": {
+        "pulse_duration_s": 0.3
+    },
+    "compatible_modules": [
+        "CPX-AP-A-*DO*",
+        "CPX-AP-A-*HDO*",
+        "CPX-AP-A-*DIO*",
+        "CPX-AP-A-*DIDO*",
+        "CPX-AP-A-*DI*DO*",
+        "CPX-AP-I-*DO*",
+        "CPX-AP-I-*DIO*",
+        "CPX-AP-A-*IOL*",
+        "CPX-AP-I-*IOL*",
+        "VABX-A-*"
+    ]
+}
+
 
 def validate_single(
     hw: HardwareInterface,

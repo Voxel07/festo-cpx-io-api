@@ -19,6 +19,35 @@ from ._base import (
     load_compatibility, load_connections, noop_log,
 )
 
+TEST_DEFINITION = {
+    "test_id": "condition-counter",
+    "name": "Condition Counter",
+    "version": "1.0.0",
+    "description": "Read and verify condition counter parameters",
+    "required_capabilities": [
+        "condition_counter"
+    ],
+    "supported_categories": [
+        "output",
+        "input",
+        "inout"
+    ],
+    "safety_class": "safe",
+    "allowed_in_ci": True,
+    "can_run_parallel": False,
+    "singleton": False,
+    "parameters": {
+        "cc_param_id": 20094,
+        "cc_readback_param_id": 20095
+    },
+    "compatible_modules": [
+        "CPX-AP-I-16DI",
+        "CPX-AP-I-16NDI",
+        "CPX-AP-I-16DIO",
+        "CPX-AP-I-16NDIO"
+    ]
+}
+
 DEFAULT_TOGGLE_CYCLES = 3
 
 

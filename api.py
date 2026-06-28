@@ -139,7 +139,7 @@ async def generate_config(request: ConfigGenerateRequest):
     try:
         save_path = Path(request.save_path)
         save_path.parent.mkdir(parents=True, exist_ok=True)
-        save_path.write_text(config.model_dump_json(indent=2), encoding="utf-8")
+        save_path.write_text(config.model_dump_json(indent=2, exclude={"module_types", "test_definitions"}), encoding="utf-8")
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Could not save file: {exc}") from exc
 
@@ -165,7 +165,7 @@ async def save_config(payload: ConfigSavePayload):
     path = Path(payload.save_path)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(payload.config.model_dump_json(indent=2), encoding="utf-8")
+        path.write_text(payload.config.model_dump_json(indent=2, exclude={"module_types", "test_definitions"}), encoding="utf-8")
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Could not save config: {exc}") from exc
     return JSONResponse({"saved_to": str(path.resolve())})
