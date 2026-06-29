@@ -18,6 +18,8 @@ from . import (
     condition_counter,
     valve_condition_counter,
     remanent_params,
+    factory_reset,
+    open_load_diag,
 )
 
 # Canonical registry used by api.py to dispatch test runs.
@@ -37,7 +39,7 @@ REGISTRY: dict[str, dict] = {
     },
     "condition-counter": {
         "label": "Condition Counter",
-        "description": "Reads CC params (20094/20095) for all wired connections.",
+        "description": "Reads CC params (20094/20095) for all wired connections.  Optionally verifies persistence after power cycle.",
         "module": condition_counter,
         "needs_cpx_connection": True,    # caller provides a CpxAp instance
     },
@@ -49,8 +51,20 @@ REGISTRY: dict[str, dict] = {
     },
     "remanent-params": {
         "label": "Remanent Parameters",
-        "description": "Writes 0xAA55/0x55AA to params 20118/20119 and reads back.",
+        "description": "Writes test values to remanent params and verifies persistence after power cycle.",
         "module": remanent_params,
+        "needs_cpx_connection": True,
+    },
+    "factory-reset": {
+        "label": "Factory Reset",
+        "description": "Writes test values, performs normal/factory reset, verifies parameter persistence/clearance.",
+        "module": factory_reset,
+        "needs_cpx_connection": True,
+    },
+    "open-load-diag": {
+        "label": "Open-Load Diagnostic",
+        "description": "Activates outputs, enables open-load diagnostic, verifies diagnosis raised and clears.",
+        "module": open_load_diag,
         "needs_cpx_connection": True,
     },
 }

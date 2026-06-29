@@ -2,11 +2,22 @@
 
 Uses :class:`hal.HardwareInterface` — parameter IDs are configurable.
 
-For each I/O connection, performs a full toggle-and-verify cycle:
-  1. Read the current CC value on the target module
-  2. Toggle the source output channel N times
-  3. Read the new CC value on the target module
-  4. Verify that CC incremented by at least N
+Two entry points are provided:
+
+``run()``
+    For each I/O connection, performs a full toggle-and-verify cycle:
+      1. Read the current CC value on the target module
+      2. Toggle the source output channel N times
+      3. Read the new CC value on the target module
+      4. Verify that CC incremented by at least N
+
+``run_with_power_cycle()``
+    Extended end-to-end test that additionally verifies CC persistence over
+    a bench power cycle:
+      1. Increment CC values as in ``run()``
+      2. Power-cycle the bench via the HMP40x0 power supply.
+      3. Reconnect the HAL.
+      4. Re-read CC values and verify they are ≥ the post-increment value.
 """
 from __future__ import annotations
 
@@ -22,8 +33,8 @@ from ._base import (
 TEST_DEFINITION = {
     "test_id": "condition-counter",
     "name": "Condition Counter",
-    "version": "1.0.0",
-    "description": "Read and verify condition counter parameters",
+    "version": "1.1.0",
+    "description": "Increment and verify condition counter parameters; optionally verify persistence after power cycle",
     "required_capabilities": [
         "condition_counter"
     ],
@@ -38,7 +49,11 @@ TEST_DEFINITION = {
     "singleton": False,
     "parameters": {
         "cc_param_id": 20094,
-        "cc_readback_param_id": 20095
+        "cc_readback_param_id": 20095,
+        "power_supply_comport": None,
+        "power_supply_channels": [1, 2, 4],
+        "power_supply_voltage": 24.0,
+        "reconnect_wait": 8.0,
     },
     "compatible_modules": [
         "CPX-AP-I-16DI",
@@ -266,3 +281,166 @@ def run(
         result["duration_ms"] = round((time.time() - ch_start) * 1000, 1)
 
     return results
+
+
+def run_with_power_cycle(
+    hw: HardwareInterface,
+    ip_address: str,
+    power_supply_comport: str,
+    power_supply_channels: list[int],
+    connections_path: str = "connections.jsonc",
+    log: LogFn = noop_log,
+    cc_param_id: int = 20094,
+    cc_readback_param_id: int = 20095,
+    toggle_cycles: int = DEFAULT_TOGGLE_CYCLES,
+    connections: list[dict] | None = None,
+    power_supply_voltage: float = 24.0,
+    reconnect_wait: float = 8.0,
+    off_time: float = 1.0,
+) -> list[dict]:
+    """Condition Counter test with bench power-cycle persistence check.
+
+    Extends the standard :func:`run` with an additional phase that:
+
+    1. Runs the normal CC increment test (``run()``).
+    2. Records the CC values after increment.
+    3. Power-cycles the bench via the HMP40x0 power supply.
+    4. Reconnects the HAL.
+    5. Re-reads the CC values and verifies they are >= the post-increment
+       values (i.e. they survived the power cycle non-volatile).
+
+    Args:
+        hw:                      Connected :class:`~hal.HardwareInterface`.
+        ip_address:              IP for HAL reconnect after power cycle.
+        power_supply_comport:    Serial port of the HMP40x0 (e.g. ``"COM3"``).
+        power_supply_channels:   HMP output channels to switch (1-based).
+        connections_path:        Path to connections JSONC file.
+        log:                     Optional logging callback.
+        cc_param_id:             CC setpoint parameter ID (default 20094).
+        cc_readback_param_id:    CC readback parameter ID (default 20095).
+        toggle_cycles:           Number of output toggle cycles.
+        connections:             Pre-loaded connection list (optional).
+        power_supply_voltage:    Voltage to restore after power-off (V).
+        reconnect_wait:          Seconds to wait post power-on before
+                                 reconnecting (default 8 s).
+        off_time:                Seconds to keep power off (default 1 s).
+
+    Returns:
+        List of result dicts.  Each entry for the persistence-check phase
+        contains ``phase: "power_cycle_verify"``.
+    """
+    from power_supply import PowerCycleSession, PowerSupplyNotAvailable
+
+    # ── Phase 1: increment + verify CC ───────────────────────────────────────
+    increment_results = run(
+        hw=hw,
+        connections_path=connections_path,
+        log=log,
+        cc_param_id=cc_param_id,
+        cc_readback_param_id=cc_readback_param_id,
+        toggle_cycles=toggle_cycles,
+        connections=connections,
+    )
+
+    # Build a map of {(src_addr, tgt_addr): final_cc} for persistence check
+    cc_snapshot: dict[tuple[int, int], int] = {}
+    for r in increment_results:
+        if r.get("passed") is True and "final_cc" in r:
+            tgt = r.get("target_module")
+            src = r.get("source_module")
+            key = (r.get("source_module"), r.get("target_module"))
+            cc_snapshot[(r.get("connection", ""), )] = r["final_cc"]
+
+    failed_increment = [r for r in increment_results if r.get("passed") is False]
+    if failed_increment:
+        log("warning", "CC increment phase had failures — skipping power cycle")
+        return increment_results
+
+    # ── Phase 2: power cycle ──────────────────────────────────────────────────
+    log("info", f"  Power-cycling bench via HMP40x0 on {power_supply_comport} …")
+    try:
+        with PowerCycleSession(
+            comport=power_supply_comport,
+            channels=power_supply_channels,
+            voltage=power_supply_voltage,
+            off_time=off_time,
+            reconnect_wait=reconnect_wait,
+        ) as ps:
+            ps.cycle(hw, ip_address)
+        log("info", "  Power cycle complete, HAL reconnected")
+    except PowerSupplyNotAvailable as exc:
+        log("error", f"  Power supply not available: {exc}")
+        for r in increment_results:
+            r["power_cycle"] = "SKIPPED — power supply not available"
+        return increment_results
+    except Exception as exc:
+        log("error", f"  Power cycle failed: {exc}")
+        for r in increment_results:
+            r["power_cycle"] = f"FAILED: {exc}"
+        return increment_results
+
+    # ── Phase 3: verify CC values persisted ───────────────────────────────────
+    if connections is None:
+        from ._base import load_connections
+        connections_list = load_connections(connections_path)
+    else:
+        connections_list = connections
+
+    topology = hw.read_topology()
+    mod_by_addr: dict[int, ModuleInfo] = {m.address: m for m in topology}
+    compat = load_compatibility()
+
+    persist_results: list[dict] = []
+    # We check each successful increment result
+    for inc_result in increment_results:
+        if inc_result.get("passed") is not True:
+            continue
+        tgt_addr = inc_result.get("target_module")
+        conn_label = inc_result.get("connection", "")
+        expected_min_cc = inc_result.get("final_cc", toggle_cycles)
+        ch_start = time.time()
+
+        result: dict[str, Any] = {
+            "test": "condition-counter",
+            "phase": "power_cycle_verify",
+            "connection": conn_label,
+        }
+
+        if tgt_addr is None:
+            result["passed"] = False
+            result["error"] = "No target_module address in increment result"
+            persist_results.append(result)
+            result["duration_ms"] = round((time.time() - ch_start) * 1000, 1)
+            continue
+
+        tgt_mod = mod_by_addr.get(tgt_addr)
+        if tgt_mod is None:
+            result["passed"] = False
+            result["error"] = f"Module #{tgt_addr} not found after reconnect"
+            persist_results.append(result)
+            result["duration_ms"] = round((time.time() - ch_start) * 1000, 1)
+            continue
+
+        try:
+            cc_after = hw.read_parameter(tgt_addr, cc_readback_param_id)
+            result["cc_after_power_cycle"] = cc_after
+            result["cc_expected_min"] = expected_min_cc
+            if cc_after >= expected_min_cc:
+                result["passed"] = True
+                result["note"] = f"CC ({cc_after}) >= {expected_min_cc} after power cycle — persisted ✓"
+                log("info", f"  ✓ {conn_label}: CC {cc_after} >= {expected_min_cc} after power cycle")
+            else:
+                result["passed"] = False
+                result["error"] = (
+                    f"CC ({cc_after}) < {expected_min_cc} after power cycle — NOT persisted"
+                )
+                log("error", f"  ✗ {conn_label}: {result['error']}")
+        except Exception as exc:
+            result["passed"] = False
+            result["error"] = f"CC read failed after power cycle: {exc}"
+            log("error", f"  ✗ {conn_label}: {result['error']}")
+
+        result["duration_ms"] = round((time.time() - ch_start) * 1000, 1)
+        persist_results.append(result)
+
+    return increment_results + persist_results

@@ -210,7 +210,6 @@ def _auto_reset_output(
     from hal import CpxApHardware, CrossProcessLock
 
     port_num = int(channel.lstrip("X"))
-    base_idx = port_num * cpp
     hw = CpxApHardware()
     lock = CrossProcessLock(ip)
     try:
@@ -219,8 +218,16 @@ def _auto_reset_output(
         return  # best-effort reset, skip if locked to avoid hangs
     try:
         hw.connect(ip, timeout)
+        # On mixed DI+DO modules the SVG port IDs are sequential starting at X0
+        # with input connectors first; write_output expects a 0-based index
+        # within outputs only, so subtract the total number of input channels.
+        mod = hw._get_module(module_addr)
+        num_in = len([c for c in mod.channels.inputs if c.direction == "in"])
+        out_base = port_num * cpp - num_in
+        if out_base < 0:
+            return  # port maps to an input channel — nothing to reset
         for i in range(cpp):
-            hw.write_output(module_addr, base_idx + i, False)
+            hw.write_output(module_addr, out_base + i, False)
     except Exception:
         pass  # best-effort
     finally:
@@ -259,14 +266,24 @@ async def io_set_output(request: SetOutputRequest):
         from hal import CpxApHardware, CrossProcessLock
         cpp = request.channels_per_port
         port_num = int(request.channel.lstrip("X"))
-        base_idx = port_num * cpp
         hw = CpxApHardware()
         lock = CrossProcessLock(request.ip_address)
         lock.acquire(timeout=5.0)
         try:
             hw.connect(request.ip_address, request.timeout)
+            # On mixed DI+DO modules the SVG port IDs are sequential starting at X0
+            # with input connectors first; write_output expects a 0-based index
+            # within outputs only, so subtract the total number of input channels.
+            mod = hw._get_module(request.module_addr)
+            num_in = len([c for c in mod.channels.inputs if c.direction == "in"])
+            out_base = port_num * cpp - num_in
+            if out_base < 0:
+                raise ValueError(
+                    f"Port X{port_num} maps to an input channel on module "
+                    f"#{request.module_addr} (num_inputs={num_in})"
+                )
             for i in range(cpp):
-                hw.write_output(request.module_addr, base_idx + i, request.value)
+                hw.write_output(request.module_addr, out_base + i, request.value)
         finally:
             try:
                 hw.disconnect()
@@ -278,7 +295,7 @@ async def io_set_output(request: SetOutputRequest):
             "module_addr": request.module_addr,
             "channel": request.channel,
             "value": request.value,
-            "channels_written": list(range(base_idx, base_idx + cpp)),
+            "channels_written": list(range(out_base, out_base + cpp)),
             "auto_reset_s": _IO_AUTO_RESET_S if request.value else None,
         }
 
@@ -511,6 +528,13 @@ class StartTestRunRequest(BaseModel):
     config_path: str = Field("bench_config.json", description="Path to unified bench configuration file")
     tests: list[str] = Field(..., description="List of test IDs to run")
     source: str = Field("web", description="Initiator: 'web' or 'ci'")
+    test_parameters: dict[str, dict] = Field(
+        default_factory=dict,
+        description=(
+            "Per-test parameter overrides keyed by test_id. "
+            "Example: {\"remanent-params\": {\"power_supply_comport\": \"COM3\"}}"
+        ),
+    )
 
 
 @app.post("/test-run/start")
@@ -554,6 +578,7 @@ async def start_test_run(request: StartTestRunRequest):
         request.tests,
         request.source,
         loop,  # <-- event loop passed explicitly
+        request.test_parameters,
     )
 
     return JSONResponse({"run_id": run_id, "status": "started"})
@@ -743,6 +768,9 @@ async def ci_environment():
             "SAFETY_CLASS_FILTER": os.environ.get("SAFETY_CLASS_FILTER", "safe"),
             "GITLAB_PIPELINE_ID": os.environ.get("CI_PIPELINE_ID", "(not set)"),
             "GITLAB_JOB_ID": os.environ.get("CI_JOB_ID", "(not set)"),
+            "POWER_SUPPLY_COMPORT": os.environ.get("POWER_SUPPLY_COMPORT", "(not set)"),
+            "POWER_SUPPLY_CHANNELS": os.environ.get("POWER_SUPPLY_CHANNELS", "(not set)"),
+            "POWER_SUPPLY_VOLTAGE": os.environ.get("POWER_SUPPLY_VOLTAGE", "(not set)"),
         }
     })
 
@@ -756,11 +784,16 @@ def _execute_test_run_safe(
     tests: list[str],
     source: str,
     loop=None,  # asyncio event loop from caller (runs in thread)
+    test_parameters: dict[str, dict] | None = None,
 ) -> None:
     """Run tests with SafeSession — guaranteed output reset on scope exit.
 
     Runs in a thread pool — *loop* must be passed from the async caller
     because ``asyncio.get_running_loop()`` doesn't work in threads.
+
+    *test_parameters* is an optional ``{test_id: {param: value, ...}}`` dict
+    that overrides resolved instance parameters.  The web UI uses this to
+    forward the power-supply comport; CI uses env-vars (see below).
     """
     global _current_test_run
     from pocketbase_logger import pb_log
@@ -827,6 +860,35 @@ def _execute_test_run_safe(
                     plan_instances.extend(p.instances)
             except Exception as exc:
                 _log("error", f"Resolver failed to plan execution: {exc}")
+
+        # ── Merge parameter overrides ────────────────────────────────────────────────────
+        # Priority (high → low):
+        #   1. test_parameters dict (from web UI or explicit API call)
+        #   2. POWER_SUPPLY_COMPORT env-var (CI)
+        #   3. Resolved-instance defaults (from bench_config / TEST_DEFINITION)
+        ci_ps_comport = os.environ.get("POWER_SUPPLY_COMPORT", "").strip()
+        ci_ps_channels_raw = os.environ.get("POWER_SUPPLY_CHANNELS", "").strip()
+        ci_ps_channels = (
+            [int(c) for c in ci_ps_channels_raw.split(",") if c.strip().isdigit()]
+            if ci_ps_channels_raw else [1, 2, 4]
+        )
+        ci_ps_voltage = float(os.environ.get("POWER_SUPPLY_VOLTAGE", "24.0") or "24.0")
+
+        _POWER_CYCLE_TEST_IDS = {"remanent-params", "condition-counter", "factory-reset"}
+
+        effective_params: dict[str, dict] = {}
+        if test_parameters:
+            effective_params.update(test_parameters)
+
+        for inst in plan_instances:
+            overrides = effective_params.get(inst.test_id, {})
+            # CI env-var fallback: inject comport only if not already set
+            if inst.test_id in _POWER_CYCLE_TEST_IDS and ci_ps_comport:
+                overrides.setdefault("power_supply_comport", ci_ps_comport)
+                overrides.setdefault("power_supply_channels", ci_ps_channels)
+                overrides.setdefault("power_supply_voltage", ci_ps_voltage)
+            if overrides:
+                inst.parameters = {**inst.parameters, **overrides}
 
         # Notify PocketBase
         commit_sha = os.environ.get("CI_COMMIT_SHA", "")
@@ -1156,38 +1218,106 @@ def _run_single_test_hw(
                 )
 
     elif test_id == "condition-counter":
+        from tests.condition_counter import run_with_power_cycle as run_cc_pc
         conns = []
-        for wire in bench_config.wiring:
-            if wire.target_instance_id == resolved_instance.module_instance_id:
-                src_mod = next((m for m in bench_config.module_instances if m.instance_id == wire.source_instance_id), None)
-                tgt_mod = next((m for m in bench_config.module_instances if m.instance_id == wire.target_instance_id), None)
-                if src_mod and tgt_mod:
-                    conns.append({
-                        "source_module_addr": src_mod.address,
-                        "source_channel": wire.source_channel,
-                        "target_module_addr": tgt_mod.address,
-                        "target_channel": wire.target_channel,
-                    })
+        if bench_config:
+            for wire in bench_config.wiring:
+                if wire.target_instance_id == resolved_instance.module_instance_id:
+                    src_mod = next((m for m in bench_config.module_instances if m.instance_id == wire.source_instance_id), None)
+                    tgt_mod = next((m for m in bench_config.module_instances if m.instance_id == wire.target_instance_id), None)
+                    if src_mod and tgt_mod:
+                        conns.append({
+                            "source_module_addr": src_mod.address,
+                            "source_channel": wire.source_channel,
+                            "target_module_addr": tgt_mod.address,
+                            "target_channel": wire.target_channel,
+                        })
         if conns:
-            raw = run_cc(
-                hw=hw,
-                log=log,
-                cc_param_id=resolved_instance.parameters.get("cc_param_id", 20094),
-                cc_readback_param_id=resolved_instance.parameters.get("cc_readback_param_id", 20095),
-                toggle_cycles=resolved_instance.parameters.get("toggle_cycles", 3),
-                connections=conns
-            )
+            comport = resolved_instance.parameters.get("power_supply_comport")
+            if comport or resolved_instance.parameters.get("power_cycle"):
+                raw = run_cc_pc(
+                    hw=hw,
+                    ip_address=bench_config.test_bench.ip_address if bench_config else "",
+                    power_supply_comport=comport or "",
+                    power_supply_channels=resolved_instance.parameters.get("power_supply_channels", [1, 2, 4]),
+                    log=log,
+                    cc_param_id=resolved_instance.parameters.get("cc_param_id", 20094),
+                    cc_readback_param_id=resolved_instance.parameters.get("cc_readback_param_id", 20095),
+                    toggle_cycles=resolved_instance.parameters.get("toggle_cycles", 3),
+                    connections=conns,
+                    power_supply_voltage=resolved_instance.parameters.get("power_supply_voltage", 24.0),
+                    reconnect_wait=resolved_instance.parameters.get("reconnect_wait", 8.0),
+                )
+            else:
+                raw = run_cc(
+                    hw=hw,
+                    log=log,
+                    cc_param_id=resolved_instance.parameters.get("cc_param_id", 20094),
+                    cc_readback_param_id=resolved_instance.parameters.get("cc_readback_param_id", 20095),
+                    toggle_cycles=resolved_instance.parameters.get("toggle_cycles", 3),
+                    connections=conns,
+                )
         else:
             raw = {"test_id": test_id, "passed": None,
                    "error": f"No wiring targets module #{resolved_instance.module_address} — skipped"}
 
     elif test_id == "remanent-params":
-        raw = run_rem(
+        from tests.remanent_params import run_with_power_cycle as run_rem_pc
+        comport = resolved_instance.parameters.get("power_supply_comport")
+        if comport and bench_config:
+            raw = run_rem_pc(
+                hw=hw,
+                ip_address=bench_config.test_bench.ip_address,
+                power_supply_comport=comport,
+                power_supply_channels=resolved_instance.parameters.get("power_supply_channels", [1, 2, 4]),
+                log=log,
+                param_id_1=resolved_instance.parameters.get("param_id_1", 20118),
+                param_id_2=resolved_instance.parameters.get("param_id_2", 20119),
+                module_address=resolved_instance.module_address,
+                power_supply_voltage=resolved_instance.parameters.get("power_supply_voltage", 24.0),
+                reconnect_wait=resolved_instance.parameters.get("reconnect_wait", 8.0),
+            )
+        else:
+            raw = run_rem(
+                hw=hw,
+                log=log,
+                param_id_1=resolved_instance.parameters.get("param_id_1", 20118),
+                param_id_2=resolved_instance.parameters.get("param_id_2", 20119),
+                module_address=resolved_instance.module_address,
+            )
+
+    elif test_id == "factory-reset":
+        from tests.factory_reset import run as run_fr
+        raw = run_fr(
+            hw=hw,
+            ip_address=bench_config.test_bench.ip_address if bench_config else "",
+            log=log,
+            module_address=resolved_instance.module_address,
+            app_tag_param_id=resolved_instance.parameters.get("app_tag_param_id", 20118),
+            cc_setpoint_out_param_id=resolved_instance.parameters.get("cc_setpoint_out_param_id", 20094),
+            cc_actual_out_param_id=resolved_instance.parameters.get("cc_actual_out_param_id", 20095),
+            cc_setpoint_in_param_id=resolved_instance.parameters.get("cc_setpoint_in_param_id", 20294),
+            cc_actual_in_param_id=resolved_instance.parameters.get("cc_actual_in_param_id", 20295),
+            device_reset_param_id=resolved_instance.parameters.get("device_reset_param_id", 20001),
+            reset_reconnect_wait=resolved_instance.parameters.get("reset_reconnect_wait", 10.0),
+            power_supply_comport=resolved_instance.parameters.get("power_supply_comport"),
+            power_supply_channels=resolved_instance.parameters.get("power_supply_channels", [1, 2, 4]),
+            power_supply_voltage=resolved_instance.parameters.get("power_supply_voltage", 24.0),
+            reconnect_wait=resolved_instance.parameters.get("reconnect_wait", 8.0),
+        )
+
+    elif test_id == "open-load-diag":
+        from tests.open_load_diag import run as run_old
+        raw = run_old(
             hw=hw,
             log=log,
-            param_id_1=resolved_instance.parameters.get("param_id_1", 20118),
-            param_id_2=resolved_instance.parameters.get("param_id_2", 20119),
-            module_address=resolved_instance.module_address
+            module_address=resolved_instance.module_address,
+            force_mask_param_id=resolved_instance.parameters.get("force_mask_param_id", 20081),
+            force_value_param_id=resolved_instance.parameters.get("force_value_param_id", 20082),
+            valve_defect_diag_enable_param_id=resolved_instance.parameters.get("valve_defect_diag_enable_param_id", 20021),
+            openload_diag_enable_param_id=resolved_instance.parameters.get("openload_diag_enable_param_id", 20027),
+            diag_settle_time=resolved_instance.parameters.get("diag_settle_time", 1.5),
+            diag_clear_time=resolved_instance.parameters.get("diag_clear_time", 1.0),
         )
 
     elif test_id == "valve-condition-counter":

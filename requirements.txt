@@ -9,3 +9,6 @@ uvicorn[standard]>=0.30.0
 python-multipart>=0.0.9
 pytest>=8.0.0
 
+# Power supply control (HMP40x0 serial driver via testing-lib)
+pyserial>=3.5
+

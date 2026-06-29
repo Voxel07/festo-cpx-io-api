@@ -349,6 +349,12 @@ class TestResolver:
                 result = [i for i in result if i.test_id == "connection-validation"]
             elif tid == "output-toggle":
                 result = [i for i in result if i.test_id in ("output-toggle", "valve-toggle")]
+            elif tid == "condition-counter-pc":
+                # Power-cycle variant resolves the same instances as condition-counter;
+                # the caller decides whether to use run_with_power_cycle.
+                result = [i for i in result if i.test_id == "condition-counter"]
+                for i in result:
+                    i.parameters.setdefault("power_cycle", True)
             else:
                 result = [i for i in result if i.test_id == tid]
         if filters.module_instance_id:

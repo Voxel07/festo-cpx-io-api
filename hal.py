@@ -101,6 +101,40 @@ class HardwareInterface(ABC):
     def module_supports_channel_write(self, address: int) -> bool:
         """Check whether individual channel writes are supported."""
 
+    def reconnect(self, ip_address: str, timeout: float = 0) -> None:
+        """Disconnect and reconnect.  Convenience wrapper around
+        :meth:`disconnect` + :meth:`connect`."""
+        self.disconnect()
+        self.connect(ip_address, timeout)
+
+    def reset_device(
+        self,
+        address: int,
+        factory_reset: bool = False,
+        device_reset_param_id: int | None = None,
+    ) -> None:
+        """Trigger a device reset via a parameter write.
+
+        After the write the module restarts and the Modbus connection is
+        broken.  Callers are responsible for calling
+        :meth:`reconnect` / :meth:`connect` afterwards.
+
+        The default implementation raises :exc:`NotImplementedError`;
+        override in subclasses that support this operation.
+
+        Args:
+            address:              Bus address of the module to reset.
+            factory_reset:        ``True`` → factory reset (clears user
+                                  parameters); ``False`` → warm restart
+                                  (parameters are preserved).
+            device_reset_param_id: Parameter ID to write the reset command
+                                  to.  ``None`` → use the subclass default.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement reset_device. "
+            "Provide a concrete subclass or use a power-cycle instead."
+        )
+
 
 # ─── Production implementation ────────────────────────────────────────────────
 
@@ -187,6 +221,40 @@ class CpxApHardware(HardwareInterface):
     def module_supports_channel_write(self, address: int) -> bool:
         mod = self._get_module(address)
         return (len(mod.channels.outputs) + len(mod.channels.inouts)) > 0
+
+    def reset_device(
+        self,
+        address: int,
+        factory_reset: bool = False,
+        device_reset_param_id: int | None = None,
+    ) -> None:
+        """Trigger a device reset by writing the AP device-reset parameter.
+
+        AP standard reset-command values:
+          - ``0x5761`` — warm restart (user parameters are preserved)
+          - ``0x4B6C`` — factory reset (all user parameters cleared)
+
+        After writing, the module restarts and the Modbus connection is
+        broken.  Call :meth:`reconnect` / :meth:`connect` after the
+        appropriate startup delay.
+
+        Args:
+            address:              Bus address of the module to reset.
+            factory_reset:        ``True`` for factory reset, ``False`` for
+                                  warm restart.
+            device_reset_param_id: Parameter ID to write the reset command.
+                                  Defaults to ``20001`` (AP DeviceReset param).
+        """
+        param_id = device_reset_param_id if device_reset_param_id is not None else 20001
+        # AP-standard reset command values
+        value = 0x4B6C if factory_reset else 0x5761
+        mod = self._get_module(address)
+        try:
+            mod.write_module_parameter(param_id, value)
+        except Exception:
+            # The device restarts immediately; the connection is expected to
+            # break here — suppress the resulting Modbus error.
+            pass
 
     def _get_module(self, address: int) -> Any:
         for m in self._modules:
