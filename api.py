@@ -688,6 +688,219 @@ async def test_run_detail(run_id: str):
     return JSONResponse(detail)
 
 
+@app.delete("/test-run/{run_id}")
+async def delete_test_run(run_id: str):
+    """Delete a specific test run from history."""
+    global _run_history
+    _run_history = [r for r in _run_history if r.get("run_id") != run_id]
+
+    from pocketbase_logger import pb_log
+    pb_log.delete_run(run_id)
+    return JSONResponse({"status": "deleted", "run_id": run_id})
+
+
+@app.delete("/test-run")
+async def clear_test_run_history():
+    """Clear all test run history."""
+    global _run_history
+    _run_history.clear()
+
+    from pocketbase_logger import pb_log
+    pb_log.clear_history()
+    return JSONResponse({"status": "cleared"})
+
+
+class WriteParameterRequest(BaseModel):
+    ip_address: str = Field(..., description="IP of the CPX-AP gateway")
+    value: str = Field(..., description="Value to write (numeric string or enum string name)")
+    timeout: float = Field(0.0, ge=0)
+    instance: int | None = Field(None, description="Optional parameter instance index")
+
+
+@app.get("/io/module/{address}/parameters")
+async def get_module_parameters(
+    address: int,
+    ip_address: str = Query(..., description="IP of the CPX-AP gateway"),
+    timeout: float = Query(0.0),
+):
+    """Retrieve metadata for all parameters available on the module at the given address."""
+    import concurrent.futures
+    import asyncio
+
+    def _do():
+        from hal import CpxApHardware, CrossProcessLock
+        hw = CpxApHardware()
+        lock = CrossProcessLock(ip_address)
+        lock.acquire(timeout=5.0)
+        try:
+            hw.connect(ip_address, timeout)
+            mod = hw._get_module(address)
+            params = []
+            for p in mod.module_dicts.parameters.values():
+                first_index = p.parameter_instances.get("FirstIndex", 0) if p.parameter_instances else 0
+                num_instances = p.parameter_instances.get("NumberOfInstances", 1) if p.parameter_instances else 1
+                params.append({
+                    "parameter_id": int(p.parameter_id),
+                    "name": str(p.name),
+                    "is_writable": bool(p.is_writable),
+                    "data_type": str(p.data_type),
+                    "enums": list(p.enums.enum_values.keys()) if p.enums else None,
+                    "unit": str(p.unit) if p.unit else "",
+                    "first_index": int(first_index),
+                    "num_instances": int(num_instances),
+                })
+            return params
+        finally:
+            try:
+                hw.disconnect()
+            except Exception:
+                pass
+            lock.release()
+
+    loop = asyncio.get_running_loop()
+    try:
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            result = await loop.run_in_executor(pool, _do)
+            return JSONResponse(result)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/io/module/{address}/parameter/{param_id}")
+async def read_module_parameter(
+    address: int,
+    param_id: int,
+    ip_address: str = Query(..., description="IP of the CPX-AP gateway"),
+    timeout: float = Query(0.0),
+    instance: int | None = Query(None, description="Optional parameter instance index"),
+):
+    """Read the current value of a module parameter."""
+    import concurrent.futures
+    import asyncio
+
+    def _do():
+        from hal import CpxApHardware, CrossProcessLock
+        hw = CpxApHardware()
+        lock = CrossProcessLock(ip_address)
+        lock.acquire(timeout=5.0)
+        try:
+            hw.connect(ip_address, timeout)
+            mod = hw._get_module(address)
+            val = mod.read_module_parameter_enum_str(param_id, instances=instance)
+            if isinstance(val, list):
+                return {"value": [str(x) if x is not None else "" for x in val]}
+            return {"value": str(val) if val is not None else ""}
+        finally:
+            try:
+                hw.disconnect()
+            except Exception:
+                pass
+            lock.release()
+
+    loop = asyncio.get_running_loop()
+    try:
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            result = await loop.run_in_executor(pool, _do)
+            return JSONResponse(result)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post("/io/module/{address}/parameter/{param_id}")
+async def write_module_parameter(
+    address: int,
+    param_id: int,
+    request: WriteParameterRequest,
+):
+    """Write a new value to a module parameter and read it back."""
+    import concurrent.futures
+    import asyncio
+
+    def _do():
+        from hal import CpxApHardware, CrossProcessLock
+        hw = CpxApHardware()
+        lock = CrossProcessLock(request.ip_address)
+        lock.acquire(timeout=5.0)
+        try:
+            hw.connect(request.ip_address, request.timeout)
+            mod = hw._get_module(address)
+            val = request.value
+            try:
+                if "." in val:
+                    val = float(val)
+                else:
+                    val = int(val)
+            except ValueError:
+                pass  # keep as string (for enums etc)
+
+            mod.write_module_parameter(param_id, val, instances=request.instance)
+            time.sleep(0.05)
+            new_val = mod.read_module_parameter_enum_str(param_id, instances=request.instance)
+            return {"value": str(new_val) if new_val is not None else ""}
+        finally:
+            try:
+                hw.disconnect()
+            except Exception:
+                pass
+            lock.release()
+
+    loop = asyncio.get_running_loop()
+    try:
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            result = await loop.run_in_executor(pool, _do)
+            return JSONResponse(result)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/io/diagnoses")
+async def get_system_diagnoses(
+    ip_address: str = Query(..., description="IP of the CPX-AP gateway"),
+    timeout: float = Query(0.0),
+):
+    """Retrieve all active diagnoses raised in the system across all modules."""
+    import concurrent.futures
+    import asyncio
+
+    def _do():
+        from hal import CpxApHardware, CrossProcessLock
+        hw = CpxApHardware()
+        lock = CrossProcessLock(ip_address)
+        lock.acquire(timeout=5.0)
+        try:
+            hw.connect(ip_address, timeout)
+            active_diags = []
+            for mod in hw._modules:
+                try:
+                    diag = mod.read_diagnosis_information()
+                    if diag is not None:
+                        active_diags.append({
+                            "address": int(mod.position),
+                            "module_name": getattr(mod.apdd_information, "order_text", "") or mod.name or f"Module {mod.position}",
+                            "diagnosis_id": str(diag.diagnosis_id),
+                            "name": str(diag.name),
+                            "description": str(diag.description),
+                            "guideline": str(diag.guideline),
+                        })
+                except Exception:
+                    pass  # skip if module doesn't support diagnosis or fails
+            return active_diags
+        finally:
+            try:
+                hw.disconnect()
+            except Exception:
+                pass
+            lock.release()
+
+    loop = asyncio.get_running_loop()
+    try:
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            result = await loop.run_in_executor(pool, _do)
+            return JSONResponse(result)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 @app.get("/pocketbase/health")
 async def pocketbase_health():
     """Check whether the PocketBase logging service is reachable."""
@@ -876,12 +1089,36 @@ def _execute_test_run_safe(
 
         _POWER_CYCLE_TEST_IDS = {"remanent-params", "condition-counter", "factory-reset"}
 
+        # Get defaults from bench_config.power_supply
+        cfg_ps_comport = None
+        cfg_ps_channels = None
+        if bench_config and getattr(bench_config, "power_supply", None) and bench_config.power_supply:
+            ps = bench_config.power_supply
+            cfg_ps_comport = ps.comport or ps.ip_address
+            ch = []
+            if ps.pl_channel is not None:
+                ch.append(ps.pl_channel)
+            if ps.ps_channel is not None:
+                ch.append(ps.ps_channel)
+            if ch:
+                cfg_ps_channels = ch
+
         effective_params: dict[str, dict] = {}
         if test_parameters:
             effective_params.update(test_parameters)
 
         for inst in plan_instances:
-            overrides = effective_params.get(inst.test_id, {})
+            overrides = {}
+            if inst.test_id in _POWER_CYCLE_TEST_IDS:
+                if cfg_ps_comport:
+                    overrides["power_supply_comport"] = cfg_ps_comport
+                if cfg_ps_channels:
+                    overrides["power_supply_channels"] = cfg_ps_channels
+
+            # Explicit overrides take precedence
+            web_overrides = effective_params.get(inst.test_id, {})
+            overrides.update(web_overrides)
+
             # CI env-var fallback: inject comport only if not already set
             if inst.test_id in _POWER_CYCLE_TEST_IDS and ci_ps_comport:
                 overrides.setdefault("power_supply_comport", ci_ps_comport)

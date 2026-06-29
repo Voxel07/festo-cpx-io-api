@@ -345,10 +345,102 @@ class PocketBaseLogger:
                     )
                     if cp_resp.status_code == 200:
                         run["checkpoints"] = cp_resp.json().get("items", [])
+                    try:
+                        log_resp = requests.get(
+                            f"{PB_URL}/api/collections/{COLL_SYSTEM_LOGS}/records",
+                            params={"filter": f"(run_id='{run_id}')", "sort": "created", "perPage": 1000},
+                            headers=_headers(),
+                            timeout=(1.0, 2.0),
+                        )
+                        if log_resp.status_code == 200:
+                            run["logs"] = log_resp.json().get("items", [])
+                    except Exception:
+                        pass
                     return run
         except Exception:
             pass
         return None
+
+    def delete_run(self, run_id: str) -> bool:
+        """Delete a test run and its associated checkpoints/logs from PocketBase."""
+        try:
+            # 1. Delete test run record
+            resp = requests.get(
+                f"{PB_URL}/api/collections/{COLL_TEST_RUNS}/records",
+                params={"filter": f"(run_id='{run_id}')", "perPage": 100},
+                headers=_headers(),
+                timeout=(1.0, 2.0),
+            )
+            if resp.status_code == 200:
+                for item in resp.json().get("items", []):
+                    requests.delete(
+                        f"{PB_URL}/api/collections/{COLL_TEST_RUNS}/records/{item['id']}",
+                        headers=_headers(),
+                        timeout=(1.0, 2.0),
+                    )
+
+            # 2. Delete checkpoints
+            resp_cp = requests.get(
+                f"{PB_URL}/api/collections/{COLL_CHECKPOINTS}/records",
+                params={"filter": f"(run_id='{run_id}')", "perPage": 500},
+                headers=_headers(),
+                timeout=(1.0, 2.0),
+            )
+            if resp_cp.status_code == 200:
+                for item in resp_cp.json().get("items", []):
+                    requests.delete(
+                        f"{PB_URL}/api/collections/{COLL_CHECKPOINTS}/records/{item['id']}",
+                        headers=_headers(),
+                        timeout=(1.0, 2.0),
+                    )
+
+            # 3. Delete system logs
+            resp_log = requests.get(
+                f"{PB_URL}/api/collections/{COLL_SYSTEM_LOGS}/records",
+                params={"filter": f"(run_id='{run_id}')", "perPage": 500},
+                headers=_headers(),
+                timeout=(1.0, 2.0),
+            )
+            if resp_log.status_code == 200:
+                for item in resp_log.json().get("items", []):
+                    requests.delete(
+                        f"{PB_URL}/api/collections/{COLL_SYSTEM_LOGS}/records/{item['id']}",
+                        headers=_headers(),
+                        timeout=(1.0, 2.0),
+                    )
+            return True
+        except Exception as exc:
+            print(f"[PocketBase] Delete run failed: {exc}", flush=True)
+            return False
+
+    def clear_history(self) -> bool:
+        """Delete all test runs, checkpoints, and logs from PocketBase."""
+        try:
+            for collection in (COLL_TEST_RUNS, COLL_CHECKPOINTS, COLL_SYSTEM_LOGS):
+                while True:
+                    resp = requests.get(
+                        f"{PB_URL}/api/collections/{collection}/records",
+                        params={"perPage": 100},
+                        headers=_headers(),
+                        timeout=(1.0, 2.0),
+                    )
+                    if resp.status_code != 200:
+                        break
+                    items = resp.json().get("items", [])
+                    if not items:
+                        break
+                    for item in items:
+                        requests.delete(
+                            f"{PB_URL}/api/collections/{collection}/records/{item['id']}",
+                            headers=_headers(),
+                            timeout=(1.0, 2.0),
+                        )
+                    if len(items) < 100:
+                        break
+            return True
+        except Exception as exc:
+            print(f"[PocketBase] Clear history failed: {exc}", flush=True)
+            return False
 
 
 # Singleton (backward-compatible)

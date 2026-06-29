@@ -348,6 +348,15 @@ def infer_type_definition_from_instance(mod: ModuleInstance) -> ModuleTypeDefini
     )
 
 
+class PowerSupplyConfig(BaseModel):
+    """Power supply configuration parameters."""
+
+    comport: str | None = Field(None, alias="ComPort")
+    ip_address: str | None = Field(None, alias="Ip addr")
+    pl_channel: int | None = Field(None, alias="pl_channel")
+    ps_channel: int | None = Field(None, alias="ps_channel")
+
+
 # ─── Top-level Bench Configuration ────────────────────────────────────────────
 
 
@@ -356,6 +365,7 @@ class BenchConfig(BaseModel):
 
     schema_version: str = Field("1.0", description="Configuration schema version")
     test_bench: TestBenchMetadata
+    power_supply: PowerSupplyConfig | None = Field(None, alias="power_supply")
     module_types: dict[str, ModuleTypeDefinition] = Field(
         default_factory=dict,
         description="Module type definitions keyed by type reference string",

@@ -171,30 +171,46 @@ def validate_single_connection(
     src_ch = conn["source_channel"]  # e.g. 'X0'
     tgt_ch = conn["target_channel"]  # e.g. 'X0'
 
-    src_idx = _channel_index_from_port(src_ch)
-    tgt_idx = _channel_index_from_port(tgt_ch)
-
     src_mod = _find_module_by_addr(cpx_ap, src_addr)
     tgt_mod = _find_module_by_addr(cpx_ap, tgt_addr)
 
+    src_name = getattr(src_mod.apdd_information, "order_text", "") or ""
+    tgt_name = getattr(tgt_mod.apdd_information, "order_text", "") or ""
+    cpp_src = 2 if "M12" in src_name else 1
+    cpp_tgt = 2 if "M12" in tgt_name else 1
+
+    port_num_src = int(src_ch.lstrip("X"))
+    num_in_src = len([c for c in src_mod.channels.inputs if c.direction == "in"])
+    out_base = port_num_src * cpp_src - num_in_src
+
+    port_num_tgt = int(tgt_ch.lstrip("X"))
+    base_idx_tgt = port_num_tgt * cpp_tgt
+
     # Ensure LOW baseline
     try:
-        src_mod.write_channel(src_idx, False)
+        for i in range(cpp_src):
+            src_mod.write_channel(out_base + i, False)
     except Exception:
         pass  # some modules may not support individual channel writes
     time.sleep(0.05)
 
     # Read baseline input
-    baseline = tgt_mod.read_channel(tgt_idx)
+    try:
+        baseline_vals = [tgt_mod.read_channel(base_idx_tgt + i) for i in range(cpp_tgt)]
+        baseline = all(baseline_vals)
+    except Exception:
+        baseline = False
 
     # Pulse HIGH
     try:
-        src_mod.write_channel(src_idx, True)
+        for i in range(cpp_src):
+            src_mod.write_channel(out_base + i, True)
     except Exception:
         try:
             # Fallback: try write_channels with a list
             all_vals = [False] * len(src_mod.channels.outputs)
-            all_vals[src_idx] = True
+            for i in range(cpp_src):
+                all_vals[out_base + i] = True
             src_mod.write_channels(all_vals)
         except Exception as exc:
             return {
@@ -207,11 +223,16 @@ def validate_single_connection(
             }
 
     time.sleep(pulse_duration_s)
-    actual = tgt_mod.read_channel(tgt_idx)
+    try:
+        actual_vals = [tgt_mod.read_channel(base_idx_tgt + i) for i in range(cpp_tgt)]
+        actual = all(actual_vals)
+    except Exception:
+        actual = False
 
     # Restore LOW
     try:
-        src_mod.write_channel(src_idx, False)
+        for i in range(cpp_src):
+            src_mod.write_channel(out_base + i, False)
     except Exception:
         pass
 

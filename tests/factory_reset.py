@@ -427,6 +427,14 @@ def run(
                 reconnect_wait=reconnect_wait,
                 log=log,
             )
+            if not reset_ok:
+                log("error", f"  Power cycle failed. Aborting test.")
+                result["normal_reset_ok"] = False
+                result["factory_reset_ok"] = None
+                result["passed"] = False
+                result["duration_ms"] = round((time.time() - ch_start) * 1000, 1)
+                all_results.append(result)
+                return all_results
 
         if not reset_ok:
             log("error", f"  Could not perform warm restart for #{addr}")

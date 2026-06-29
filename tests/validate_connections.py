@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import time
 
-from hal import HardwareInterface, SafeSession, CpxApHardware
+from hal import HardwareInterface, SafeSession, CpxApHardware, ModuleInfo
 from ._base import LogFn, load_connections, channel_index_from_port, noop_log
 
 TEST_DEFINITION = {
@@ -51,6 +51,8 @@ TEST_DEFINITION = {
 def validate_single(
     hw: HardwareInterface,
     conn: dict,
+    src_mod: ModuleInfo,
+    tgt_mod: ModuleInfo,
     pulse_duration_s: float = 0.3,
 ) -> dict:
     """Test one I/O connection by pulsing the source output and reading the target input."""
@@ -59,19 +61,32 @@ def validate_single(
     src_ch = conn["source_channel"]
     tgt_ch = conn["target_channel"]
 
-    src_idx = channel_index_from_port(src_ch)
-    tgt_idx = channel_index_from_port(tgt_ch)
+    cpp_src = 2 if "M12" in src_mod.name else 1
+    cpp_tgt = 2 if "M12" in tgt_mod.name else 1
+
+    port_num_src = int(src_ch.lstrip("X"))
+    num_in_src = src_mod.num_inputs
+    out_base = port_num_src * cpp_src - num_in_src
+
+    port_num_tgt = int(tgt_ch.lstrip("X"))
+    base_idx_tgt = port_num_tgt * cpp_tgt
 
     try:
-        hw.write_output(src_addr, src_idx, False)
+        for i in range(cpp_src):
+            hw.write_output(src_addr, out_base + i, False)
     except Exception:
         pass
     time.sleep(0.05)
 
-    baseline = hw.read_input(tgt_addr, tgt_idx)
+    try:
+        baseline_vals = [hw.read_input(tgt_addr, base_idx_tgt + i) for i in range(cpp_tgt)]
+        baseline = all(baseline_vals)
+    except Exception:
+        baseline = False
 
     try:
-        hw.write_output(src_addr, src_idx, True)
+        for i in range(cpp_src):
+            hw.write_output(src_addr, out_base + i, True)
     except Exception as exc:
         return {
             "passed": False,
@@ -81,10 +96,15 @@ def validate_single(
         }
 
     time.sleep(pulse_duration_s)
-    actual = hw.read_input(tgt_addr, tgt_idx)
+    try:
+        actual_vals = [hw.read_input(tgt_addr, base_idx_tgt + i) for i in range(cpp_tgt)]
+        actual = all(actual_vals)
+    except Exception:
+        actual = False
 
     try:
-        hw.write_output(src_addr, src_idx, False)
+        for i in range(cpp_src):
+            hw.write_output(src_addr, out_base + i, False)
     except Exception:
         pass
 
@@ -137,15 +157,27 @@ def run(
         if own_session:
             session.__enter__()
 
+        topology = hw.read_topology()
+
         for i, conn in enumerate(connections, 1):
             src = f"#{conn['source_module_addr']}:{conn['source_channel']}"
             tgt = f"#{conn['target_module_addr']}:{conn['target_channel']}"
             label = f"{src} → {tgt}"
             log("info", f"  [{i}/{len(connections)}] Testing {label} …")
 
+            src_addr = conn["source_module_addr"]
+            tgt_addr = conn["target_module_addr"]
+            src_mod = next((m for m in topology if m.address == src_addr), None)
+            tgt_mod = next((m for m in topology if m.address == tgt_addr), None)
+
+            if not src_mod:
+                src_mod = ModuleInfo(name="", module_code=0, product_key="", address=src_addr)
+            if not tgt_mod:
+                tgt_mod = ModuleInfo(name="", module_code=0, product_key="", address=tgt_addr)
+
             try:
                 ch_start = time.time()
-                result = validate_single(hw, conn, pulse_duration_s)
+                result = validate_single(hw, conn, src_mod, tgt_mod, pulse_duration_s)
                 result["duration_ms"] = round((time.time() - ch_start) * 1000, 1)
             except Exception as exc:
                 result = {

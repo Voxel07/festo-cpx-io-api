@@ -99,14 +99,64 @@ class PowerSupplyNotAvailable(RuntimeError):
 
 
 def is_available() -> bool:
-    """Return ``True`` if the HMP40x0 driver was loaded successfully."""
+    """Return ``True`` if the HMP40x0 driver was loaded successfully or IP address is used."""
     return _hmp40x0_class is not None
+
+
+def _is_ip_address(val: str) -> bool:
+    if not val:
+        return False
+    parts = val.split(".")
+    if len(parts) == 4 and all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
+        return True
+    return False
+
+
+import socket
+
+class HMP40x0TCP:
+    """SCPI communication wrapper for HMP40x0 power supply over TCP/IP socket."""
+
+    def __init__(self, ip_address: str, port: int = 5025) -> None:
+        self.ip_address = ip_address
+        self.port = port
+        self.sock: socket.socket | None = None
+
+    def connect(self) -> None:
+        try:
+            self.sock = socket.create_connection((self.ip_address, self.port), timeout=5.0)
+        except Exception as e:
+            raise RuntimeError(f"Could not connect to power supply at {self.ip_address}:{self.port}: {e}")
+
+    def disconnect(self) -> None:
+        if self.sock is not None:
+            try:
+                self.sock.close()
+            except Exception:
+                pass
+            self.sock = None
+
+    def set_voltage_list(self, channels: list[int], voltage: float) -> None:
+        if self.sock is None:
+            raise RuntimeError("Not connected")
+        for ch in channels:
+            # SCPI protocol for Rohde & Schwarz HMP40x0 series:
+            # Select channel, set voltage, and enable/disable that channel
+            self.sock.sendall(f"INST:NSEL {ch}\n".encode("utf-8"))
+            self.sock.sendall(f"VOLT {voltage}\n".encode("utf-8"))
+            if voltage > 0:
+                self.sock.sendall(b"OUTP:SEL ON\n")
+            else:
+                self.sock.sendall(b"OUTP:SEL OFF\n")
+        # Global output control (Master Output)
+        if voltage > 0:
+            self.sock.sendall(b"OUTP:GEN ON\n")
 
 
 class PowerCycleSession:
     """Context manager for HMP40x0 power-cycle operations.
 
-    Opens the serial connection on ``__enter__`` and closes it on ``__exit__``.
+    Opens the serial/IP connection on ``__enter__`` and closes it on ``__exit__``.
 
     Args:
         comport:         Serial port, e.g. ``"COM3"`` or ``"/dev/ttyUSB0"``.
@@ -115,9 +165,11 @@ class PowerCycleSession:
         off_time:        Seconds to keep the power off.
         reconnect_wait:  Seconds to wait after power-on before the test
                          continues (allows the CPX-AP to finish booting).
+        ip_address:      IP address of the power supply.
 
     Raises:
-        PowerSupplyNotAvailable: If the HMP40x0 driver could not be imported.
+        PowerSupplyNotAvailable: If the HMP40x0 driver could not be imported and serial connection is selected.
+        ConnectionError: If the power supply connection fails.
 
     Example::
 
@@ -127,28 +179,84 @@ class PowerCycleSession:
 
     def __init__(
         self,
-        comport: str,
-        channels: list[int],
+        comport: str | None = None,
+        channels: list[int] | None = None,
         voltage: float = 24.0,
         off_time: float = DEFAULT_OFF_TIME,
         reconnect_wait: float = DEFAULT_RECONNECT_WAIT,
+        ip_address: str | None = None,
     ) -> None:
-        if _hmp40x0_class is None:
-            raise PowerSupplyNotAvailable(
-                "HMP40x0 driver not available. "
-                "Ensure pyserial is installed and the testing-lib repo exists at "
-                "../testing-lib/ap_testing_lib/power_supply/hmp40x0.py"
+        # Try to load configuration from bench_config.json
+        import json
+        ps_config = {}
+        for p in (Path("bench_config.json"), Path(__file__).resolve().parent / "bench_config.json"):
+            if p.exists():
+                try:
+                    with open(p, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        ps_config = data.get("power_supply", {})
+                        if ps_config:
+                            break
+                except Exception:
+                    pass
+
+        resolved_comport = comport or ps_config.get("ComPort")
+        resolved_ip = ip_address or ps_config.get("Ip addr")
+
+        # Swap if comport was passed but contains IP
+        if resolved_comport and _is_ip_address(resolved_comport):
+            resolved_ip = resolved_comport
+            resolved_comport = None
+
+        if resolved_comport and resolved_ip:
+            raise ValueError(
+                "Invalid power supply configuration: both 'ComPort' and 'Ip addr' are configured. "
+                "Only one should be selected."
             )
-        self._comport = comport
-        self._channels = channels
+        if not resolved_comport and not resolved_ip:
+            raise ValueError(
+                "Invalid power supply configuration: neither 'ComPort' nor 'Ip addr' is configured."
+            )
+
+        self._comport = resolved_comport
+        self._ip_address = resolved_ip
+
+        # Resolve channels
+        if channels is not None:
+            self._channels = channels
+        else:
+            pl_ch = ps_config.get("pl_channel")
+            ps_ch = ps_config.get("ps_channel")
+            self._channels = []
+            if pl_ch is not None:
+                self._channels.append(int(pl_ch))
+            if ps_ch is not None:
+                self._channels.append(int(ps_ch))
+            if not self._channels:
+                self._channels = [1, 2, 4]
+
         self._voltage = voltage
         self._off_time = off_time
         self._reconnect_wait = reconnect_wait
         self._ps: object | None = None
 
     def __enter__(self) -> "PowerCycleSession":
-        self._ps = _hmp40x0_class(self._comport)  # type: ignore[misc]
-        self._ps.connect()  # type: ignore[union-attr]
+        if self._comport:
+            if _hmp40x0_class is None:
+                raise PowerSupplyNotAvailable(
+                    "HMP40x0 driver not available. "
+                    "Ensure pyserial is installed and the testing-lib repo exists at "
+                    "../testing-lib/ap_testing_lib/power_supply/hmp40x0.py"
+                )
+            self._ps = _hmp40x0_class(self._comport)  # type: ignore[misc]
+        else:
+            self._ps = HMP40x0TCP(self._ip_address)
+
+        try:
+            self._ps.connect()  # type: ignore[union-attr]
+        except Exception as exc:
+            raise ConnectionError(f"Failed to connect to power supply: {exc}")
+
         return self
 
     def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> bool:

@@ -331,6 +331,22 @@ def run_with_power_cycle(
     """
     from power_supply import PowerCycleSession, PowerSupplyNotAvailable
 
+    # ── Test power supply connection first ──
+    log("info", "  Testing power supply connection ...")
+    try:
+        with PowerCycleSession(
+            comport=power_supply_comport,
+            channels=power_supply_channels,
+            voltage=power_supply_voltage,
+            off_time=off_time,
+            reconnect_wait=reconnect_wait,
+        ) as ps:
+            pass
+        log("info", "  Power supply connection test successful ✓")
+    except Exception as exc:
+        log("error", f"  Power supply connection failed: {exc}. Aborting test.")
+        return [{"test": "condition-counter", "passed": False, "error": f"Power supply connection failed: {exc}"}]
+
     # ── Phase 1: increment + verify CC ───────────────────────────────────────
     increment_results = run(
         hw=hw,
