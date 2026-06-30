@@ -87,7 +87,9 @@
       "compatible_tests_override": [],
       "excluded_tests": [],
       "is_negative_test_target": false,
-      "mounted_valves": []
+      "mounted_valves": [
+        2
+      ]
     },
     {
       "instance_id": "mod-005",
@@ -120,15 +122,31 @@
       "excluded_tests": [],
       "is_negative_test_target": false,
       "mounted_valves": []
+    },
+    {
+      "instance_id": "mod-007",
+      "display_name": "VMPAL-EPL-AP",
+      "module_code": 8224,
+      "product_key": "MZY5HTD6NB0",
+      "address": 7,
+      "category": "bus",
+      "module_type_ref": "type-8224",
+      "expected_state": "present",
+      "firmware_version": null,
+      "serial_number": null,
+      "compatible_tests_override": [],
+      "excluded_tests": [],
+      "is_negative_test_target": false,
+      "mounted_valves": []
     }
   ],
   "wiring": [
     {
-      "id": "io-2-X3-3-X0",
+      "id": "io-2-X0-3-X7",
       "source_instance_id": "mod-002",
-      "source_channel": "X3",
+      "source_channel": "X0",
       "target_instance_id": "mod-003",
-      "target_channel": "X0",
+      "target_channel": "X7",
       "signal_type": "digital_24v",
       "direction": "output_to_input",
       "connection_type": "physical",
@@ -136,11 +154,11 @@
       "waypoints": []
     },
     {
-      "id": "io-2-X0-3-X7",
+      "id": "io-2-X3-3-X0",
       "source_instance_id": "mod-002",
-      "source_channel": "X0",
+      "source_channel": "X3",
       "target_instance_id": "mod-003",
-      "target_channel": "X7",
+      "target_channel": "X0",
       "signal_type": "digital_24v",
       "direction": "output_to_input",
       "connection_type": "physical",

@@ -158,7 +158,11 @@ class ModuleInstance(BaseModel):
     )
     mounted_valves: list[int] = Field(
         default_factory=list,
-        description="0-based indices of mounted valve slots (VABX only)",
+        description="Indices of currently mounted valves (for VABX bodies)"
+    )
+    valve_slots: int | None = Field(
+        default=None,
+        description="Total number of physical valve slots on this block (for VMPAL modular bodies)"
     )
 
 
@@ -272,7 +276,7 @@ def get_module_capabilities(display_name: str, category: str) -> list[str]:
         caps.append("digital_output")
         
     # Check category/name for valve
-    if category == "valve" or "VABX" in name_up:
+    if category == "valve" or "VABX" in name_up or "VMPAL" in name_up or "VAEM" in name_up:
         caps.extend(["valve_output"])
         
     # Condition counter & Remanent params support
@@ -296,8 +300,8 @@ def infer_type_definition_from_instance(mod: ModuleInstance) -> ModuleTypeDefini
     num_io = 0
     valve_count = 0
     
-    if "VABX" in name or category == ModuleCategory.VALVE:
-        num_in = 8
+    if "VABX" in name or "VMPAL" in name or "VAEM" in name or category == ModuleCategory.VALVE:
+        num_in = 8 if "VABX" in name else 0
         num_out = 8
         valve_count = 16
     else:
@@ -314,6 +318,15 @@ def infer_type_definition_from_instance(mod: ModuleInstance) -> ModuleTypeDefini
     product_family = "CPX-AP-A" if "CPX-AP-A" in name else ("CPX-AP-I" if "CPX-AP-I" in name else "CPX-AP")
     if "VABX" in name:
         product_family = "VABX"
+        valve_count = 4
+    elif "VMPAL" in name:
+        product_family = "VMPAL"
+        valve_count = 16
+        num_out = 32
+    elif "VAEM" in name:
+        product_family = "VAEM"
+        valve_count = 12 if "12" in name else 24
+        num_out = 24 if "12" in name else 48
         
     caps = get_module_capabilities(mod.display_name, category.value)
     
@@ -495,12 +508,12 @@ class BenchConfig(BaseModel):
 
         def infer_cat(name: str, is_valve: bool, num_in: int, num_out: int, num_io: int) -> ModuleCategory:
             name_up = name.upper()
-            if is_valve or "VABX" in name_up:
+            if is_valve or "VABX" in name_up or "VMPAL" in name_up or "VAEM" in name_up:
                 return ModuleCategory.VALVE
-            if num_io > 0 or (num_in > 0 and num_out > 0):
-                return ModuleCategory.INOUT
             if any(x in name_up for x in ("EP", "EC", "PN", "PB", "EPLI")) or "bus" in name_up:
                 return ModuleCategory.BUS
+            if num_io > 0 or (num_in > 0 and num_out > 0):
+                return ModuleCategory.INOUT
             if num_out > 0:
                 return ModuleCategory.OUTPUT
             if num_in > 0:

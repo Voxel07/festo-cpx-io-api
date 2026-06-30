@@ -82,6 +82,10 @@ class HardwareInterface(ABC):
         """Write a single digital output channel."""
 
     @abstractmethod
+    def write_channels(self, address: int, values: list[bool]) -> None:
+        """Write all digital output channels at once."""
+
+    @abstractmethod
     def reset_all_outputs(self) -> None:
         """Force all output channels on all modules to a safe (LOW) state."""
 
@@ -184,6 +188,10 @@ class CpxApHardware(HardwareInterface):
             vals = [False] * max(num_out, channel + 1)
             vals[channel] = value
             mod.write_channels(vals)
+
+    def write_channels(self, address: int, values: list[bool]) -> None:
+        mod = self._get_module(address)
+        mod.write_channels(values)
 
     def reset_all_outputs(self) -> None:
         if not self._modules:
@@ -329,20 +337,19 @@ class CrossProcessLock:
                     continue
 
                 # Check if process is alive (works on Unix & Windows python 3.2+)
-                process_alive = True
-                try:
-                    os.kill(lock_pid, 0)
-                except OSError:
-                    process_alive = False
-
-                # If the lock is held by our own process or our parent (uvicorn manager),
-                # it's a stale lock from a previous reload/worker run.
-                is_own_chain = (lock_pid == os.getpid() or (hasattr(os, "getppid") and lock_pid == os.getppid()))
+                if lock_pid == os.getpid():
+                    process_alive = True
+                else:
+                    process_alive = True
+                    try:
+                        os.kill(lock_pid, 0)
+                    except OSError:
+                        process_alive = False
 
                 # Stale check: 30 minutes
                 is_stale = (time.time() - lock_time) > 1800
 
-                if not process_alive or is_stale or is_own_chain:
+                if not process_alive or is_stale:
                     self._force_release()
                     continue
 

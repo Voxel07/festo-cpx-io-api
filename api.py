@@ -782,7 +782,7 @@ async def read_module_parameter(
         from hal import CpxApHardware, CrossProcessLock
         hw = CpxApHardware()
         lock = CrossProcessLock(ip_address)
-        lock.acquire(timeout=5.0)
+        lock.acquire(timeout=15.0)
         try:
             hw.connect(ip_address, timeout)
             mod = hw._get_module(address)
@@ -1313,7 +1313,7 @@ def _execute_test_run_safe(
                 _run_history.pop()
         if run_id in _log_queues:
             loop.call_soon_threadsafe(_log_queues[run_id].put_nowait, None)
-        _test_run_lock.release()
+        loop.call_soon_threadsafe(_test_run_lock.release)
         _pb(pb_log.test_run_completed, run_id, _current_test_run["results"] if _current_test_run else [])
 
 
@@ -1548,9 +1548,8 @@ def _run_single_test_hw(
         raw = run_old(
             hw=hw,
             log=log,
+            bench_config=bench_config,
             module_address=resolved_instance.module_address,
-            force_mask_param_id=resolved_instance.parameters.get("force_mask_param_id", 20081),
-            force_value_param_id=resolved_instance.parameters.get("force_value_param_id", 20082),
             valve_defect_diag_enable_param_id=resolved_instance.parameters.get("valve_defect_diag_enable_param_id", 20021),
             openload_diag_enable_param_id=resolved_instance.parameters.get("openload_diag_enable_param_id", 20027),
             diag_settle_time=resolved_instance.parameters.get("diag_settle_time", 1.5),

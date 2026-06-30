@@ -100,10 +100,10 @@ def run(
     def _derive_type(m) -> str:
         """Derive module type string from channel counts (matches stored format)."""
         name_up = m.name.upper()
+        if m.name.upper().startswith("VABX") or m.name.upper().startswith("VMPAL") or m.name.upper().startswith("VAEM"):
+            return "Valve"
         if any(x in name_up for x in ("EP", "EC", "PN", "PB", "EPLI")):
             return "Bus"
-        if m.name.upper().startswith("VABX"):
-            return "Valve"
         if m.num_inouts > 0 or (m.num_inputs > 0 and m.num_outputs > 0):
             return "In/Out"
         if m.num_outputs > 0:

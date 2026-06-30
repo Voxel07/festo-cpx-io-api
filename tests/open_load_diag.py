@@ -7,8 +7,7 @@ Test flow
 ---------
 For each compatible valve/output module on the bus:
 
-1. **Activate all outputs** by writing ``OutputForceMask`` (20081) and
-   ``OutputForceValue`` (20082) so every output drives its load.
+1. **Activate all outputs** by writing ``True`` to all channels via ``write_channels``.
 2. **Enable the open-load diagnostic** by writing the appropriate
    enable parameter (``ValveDefectDiagEnable`` = 20021 for VABX/VAEM, or
    ``OpenloadDiagEnable`` = 20027 for VABA variants).
@@ -40,8 +39,6 @@ All IDs are configurable; the defaults are the Festo AP standard values:
 ============================  ======  =================================
 Parameter                      ID      Notes
 ============================  ======  =================================
-OutputForceMask                20081   Bit-mask: 1 = force-enable
-OutputForceValue               20082   Bit-mask: output value when forced
 ValveDefectDiagEnable          20021   VABX / VAEM modules
 OpenloadDiagEnable             20027   VABA modules
 ============================  ======  =================================
@@ -88,8 +85,6 @@ TEST_DEFINITION = {
     "can_run_parallel": False,
     "singleton": False,
     "parameters": {
-        "force_mask_param_id": 20081,
-        "force_value_param_id": 20082,
         "valve_defect_diag_enable_param_id": 20021,
         "openload_diag_enable_param_id": 20027,
         "diag_settle_time": 1.5,
@@ -123,6 +118,8 @@ _MODULE_CONFIGS: list[tuple[str, int, int, int]] = [
     ("VAEM-L1-S-24-*",   6, 20021, DIAG_VALVE_DEFECT),
     # VABA — 32 outputs, 4-byte mask, SwitchOpenChannel
     ("VABA-S6-*",        4, 20027, DIAG_SWITCH_OPEN_CHANNEL),
+    # VMPAL — 32 outputs (up to 16 valves), 4-byte mask
+    ("VMPAL-*",          4, 20021, DIAG_VALVE_DEFECT),
 ]
 
 # Fallback for any other VABX pattern not listed above
@@ -142,6 +139,9 @@ def _get_module_config(
     # Fallback for any VABX
     if fnmatch.fnmatch(module_name.upper(), "VABX-*"):
         return _VABX_FALLBACK[1], _VABX_FALLBACK[2], _VABX_FALLBACK[3]
+    # Fallback for any VMPAL
+    if fnmatch.fnmatch(module_name.upper(), "VMPAL-*"):
+        return 4, 20021, DIAG_VALVE_DEFECT
     return None
 
 
@@ -173,9 +173,8 @@ def _diagnosis_id_from_result(diag_result: Any) -> int | None:
 def run(
     hw: HardwareInterface,
     log: LogFn = noop_log,
+    bench_config: dict | None = None,
     module_address: int | None = None,
-    force_mask_param_id: int = 20081,
-    force_value_param_id: int = 20082,
     valve_defect_diag_enable_param_id: int = 20021,
     openload_diag_enable_param_id: int = 20027,
     diag_settle_time: float = 1.5,
@@ -186,8 +185,7 @@ def run(
     Steps per module:
 
     1. Look up the module in the configuration table.
-    2. Write ``OutputForceMask`` and ``OutputForceValue`` to activate all
-       outputs simultaneously.
+    2. Write all channels to ``True`` via ``write_channels``.
     3. Write the enable parameter to arm the open-load detection circuit.
     4. Wait ``diag_settle_time`` seconds.
     5. Read the module's current diagnosis via
@@ -201,8 +199,6 @@ def run(
         log:                             Optional logging callback.
         module_address:                  Restrict to one address; ``None``
                                          tests all compatible modules.
-        force_mask_param_id:             OutputForceMask parameter ID (20081).
-        force_value_param_id:            OutputForceValue parameter ID (20082).
         valve_defect_diag_enable_param_id: ValveDefectDiagEnable param ID (20021).
         openload_diag_enable_param_id:   OpenloadDiagEnable param ID (20027).
         diag_settle_time:                Seconds to wait after enabling diag.
@@ -237,8 +233,8 @@ def run(
             continue
 
         num_bytes, enable_param, expected_diag_id = cfg
-        full_mask = _all_ones_mask(num_bytes)
-        log("info", f"  Testing #{addr} {name} (mask=0x{full_mask:X}, enable_param={enable_param}) …")
+        num_channels = num_bytes * 8
+        log("info", f"  Testing #{addr} {name} (channels={num_channels}, enable_param={enable_param}) …")
 
         result: dict[str, Any] = {
             "test": "open-load-diag",
@@ -247,18 +243,53 @@ def run(
             "steps": [],
         }
 
+        # ── Step 0: Ensure diagnosis is clear ──────────────────────────────
+        step0_ts = time.time()
+        try:
+            hw.write_parameter(addr, enable_param, 0)
+            time.sleep(0.5)
+            diag_start = hw.read_diagnosis(addr)
+            diag_id_start = _diagnosis_id_from_result(diag_start)
+            if diag_id_start is not None:
+                log("error", f"    [0] ✗ Diagnosis 0x{diag_id_start:08X} active at start of test!")
+                result["passed"] = False
+                result["error"] = "Diagnosis active at start"
+                results.append(result)
+                continue
+            log("info", f"    [0] ✓ Diagnosis clear at start")
+            result["steps"].append({
+                "step": 0, "label": "Check diag clear at start",
+                "passed": True,
+                "duration_ms": round((time.time() - step0_ts) * 1000, 1)
+            })
+        except Exception as exc:
+            log("error", f"    [0] ✗ Failed to clear/check diagnosis at start: {exc}")
+            result["passed"] = False
+            result["error"] = f"Failed at start: {exc}"
+            results.append(result)
+            continue
+
+        # ── Determine expected channels ────────────────────────────────────
+        expected_channels = []
+        if bench_config and "module_instances" in bench_config:
+            inst = next((m for m in bench_config["module_instances"] if m.get("address") == addr), None)
+            if inst and "mounted_valves" in inst:
+                for i, v in enumerate(inst["mounted_valves"]):
+                    if v is None:
+                        expected_channels.extend([i*2, i*2+1])
+        result["expected_channels"] = expected_channels
+
         # ── Step 1: activate outputs ──────────────────────────────────────
         step_ts = time.time()
         try:
-            hw.write_parameter(addr, force_mask_param_id, full_mask)
-            hw.write_parameter(addr, force_value_param_id, full_mask)
+            hw.write_channels(addr, [True] * num_channels)
             result["steps"].append({
                 "step": 1, "label": "Activate all outputs",
                 "passed": True,
-                "detail": f"OutputForceMask=OutputForceValue=0x{full_mask:X}",
+                "detail": f"Channels activated via write_channels({num_channels})",
                 "duration_ms": round((time.time() - step_ts) * 1000, 1),
             })
-            log("info", f"    [1] Outputs activated (mask=0x{full_mask:X})")
+            log("info", f"    [1] Outputs activated ({num_channels} channels)")
         except Exception as exc:
             result["passed"] = False
             result["error"] = f"Failed to activate outputs: {exc}"
@@ -290,7 +321,7 @@ def run(
                 "duration_ms": round((time.time() - step_ts) * 1000, 1),
             })
             # Clean up outputs
-            _safe_deactivate(hw, addr, force_mask_param_id, force_value_param_id, log)
+            _safe_deactivate(hw, addr, num_channels, log)
             result["duration_ms"] = round((time.time() - ch_start) * 1000, 1)
             results.append(result)
             continue
@@ -309,23 +340,43 @@ def run(
             diag = hw.read_diagnosis(addr)
             diag_id = _diagnosis_id_from_result(diag)
             diag_name = getattr(diag, "name", "unknown") if diag else "none"
-            log("info", f"    [4] Diagnosis: id={diag_id:#010x if diag_id else None}, name={diag_name!r}")
-
-            if diag_id == expected_diag_id:
-                diag_ok = True
-                detail = f"Diagnosis 0x{expected_diag_id:08X} ({diag_name}) active ✓"
-                log("info", f"    [4] ✓ Expected diagnosis confirmed on #{addr}")
-            elif diag_id is None:
-                diag_ok = False
-                detail = f"No diagnosis active (expected 0x{expected_diag_id:08X})"
-                log("warning", f"    [4] ✗ No diagnosis on #{addr} — expected 0x{expected_diag_id:08X}")
+            diag_id_str = f"0x{diag_id:08X}" if diag_id is not None else "None"
+            log("info", f"    [4] Diagnosis: id={diag_id_str}, name={diag_name!r}")
+            
+            expected_base = expected_diag_id & 0xFFFF00FF
+            
+            if diag_id is not None:
+                actual_base = diag_id & 0xFFFF00FF
+                actual_channel = (diag_id >> 8) & 0xFF
             else:
-                diag_ok = False
-                detail = (
-                    f"Wrong diagnosis: got 0x{diag_id:08X} ({diag_name}), "
-                    f"expected 0x{expected_diag_id:08X}"
-                )
-                log("warning", f"    [4] ✗ Wrong diagnosis on #{addr}: {detail}")
+                actual_base = None
+                actual_channel = None
+                
+            result["actual_channel"] = actual_channel
+
+            if not expected_channels:
+                if diag_id is None:
+                    diag_ok = True
+                    detail = "No diagnosis active (none expected) ✓"
+                    log("info", f"    [4] ✓ {detail}")
+                else:
+                    diag_ok = False
+                    detail = f"Unexpected diagnosis 0x{diag_id:08X} on ch {actual_channel}"
+                    log("warning", f"    [4] ✗ {detail}")
+            else:
+                if diag_id is None:
+                    diag_ok = False
+                    detail = f"No diagnosis active (expected on {expected_channels})"
+                    log("warning", f"    [4] ✗ {detail}")
+                else:
+                    if actual_base == expected_base and actual_channel in expected_channels:
+                        diag_ok = True
+                        detail = f"Expected diagnosis 0x{diag_id:08X} ({diag_name}) on ch {actual_channel} ✓"
+                        log("info", f"    [4] ✓ {detail}")
+                    else:
+                        diag_ok = False
+                        detail = f"Wrong diagnosis 0x{diag_id:08X} on ch {actual_channel} (expected on {expected_channels})"
+                        log("warning", f"    [4] ✗ {detail}")
 
             result["diag_id"] = hex(diag_id) if diag_id else None
             result["diag_name"] = diag_name
@@ -345,14 +396,19 @@ def run(
             log("error", f"    [4] ✗ Failed to read diagnosis on #{addr}: {exc}")
 
         # ── Step 5: deactivate outputs and check clear ────────────────────
-        _safe_deactivate(hw, addr, force_mask_param_id, force_value_param_id, log)
+        _safe_deactivate(hw, addr, num_channels, log)
+        try:
+            hw.write_parameter(addr, enable_param, 0)
+        except Exception:
+            pass
         time.sleep(diag_clear_time)
 
         step_ts = time.time()
         try:
             diag_after = hw.read_diagnosis(addr)
             diag_id_after = _diagnosis_id_from_result(diag_after)
-            cleared = diag_id_after != expected_diag_id
+            expected_base = expected_diag_id & 0xFFFF00FF
+            cleared = diag_id_after is None or (diag_id_after & 0xFFFF00FF) != expected_base
             result["diag_id_after_deactivate"] = hex(diag_id_after) if diag_id_after else None
             result["steps"].append({
                 "step": 5, "label": "Deactivate outputs & verify diag clears",
@@ -360,7 +416,7 @@ def run(
                 "detail": (
                     "Diagnosis cleared ✓"
                     if cleared
-                    else f"Diagnosis 0x{expected_diag_id:08X} still active after deactivation"
+                    else f"Diagnosis 0x{diag_id_after:08X} still active after deactivation"
                 ),
                 "duration_ms": round((time.time() - step_ts) * 1000, 1),
             })
@@ -391,14 +447,12 @@ def run(
 def _safe_deactivate(
     hw: HardwareInterface,
     addr: int,
-    force_mask_param_id: int,
-    force_value_param_id: int,
+    num_channels: int,
     log: LogFn,
 ) -> None:
-    """Write zeros to OutputForceMask and OutputForceValue.  Best-effort."""
+    """Write zeros to all channels. Best-effort."""
     try:
-        hw.write_parameter(addr, force_mask_param_id, 0)
-        hw.write_parameter(addr, force_value_param_id, 0)
+        hw.write_channels(addr, [False] * num_channels)
         log("info", f"    Outputs deactivated on #{addr}")
     except Exception as exc:
         log("warning", f"    Failed to deactivate outputs on #{addr}: {exc}")
