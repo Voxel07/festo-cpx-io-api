@@ -143,7 +143,6 @@ class ModuleInstance(BaseModel):
     )
     expected_state: ExpectedState = Field(ExpectedState.PRESENT)
     firmware_version: str | None = Field(None)
-    serial_number: str | None = Field(None)
     compatible_tests_override: list[str] = Field(
         default_factory=list,
         description="Explicit test IDs to include (overrides capability matching)",
@@ -164,6 +163,9 @@ class ModuleInstance(BaseModel):
         default=None,
         description="Total number of physical valve slots on this block (for VMPAL modular bodies)"
     )
+    num_inputs: int = Field(0, ge=0, description="Number of digital/analog input channels")
+    num_outputs: int = Field(0, ge=0, description="Number of digital/analog output channels")
+    num_inouts: int = Field(0, ge=0, description="Number of bidirectional/configurable channels")
 
 
 # ─── Wiring / Connection ──────────────────────────────────────────────────────
@@ -184,6 +186,10 @@ class WiringConnection(BaseModel):
     waypoints: list[dict[str, float]] = Field(
         default_factory=list, description="UI routing waypoints [{x, y}, ...]"
     )
+    # UI rendering hints – preserved so edges reconstruct correctly after load
+    source_handle: str | None = Field(None, description="ReactFlow source handle ID, e.g. 'src-inout-X0'")
+    target_handle: str | None = Field(None, description="ReactFlow target handle ID, e.g. 'tgt-inout-X1'")
+    straight: bool = Field(False, description="Use straight-line wire routing instead of stepped routing")
 
 
 # ─── Test Definition ──────────────────────────────────────────────────────────
@@ -305,15 +311,22 @@ def infer_type_definition_from_instance(mod: ModuleInstance) -> ModuleTypeDefini
         num_out = 8
         valve_count = 16
     else:
-        # Match input channels (DI or AI)
-        di_match = re.search(r'(\d+)(?:DI|AI)', name)
-        if di_match:
-            num_in = int(di_match.group(1))
-            
-        # Match output channels (DO, HDO, or AO)
-        do_match = re.search(r'(\d+)(?:DO|HDO|AO)', name)
-        if do_match:
-            num_out = int(do_match.group(1))
+        # Check for configurable DIO / DIDO channels BEFORE separate DI / DO:
+        # '4DIDO' and '16DIO' have fully configurable ports (num_io), whereas
+        # '4DI8DO' has separate fixed-direction ports (num_in + num_out).
+        dido_match = re.search(r'(\d+)(?:DIDO|DIO)', name)
+        if dido_match:
+            num_io = int(dido_match.group(1))
+        else:
+            # Match input channels (DI or AI)
+            di_match = re.search(r'(\d+)(?:DI|AI)', name)
+            if di_match:
+                num_in = int(di_match.group(1))
+
+            # Match output channels (DO, HDO, or AO)
+            do_match = re.search(r'(\d+)(?:DO|HDO|AO)', name)
+            if do_match:
+                num_out = int(do_match.group(1))
         
     product_family = "CPX-AP-A" if "CPX-AP-A" in name else ("CPX-AP-I" if "CPX-AP-I" in name else "CPX-AP")
     if "VABX" in name:
@@ -395,7 +408,13 @@ class BenchConfig(BaseModel):
             for mod in self.module_instances:
                 type_ref = mod.module_type_ref or f"type-{mod.module_code}"
                 if type_ref not in types:
-                    types[type_ref] = infer_type_definition_from_instance(mod)
+                    type_def = infer_type_definition_from_instance(mod)
+                    # Prefer explicit instance-level IO counts over name-inferred values
+                    if mod.num_inputs or mod.num_outputs or mod.num_inouts:
+                        type_def.num_inputs = mod.num_inputs
+                        type_def.num_outputs = mod.num_outputs
+                        type_def.num_configurable = mod.num_inouts
+                    types[type_ref] = type_def
             self.module_types = types
         return self
 
@@ -496,7 +515,7 @@ class BenchConfig(BaseModel):
         ip_address: str,
         bench_id: str = "default",
     ) -> BenchConfig:
-        """Construct a modern BenchConfig directly from live hardware topology."""
+        """Construct a BenchConfig directly from live hardware topology."""
         # Build test bench metadata
         meta = TestBenchMetadata(
             id=bench_id,
@@ -594,6 +613,9 @@ class BenchConfig(BaseModel):
                     category=cat,
                     module_type_ref=type_ref,
                     mounted_valves=[],
+                    num_inputs=m.num_inputs,
+                    num_outputs=m.num_outputs,
+                    num_inouts=m.num_inouts,
                 )
             )
 

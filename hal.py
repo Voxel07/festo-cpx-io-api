@@ -33,7 +33,6 @@ class ModuleInfo:
     num_outputs: int = 0
     num_inouts: int = 0
     firmware_version: str | None = None
-    serial_number: str | None = None
 
     @property
     def is_input(self) -> bool:

@@ -38,15 +38,17 @@ Parameter IDs used
 ------------------
 All IDs are configurable.  The defaults mirror the Festo AP standard:
 
-==================  ======  ================================================
-Name                ID      Notes
-==================  ======  ================================================
-ApplicationTag       20118   String, max 32 chars
-CC Setpoint (out)   20094   UINT32, output condition counter setpoint
-CC Actual (out)     20095   UINT32, output condition counter actual value
-CC Setpoint (in)    20294   UINT32, input condition counter setpoint
-CC Actual (in)      20295   UINT32, input condition counter actual value
-==================  ======  ================================================
+==================          ======      ================================================
+Name                        ID          Notes
+==================          ======      ================================================
+ApplicationTag              20118       String, max 32 chars
+LocationTag                 20207       String, max length device-specific
+I&M 2 installation date     11295004    String/date, format device-specific
+CC Setpoint (out)           20094       UINT32, output condition counter setpoint
+CC Actual (out)             20095       UINT32, output condition counter actual value
+CC Setpoint (in)            20294       UINT32, input condition counter setpoint
+CC Actual (in)              20295       UINT32, input condition counter actual value
+==================          ======      ================================================
 """
 from __future__ import annotations
 
@@ -61,7 +63,7 @@ from ._base import LogFn, noop_log
 TEST_DEFINITION = {
     "test_id": "factory-reset",
     "name": "Factory Reset",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": (
         "Write test values, perform normal reset (verify persistence), then "
         "perform factory reset (verify clearance)"
@@ -81,7 +83,8 @@ TEST_DEFINITION = {
     "can_run_parallel": False,
     "singleton": False,
     "parameters": {
-        "app_tag_param_id": 20118,
+        "location_tag_param_id": 20207,
+        "im2_installation_date_param_id": 11295004,
         "cc_setpoint_out_param_id": 20094,
         "cc_actual_out_param_id": 20095,
         "cc_setpoint_in_param_id": 20294,
@@ -98,9 +101,47 @@ TEST_DEFINITION = {
     ]
 }
 
+
+# ── Device family → reset parameter mapping ────────────────────────────────────
+
+# Keys refer to entries in the runtime parameter-id mapping built in run().
+#
+# Examples:
+# 16DI:
+#   cc_setpoint_in_param_id: 20294
+#   cc_actual_in_param_id:   20295
+#
+# 16DIO:
+#   cc_setpoint_in_param_id:  20294
+#   cc_actual_in_param_id:    20295
+#   cc_setpoint_out_param_id: 20094
+#   cc_actual_out_param_id:   20095
+#
+# VABX-V4A:
+#   cc_setpoint_out_param_id: 20094
+#   cc_actual_out_param_id:   20095
+DEVICE_FAMILY_RESET_PARAM_KEYS: dict[str, list[str]] = {
+    "16DI-M": [
+        "cc_setpoint_in_param_id",
+        "cc_actual_in_param_id",
+    ],
+    "16DIO": [
+        "cc_setpoint_in_param_id",
+        "cc_actual_in_param_id",
+        "cc_setpoint_out_param_id",
+        "cc_actual_out_param_id",
+    ],
+    "VABX-V4": [
+        "cc_setpoint_out_param_id",
+        "cc_actual_out_param_id",
+    ],
+}
+
 # ── Test sentinel values ───────────────────────────────────────────────────────
 
 _APP_TAG_VALUE = "CPX-AP-FR-Test"
+_LOCATION_TAG_VALUE = "CPX-AP-FR-Test"
+_IM2_INSTALLATION_DATE_VALUE = "2026-07-01"
 _CC_SETPOINT_VALUE = 1000
 _CC_ACTUAL_VALUE = 500
 _CC_IN_SETPOINT_VALUE = 2000
@@ -110,38 +151,117 @@ _CC_IN_ACTUAL_VALUE = 750
 _DEFAULT_RESET_WAIT = 10.0
 
 # AP standard reset command values
-_WARM_RESET_CMD = 0x5761    # preserve parameters
-_FACTORY_RESET_CMD = 0x4B6C  # clear to factory defaults
+_WARM_RESET_CMD = 0x5761
+_FACTORY_RESET_CMD = 0x4B6C
 
 
 # ── Internal helpers ───────────────────────────────────────────────────────────
 
+def _module_family_key(module_name: str) -> str | None:
+    """Return the configured device-family key matching ``module_name``.
+
+    Matching is intentionally substring-based because topology names often
+    include full order codes / variants around the family token.
+    """
+    normalized = module_name.upper()
+
+    # Match longer / more specific keys first, e.g. 16DIO before 16DI.
+    for family in sorted(DEVICE_FAMILY_RESET_PARAM_KEYS, key=len, reverse=True):
+        if family.upper() in normalized:
+            return family
+
+    return None
+
+
+def _get_reset_param_specs_for_module(
+    module_name: str,
+    location_tag_param_id: int,
+    im2_installation_date_param_id: int,
+    cc_setpoint_out_param_id: int,
+    cc_actual_out_param_id: int,
+    cc_setpoint_in_param_id: int,
+    cc_actual_in_param_id: int,
+    log: LogFn,
+) -> list[tuple[str, int, Any, Any]]:
+    """Build the parameter list for a module.
+
+    Returns tuples:
+
+    ``(name, param_id, test_value, factory_default)``
+
+    LocationTag and I&M 2 installation date are tested for all modules.
+    Condition-counter parameters are selected by device family.
+    """
+    param_ids: dict[str, int] = {
+        "location_tag_param_id": location_tag_param_id,
+        "im2_installation_date_param_id": im2_installation_date_param_id,
+        "cc_setpoint_out_param_id": cc_setpoint_out_param_id,
+        "cc_actual_out_param_id": cc_actual_out_param_id,
+        "cc_setpoint_in_param_id": cc_setpoint_in_param_id,
+        "cc_actual_in_param_id": cc_actual_in_param_id,
+    }
+
+    param_defs: dict[str, tuple[str, Any, Any]] = {
+        "location_tag_param_id": ("location_tag", _LOCATION_TAG_VALUE, ""),
+        "im2_installation_date_param_id": (
+            "im2_installation_date",
+            _IM2_INSTALLATION_DATE_VALUE,
+            "",
+        ),
+        "cc_setpoint_out_param_id": ("cc_out_sp", _CC_SETPOINT_VALUE, 0),
+        "cc_actual_out_param_id": ("cc_out_act", _CC_ACTUAL_VALUE, 0),
+        "cc_setpoint_in_param_id": ("cc_in_sp", _CC_IN_SETPOINT_VALUE, 0),
+        "cc_actual_in_param_id": ("cc_in_act", _CC_IN_ACTUAL_VALUE, 0),
+    }
+
+    family = _module_family_key(module_name)
+
+    # These two are tested for all modules.
+    selected_keys = [
+        "location_tag_param_id",
+        "im2_installation_date_param_id",
+    ]
+
+    if family is None:
+        log(
+            "warning",
+            f"  No CC reset-parameter mapping found for module {module_name!r}; "
+            "testing common parameters only",
+        )
+    else:
+        selected_keys.extend(DEVICE_FAMILY_RESET_PARAM_KEYS[family])
+        log(
+            "info",
+            f"  Using CC reset-parameter mapping for device family {family}: "
+            f"{DEVICE_FAMILY_RESET_PARAM_KEYS[family]}",
+        )
+
+    specs: list[tuple[str, int, Any, Any]] = []
+
+    for key in selected_keys:
+        name, test_value, factory_default = param_defs[key]
+        specs.append((name, param_ids[key], test_value, factory_default))
+
+    return specs
+
+
+
 def _write_test_values(
     hw: HardwareInterface,
     addr: int,
-    app_tag_param_id: int,
-    cc_out_sp_id: int,
-    cc_out_act_id: int,
-    cc_in_sp_id: int,
-    cc_in_act_id: int,
+    params_to_write: list[tuple[str, int, Any, Any]],
     log: LogFn,
 ) -> dict[str, Any]:
-    """Write all test-sentinel values to one module.
+    """Write all configured test-sentinel values to one module.
 
-    Returns a dict with keys ``wrote_<name>`` and ``write_ok`` (bool).
+    ``params_to_write`` contains tuples:
+
+    ``(name, param_id, test_value, factory_default)``
     """
     result: dict[str, Any] = {}
     errors: list[str] = []
 
-    params_to_write: list[tuple[str, int, Any]] = [
-        ("app_tag",     app_tag_param_id,  _APP_TAG_VALUE),
-        ("cc_out_sp",   cc_out_sp_id,      _CC_SETPOINT_VALUE),
-        ("cc_out_act",  cc_out_act_id,     _CC_ACTUAL_VALUE),
-        ("cc_in_sp",    cc_in_sp_id,       _CC_IN_SETPOINT_VALUE),
-        ("cc_in_act",   cc_in_act_id,      _CC_IN_ACTUAL_VALUE),
-    ]
-
-    for name, pid, value in params_to_write:
+    for name, pid, value, _factory_default in params_to_write:
         try:
             hw.write_parameter(addr, pid, value)
             result[f"wrote_{name}"] = value
@@ -153,55 +273,50 @@ def _write_test_values(
             log("warning", f"    {err_msg}")
 
     # Immediate read-back sanity check
-    for name, pid, expected in params_to_write:
+    for name, pid, expected, _factory_default in params_to_write:
         if f"wrote_{name}" in result and "FAILED" in str(result.get(f"wrote_{name}", "")):
             continue
+
         try:
             actual = hw.read_parameter(addr, pid)
             ok = actual == expected
             result[f"readback_{name}"] = actual
             result[f"ok_{name}"] = ok
+
             if not ok:
-                errors.append(f"readback mismatch {name} [{pid}]: got {actual!r}, expected {expected!r}")
+                errors.append(
+                    f"readback mismatch {name} [{pid}]: got {actual!r}, expected {expected!r}"
+                )
         except Exception as exc:
             result[f"readback_{name}"] = f"FAILED: {exc}"
             result[f"ok_{name}"] = False
             errors.append(f"readback {name} [{pid}] failed: {exc}")
 
     result["write_ok"] = not errors
+
     if errors:
         result["write_errors"] = errors
+
     return result
 
 
 def _verify_persisted(
     hw: HardwareInterface,
     addr: int,
-    app_tag_param_id: int,
-    cc_out_sp_id: int,
-    cc_out_act_id: int,
-    cc_in_sp_id: int,
-    cc_in_act_id: int,
+    params_to_check: list[tuple[str, int, Any, Any]],
     log: LogFn,
 ) -> dict[str, Any]:
-    """Verify all test-sentinel values are still present (post normal-reset)."""
+    """Verify all configured test-sentinel values are still present."""
     result: dict[str, Any] = {}
     errors: list[str] = []
 
-    params_to_check: list[tuple[str, int, Any]] = [
-        ("app_tag",     app_tag_param_id,  _APP_TAG_VALUE),
-        ("cc_out_sp",   cc_out_sp_id,      _CC_SETPOINT_VALUE),
-        ("cc_out_act",  cc_out_act_id,     _CC_ACTUAL_VALUE),
-        ("cc_in_sp",    cc_in_sp_id,       _CC_IN_SETPOINT_VALUE),
-        ("cc_in_act",   cc_in_act_id,      _CC_IN_ACTUAL_VALUE),
-    ]
-
-    for name, pid, expected in params_to_check:
+    for name, pid, expected, _factory_default in params_to_check:
         try:
             actual = hw.read_parameter(addr, pid)
             ok = actual == expected
             result[f"persist_{name}"] = actual
             result[f"persist_ok_{name}"] = ok
+
             if not ok:
                 errors.append(
                     f"{name} [{pid}] not persisted: got {actual!r}, expected {expected!r}"
@@ -212,52 +327,40 @@ def _verify_persisted(
             errors.append(f"read {name} [{pid}] failed after normal reset: {exc}")
 
     result["persist_ok"] = not errors
+
     if errors:
         result["persist_errors"] = errors
+
     return result
 
 
 def _verify_factory_defaults(
     hw: HardwareInterface,
     addr: int,
-    app_tag_param_id: int,
-    cc_out_sp_id: int,
-    cc_out_act_id: int,
-    cc_in_sp_id: int,
-    cc_in_act_id: int,
+    params_to_check: list[tuple[str, int, Any, Any]],
     log: LogFn,
 ) -> dict[str, Any]:
-    """Verify all test-sentinel values are cleared to factory defaults.
-
-    Factory defaults:
-    * String params → empty string ``""``
-    * Numeric params → ``0``
-    """
+    """Verify all configured test-sentinel values are cleared to factory defaults."""
     result: dict[str, Any] = {}
     errors: list[str] = []
 
-    # (name, param_id, expected_factory_default)
-    params_to_check: list[tuple[str, int, Any]] = [
-        ("app_tag",     app_tag_param_id,  ""),
-        ("cc_out_sp",   cc_out_sp_id,      0),
-        ("cc_out_act",  cc_out_act_id,     0),
-        ("cc_in_sp",    cc_in_sp_id,       0),
-        ("cc_in_act",   cc_in_act_id,      0),
-    ]
-
-    for name, pid, expected_default in params_to_check:
+    for name, pid, _test_value, expected_default in params_to_check:
         try:
             actual = hw.read_parameter(addr, pid)
-            # Accept empty string or zero as "factory default"
+
             ok = actual == expected_default or (
-                isinstance(actual, str) and actual.strip("\x00") == ""
-                if isinstance(expected_default, str) else False
+                isinstance(actual, str)
+                and isinstance(expected_default, str)
+                and actual.strip("\x00") == expected_default
             )
+
             result[f"factory_{name}"] = actual
             result[f"factory_ok_{name}"] = ok
+
             if not ok:
                 errors.append(
-                    f"{name} [{pid}] not at factory default: got {actual!r}, expected {expected_default!r}"
+                    f"{name} [{pid}] not at factory default: "
+                    f"got {actual!r}, expected {expected_default!r}"
                 )
         except Exception as exc:
             result[f"factory_{name}"] = f"FAILED: {exc}"
@@ -265,8 +368,10 @@ def _verify_factory_defaults(
             errors.append(f"read {name} [{pid}] failed after factory reset: {exc}")
 
     result["factory_ok"] = not errors
+
     if errors:
         result["factory_errors"] = errors
+
     return result
 
 
@@ -279,9 +384,10 @@ def _trigger_reset(
     reset_wait: float,
     log: LogFn,
 ) -> bool:
-    """Trigger device reset and reconnect.  Returns True on success."""
+    """Trigger device reset and reconnect. Returns True on success."""
     reset_label = "factory reset" if factory_reset else "warm restart"
     log("info", f"  Triggering {reset_label} on module #{addr} via param {device_reset_param_id} …")
+
     try:
         hw.reset_device(
             address=addr,
@@ -296,11 +402,14 @@ def _trigger_reset(
         log("info", f"  Connection dropped after reset (expected): {exc}")
 
     log("info", f"  Waiting {reset_wait} s for system to restart …")
+
     try:
         hw.disconnect()
     except Exception:
         pass
+
     time.sleep(reset_wait)
+
     try:
         hw.connect(ip_address)
         log("info", "  Reconnected to AP system")
@@ -312,13 +421,13 @@ def _trigger_reset(
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
-
 def run(
     hw: HardwareInterface,
     ip_address: str,
     log: LogFn = noop_log,
     module_address: int | None = None,
-    app_tag_param_id: int = 20118,
+    location_tag_param_id: int = 20207,
+    im2_installation_date_param_id: int = 11295004,
     cc_setpoint_out_param_id: int = 20094,
     cc_actual_out_param_id: int = 20095,
     cc_setpoint_in_param_id: int = 20294,
@@ -330,45 +439,10 @@ def run(
     power_supply_voltage: float = 24.0,
     reconnect_wait: float = 8.0,
 ) -> list[dict]:
-    """Full factory-reset + normal-reset parameter persistence test.
 
-    For each module:
-
-    1. Writes test values to remanent parameters.
-    2. Triggers a **warm restart** (device_reset_param_id ← 0x5761), waits,
-       reconnects, verifies parameters *persisted*.
-    3. Triggers a **factory reset** (device_reset_param_id ← 0x4B6C), waits,
-       reconnects, verifies parameters are *cleared to defaults*.
-
-    If the device-reset parameter is not supported and a power-supply comport
-    is configured, the warm-restart phase uses a power cycle instead (factory
-    reset via power cycle is not supported and will be skipped).
-
-    Args:
-        hw:                      Connected :class:`~hal.HardwareInterface`.
-        ip_address:              IP address for HAL reconnect after reset.
-        log:                     Optional logging callback.
-        module_address:          Restrict to one module; ``None`` tests all.
-        app_tag_param_id:        ApplicationTag / LocationTag param ID.
-        cc_setpoint_out_param_id:  Output CC setpoint param ID.
-        cc_actual_out_param_id:    Output CC actual value param ID.
-        cc_setpoint_in_param_id:   Input CC setpoint param ID.
-        cc_actual_in_param_id:     Input CC actual value param ID.
-        device_reset_param_id:   Parameter ID for device reset command.
-        reset_reconnect_wait:    Seconds to wait after a device-reset write
-                                 before reconnecting.
-        power_supply_comport:    Serial port for HMP40x0 fallback power cycle
-                                 (used if device-reset param not supported).
-        power_supply_channels:   HMP output channels (1-based).
-        power_supply_voltage:    Voltage to restore after power-off (V).
-        reconnect_wait:          Seconds to wait after power-on.
-
-    Returns:
-        List of result dicts, one per module.  Each dict contains the
-        sub-keys ``write_ok``, ``normal_reset_ok``, ``factory_reset_ok``,
-        and ``passed``.
-    """
+    """Full factory-reset + normal-reset parameter persistence test."""
     topology = hw.read_topology()
+
     if module_address is not None:
         topology = [m for m in topology if m.address == module_address]
 
@@ -386,14 +460,27 @@ def run(
             "address": addr,
         }
 
+        reset_param_specs = _get_reset_param_specs_for_module(
+            module_name=mod_info.name,
+            location_tag_param_id=location_tag_param_id,
+            im2_installation_date_param_id=im2_installation_date_param_id,
+            cc_setpoint_out_param_id=cc_setpoint_out_param_id,
+            cc_actual_out_param_id=cc_actual_out_param_id,
+            cc_setpoint_in_param_id=cc_setpoint_in_param_id,
+            cc_actual_in_param_id=cc_actual_in_param_id,
+            log=log,
+        )
+
+        result["reset_param_names"] = [name for name, _pid, _value, _default in reset_param_specs]
+        result["reset_param_ids"] = {
+            name: pid for name, pid, _value, _default in reset_param_specs
+        }
+
         # ── Step 1: write test values ─────────────────────────────────────
         write_data = _write_test_values(
-            hw=hw, addr=addr,
-            app_tag_param_id=app_tag_param_id,
-            cc_out_sp_id=cc_setpoint_out_param_id,
-            cc_out_act_id=cc_actual_out_param_id,
-            cc_in_sp_id=cc_setpoint_in_param_id,
-            cc_in_act_id=cc_actual_in_param_id,
+            hw=hw,
+            addr=addr,
+            params_to_write=reset_param_specs,
             log=log,
         )
         result.update(write_data)
@@ -409,7 +496,9 @@ def run(
 
         # ── Step 2: warm restart + verify persistence ─────────────────────
         reset_ok = _trigger_reset(
-            hw=hw, addr=addr, ip_address=ip_address,
+            hw=hw,
+            addr=addr,
+            ip_address=ip_address,
             factory_reset=False,
             device_reset_param_id=device_reset_param_id,
             reset_wait=reset_reconnect_wait,
@@ -419,7 +508,8 @@ def run(
         if not reset_ok and power_supply_comport:
             log("info", f"  Falling back to power-cycle for warm-restart on #{addr}")
             reset_ok = _power_cycle_reconnect(
-                hw=hw, ip_address=ip_address,
+                hw=hw,
+                ip_address=ip_address,
                 comport=power_supply_comport,
                 channels=power_supply_channels or [1, 2, 4],
                 voltage=power_supply_voltage,
@@ -427,8 +517,9 @@ def run(
                 reconnect_wait=reconnect_wait,
                 log=log,
             )
+
             if not reset_ok:
-                log("error", f"  Power cycle failed. Aborting test.")
+                log("error", "  Power cycle failed. Aborting test.")
                 result["normal_reset_ok"] = False
                 result["factory_reset_ok"] = None
                 result["passed"] = False
@@ -446,15 +537,13 @@ def run(
             continue
 
         persist_data = _verify_persisted(
-            hw=hw, addr=addr,
-            app_tag_param_id=app_tag_param_id,
-            cc_out_sp_id=cc_setpoint_out_param_id,
-            cc_out_act_id=cc_actual_out_param_id,
-            cc_in_sp_id=cc_setpoint_in_param_id,
-            cc_in_act_id=cc_actual_in_param_id,
+            hw=hw,
+            addr=addr,
+            params_to_check=reset_param_specs,
             log=log,
         )
         result.update(persist_data)
+
         normal_ok = persist_data.get("persist_ok", False)
         result["normal_reset_ok"] = normal_ok
 
@@ -465,7 +554,9 @@ def run(
 
         # ── Step 3: factory reset + verify clearance ──────────────────────
         factory_reset_ok = _trigger_reset(
-            hw=hw, addr=addr, ip_address=ip_address,
+            hw=hw,
+            addr=addr,
+            ip_address=ip_address,
             factory_reset=True,
             device_reset_param_id=device_reset_param_id,
             reset_wait=reset_reconnect_wait,
@@ -481,24 +572,21 @@ def run(
             )
         else:
             factory_data = _verify_factory_defaults(
-                hw=hw, addr=addr,
-                app_tag_param_id=app_tag_param_id,
-                cc_out_sp_id=cc_setpoint_out_param_id,
-                cc_out_act_id=cc_actual_out_param_id,
-                cc_in_sp_id=cc_setpoint_in_param_id,
-                cc_in_act_id=cc_actual_in_param_id,
+                hw=hw,
+                addr=addr,
+                params_to_check=reset_param_specs,
                 log=log,
             )
             result.update(factory_data)
+
             fr_ok = factory_data.get("factory_ok", False)
             result["factory_reset_ok"] = fr_ok
 
             if fr_ok:
                 log("info", f"  ✓ #{addr}: parameters cleared after factory reset")
             else:
-                log("error", f"  ✗ #{addr}: factory reset clearance check failed")
+                log("error", "  ✗ #{addr}: factory reset clearance check failed")
 
-        # Overall pass: write OK + normal reset persisted + factory reset cleared (if available)
         fr_result = result.get("factory_reset_ok")
         result["passed"] = (
             write_data.get("write_ok", False)
@@ -511,50 +599,64 @@ def run(
 
     return all_results
 
-
 def verify_persistence_after_reset(
     hw: HardwareInterface,
     log: LogFn = noop_log,
     module_address: int | None = None,
-    app_tag_param_id: int = 20118,
+    location_tag_param_id: int = 20207,
+    im2_installation_date_param_id: int = 11295004,
     cc_setpoint_out_param_id: int = 20094,
     cc_actual_out_param_id: int = 20095,
     cc_setpoint_in_param_id: int = 20294,
     cc_actual_in_param_id: int = 20295,
 ) -> list[dict]:
-    """Phase 2 (external trigger): verify parameters persisted after a manual reset.
-
-    Use when a manual / external warm-restart was performed instead of the
-    automated reset in :func:`run`.  The HAL must already be reconnected.
-    """
+    """Phase 2: verify parameters persisted after a manual reset."""
     topology = hw.read_topology()
+
     if module_address is not None:
         topology = [m for m in topology if m.address == module_address]
 
     results: list[dict] = []
+
     for mod_info in topology:
         addr = mod_info.address
         ch_start = time.time()
         log("info", f"  Verifying persistence on #{addr} {mod_info.name} …")
-        persist_data = _verify_persisted(
-            hw=hw, addr=addr,
-            app_tag_param_id=app_tag_param_id,
-            cc_out_sp_id=cc_setpoint_out_param_id,
-            cc_out_act_id=cc_actual_out_param_id,
-            cc_in_sp_id=cc_setpoint_in_param_id,
-            cc_in_act_id=cc_actual_in_param_id,
+
+        reset_param_specs = _get_reset_param_specs_for_module(
+            module_name=mod_info.name,
+            location_tag_param_id=location_tag_param_id,
+            im2_installation_date_param_id=im2_installation_date_param_id,
+            cc_setpoint_out_param_id=cc_setpoint_out_param_id,
+            cc_actual_out_param_id=cc_actual_out_param_id,
+            cc_setpoint_in_param_id=cc_setpoint_in_param_id,
+            cc_actual_in_param_id=cc_actual_in_param_id,
             log=log,
         )
+
+        persist_data = _verify_persisted(
+            hw=hw,
+            addr=addr,
+            params_to_check=reset_param_specs,
+            log=log,
+        )
+
         result = {
             "test": "factory-reset",
             "phase": "verify-persistence",
             "module": mod_info.name,
             "address": addr,
+            "reset_param_names": [name for name, _pid, _value, _default in reset_param_specs],
+            "reset_param_ids": {
+                name: pid for name, pid, _value, _default in reset_param_specs
+            },
             "passed": persist_data.get("persist_ok", False),
         }
+
         result.update(persist_data)
         result["duration_ms"] = round((time.time() - ch_start) * 1000, 1)
         results.append(result)
+
     return results
 
 
@@ -562,45 +664,60 @@ def verify_factory_defaults(
     hw: HardwareInterface,
     log: LogFn = noop_log,
     module_address: int | None = None,
-    app_tag_param_id: int = 20118,
+    location_tag_param_id: int = 20207,
+    im2_installation_date_param_id: int = 11295004,
     cc_setpoint_out_param_id: int = 20094,
     cc_actual_out_param_id: int = 20095,
     cc_setpoint_in_param_id: int = 20294,
     cc_actual_in_param_id: int = 20295,
 ) -> list[dict]:
-    """Phase 3 (external trigger): verify parameters cleared after a manual factory reset.
-
-    Use when the factory reset was triggered externally (button, jumper, or
-    proprietary tooling).  The HAL must already be reconnected.
-    """
+    """Phase 3: verify parameters cleared after a manual factory reset."""
     topology = hw.read_topology()
+
     if module_address is not None:
         topology = [m for m in topology if m.address == module_address]
 
     results: list[dict] = []
+
     for mod_info in topology:
         addr = mod_info.address
         ch_start = time.time()
         log("info", f"  Verifying factory defaults on #{addr} {mod_info.name} …")
-        factory_data = _verify_factory_defaults(
-            hw=hw, addr=addr,
-            app_tag_param_id=app_tag_param_id,
-            cc_out_sp_id=cc_setpoint_out_param_id,
-            cc_out_act_id=cc_actual_out_param_id,
-            cc_in_sp_id=cc_setpoint_in_param_id,
-            cc_in_act_id=cc_actual_in_param_id,
+
+        reset_param_specs = _get_reset_param_specs_for_module(
+            module_name=mod_info.name,
+            location_tag_param_id=location_tag_param_id,
+            im2_installation_date_param_id=im2_installation_date_param_id,
+            cc_setpoint_out_param_id=cc_setpoint_out_param_id,
+            cc_actual_out_param_id=cc_actual_out_param_id,
+            cc_setpoint_in_param_id=cc_setpoint_in_param_id,
+            cc_actual_in_param_id=cc_actual_in_param_id,
             log=log,
         )
+
+        factory_data = _verify_factory_defaults(
+            hw=hw,
+            addr=addr,
+            params_to_check=reset_param_specs,
+            log=log,
+        )
+
         result = {
             "test": "factory-reset",
             "phase": "verify-factory-defaults",
             "module": mod_info.name,
             "address": addr,
+            "reset_param_names": [name for name, _pid, _value, _default in reset_param_specs],
+            "reset_param_ids": {
+                name: pid for name, pid, _value, _default in reset_param_specs
+            },
             "passed": factory_data.get("factory_ok", False),
         }
+
         result.update(factory_data)
         result["duration_ms"] = round((time.time() - ch_start) * 1000, 1)
         results.append(result)
+
     return results
 
 

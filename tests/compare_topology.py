@@ -57,9 +57,9 @@ def run(
     stored_modules = []
     for inst in config.module_instances:
         type_def = config.module_types.get(inst.module_type_ref)
-        num_in = type_def.num_inputs if type_def else 0
-        num_out = type_def.num_outputs if type_def else 0
-        num_io = type_def.num_configurable if type_def else 0
+        num_in = inst.num_inputs
+        num_out = inst.num_outputs
+        num_io = inst.num_inouts
         series = type_def.product_family if type_def else ""
 
         cat = inst.category.value

@@ -168,7 +168,91 @@ def _diagnosis_id_from_result(diag_result: Any) -> int | None:
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
+def _format_diag_id(diag_id: int | None) -> str:
+    """Format a diagnosis ID as 8-digit hex, or None."""
+    return f"0x{diag_id:08X}" if diag_id is not None else "None"
 
+
+def _expected_diag_name(expected_diag_id: int) -> str:
+    """Return a readable expected diagnosis name."""
+    if expected_diag_id == DIAG_VALVE_DEFECT:
+        return "AP_DIAG_VALVE_DEFECT"
+    if expected_diag_id == DIAG_SWITCH_OPEN_CHANNEL:
+        return "AP_DIAG_SWITCH_OPEN_CHANNEL"
+    return "unknown"
+
+
+def _mounted_valves_from_bench_config(
+    bench_config: dict | None,
+    addr: int,
+) -> list[Any] | None:
+    """Return mounted_valves for a module address, if available."""
+    if not bench_config or "module_instances" not in bench_config:
+        return None
+
+    inst = next(
+        (
+            m for m in bench_config["module_instances"]
+            if m.get("address") == addr
+        ),
+        None,
+    )
+
+    if not inst:
+        return None
+
+    return inst.get("mounted_valves")
+
+
+def _expected_channels_from_mounted_valves(
+    mounted_valves: list[Any] | None,
+) -> list[int]:
+    """Derive expected open-load diagnostic channels from mounted_valves.
+
+    Existing behavior preserved:
+    - If a valve position is None, both related coil channels are expected
+      to show an open-load diagnosis.
+    - Valve index i maps to channels i*2 and i*2+1.
+    """
+    expected_channels: list[int] = []
+
+    if mounted_valves is None:
+        return expected_channels
+
+    for i, valve in enumerate(mounted_valves):
+        if valve is None:
+            expected_channels.extend([i * 2, i * 2 + 1])
+
+    return expected_channels
+
+
+def _mounted_valves_to_text(mounted_valves: list[Any] | None) -> str:
+    """Create a compact readable representation of mounted valves."""
+    if mounted_valves is None:
+        return "unknown, no bench_config mounted_valves available"
+
+    parts = []
+    for i, valve in enumerate(mounted_valves):
+        if valve is None:
+            parts.append(f"pos {i}: empty")
+        else:
+            parts.append(f"pos {i}: mounted={valve!r}")
+
+    return "; ".join(parts) if parts else "no valve positions configured"
+
+
+def _diag_locations_text(
+    channels: list[int] | None,
+    diag_id: int | None = None,
+    diag_name: str | None = None,
+) -> str:
+    """Format diagnostic location information."""
+    if not channels:
+        return "none"
+
+    diag_id_text = _format_diag_id(diag_id) if diag_id is not None else "unknown-id"
+    diag_name_text = diag_name or "unknown-name"
+    return f"channels={channels}, diag={diag_id_text} ({diag_name_text})"
 
 def run(
     hw: HardwareInterface,
@@ -180,34 +264,7 @@ def run(
     diag_settle_time: float = 1.5,
     diag_clear_time: float = 1.0,
 ) -> list[dict]:
-    """Run the open-load diagnostic test on all compatible output/valve modules.
-
-    Steps per module:
-
-    1. Look up the module in the configuration table.
-    2. Write all channels to ``True`` via ``write_channels``.
-    3. Write the enable parameter to arm the open-load detection circuit.
-    4. Wait ``diag_settle_time`` seconds.
-    5. Read the module's current diagnosis via
-       :meth:`~hal.HardwareInterface.read_diagnosis`.
-    6. Verify the diagnosis ID matches the expected value.
-    7. Deactivate outputs (write zeros) and verify the diagnosis clears
-       within ``diag_clear_time`` seconds.
-
-    Args:
-        hw:                              Connected HAL instance.
-        log:                             Optional logging callback.
-        module_address:                  Restrict to one address; ``None``
-                                         tests all compatible modules.
-        valve_defect_diag_enable_param_id: ValveDefectDiagEnable param ID (20021).
-        openload_diag_enable_param_id:   OpenloadDiagEnable param ID (20027).
-        diag_settle_time:                Seconds to wait after enabling diag.
-        diag_clear_time:                 Seconds to wait after deactivating
-                                         outputs for the diag to clear.
-
-    Returns:
-        List of result dicts, one per tested module.
-    """
+    """Run the open-load diagnostic test on all compatible output/valve modules."""
     topology = hw.read_topology()
     if module_address is not None:
         topology = [m for m in topology if m.address == module_address]
@@ -225,7 +282,8 @@ def run(
             log("info", f"  ⊘ #{addr} {name}: not in open-load-diag module table — skipped")
             results.append({
                 "test": "open-load-diag",
-                "module": name, "address": addr,
+                "module": name,
+                "address": addr,
                 "passed": None,
                 "note": f"{name} not in open-load-diag compatibility table — skipped",
                 "duration_ms": round((time.time() - ch_start) * 1000, 1),
@@ -233,15 +291,53 @@ def run(
             continue
 
         num_bytes, enable_param, expected_diag_id = cfg
+
+        if expected_diag_id == DIAG_VALVE_DEFECT:
+            enable_param = valve_defect_diag_enable_param_id
+        elif expected_diag_id == DIAG_SWITCH_OPEN_CHANNEL:
+            enable_param = openload_diag_enable_param_id
+
         num_channels = num_bytes * 8
-        log("info", f"  Testing #{addr} {name} (channels={num_channels}, enable_param={enable_param}) …")
+        expected_diag_name = _expected_diag_name(expected_diag_id)
+
+        # ── Determine mounted valves and expected diagnostic channels ──────
+        mounted_valves = _mounted_valves_from_bench_config(bench_config, addr)
+        expected_channels = _expected_channels_from_mounted_valves(mounted_valves)
+
+        expected_diag_locations = [
+            {
+                "channel": ch,
+                "diag_id": _format_diag_id(expected_diag_id),
+                "diag_name": expected_diag_name,
+            }
+            for ch in expected_channels
+        ]
+
+        # ── Pre-test info log ──────────────────────────────────────────────
+        log("info", f"  ── Open-load diagnostic test plan for #{addr} {name} ──")
+        log("info", f"     Mounted valves: {_mounted_valves_to_text(mounted_valves)}")
+        log("info", f"     Output channels: {num_channels}")
+        log("info", f"     Enable parameter: {enable_param}")
+        log(
+            "info",
+            "     Expected diagnostics: "
+            f"{_diag_locations_text(expected_channels, expected_diag_id, expected_diag_name)}"
+        )
 
         result: dict[str, Any] = {
             "test": "open-load-diag",
-            "module": name, "address": addr,
-            "expected_diag_id": hex(expected_diag_id),
+            "module": name,
+            "address": addr,
+            "mounted_valves": mounted_valves,
+            "expected_diag_id": _format_diag_id(expected_diag_id),
+            "expected_diag_name": expected_diag_name,
+            "expected_channels": expected_channels,
+            "expected_diag_locations": expected_diag_locations,
+            "actual_diag_locations": [],
             "steps": [],
         }
+
+        log("info", f"  Testing #{addr} {name} (channels={num_channels}, enable_param={enable_param}) …")
 
         # ── Step 0: Ensure diagnosis is clear ──────────────────────────────
         step0_ts = time.time()
@@ -250,41 +346,37 @@ def run(
             time.sleep(0.5)
             diag_start = hw.read_diagnosis(addr)
             diag_id_start = _diagnosis_id_from_result(diag_start)
+
             if diag_id_start is not None:
                 log("error", f"    [0] ✗ Diagnosis 0x{diag_id_start:08X} active at start of test!")
                 result["passed"] = False
                 result["error"] = "Diagnosis active at start"
+                result["duration_ms"] = round((time.time() - ch_start) * 1000, 1)
                 results.append(result)
                 continue
-            log("info", f"    [0] ✓ Diagnosis clear at start")
+
+            log("info", "    [0] ✓ Diagnosis clear at start")
             result["steps"].append({
-                "step": 0, "label": "Check diag clear at start",
+                "step": 0,
+                "label": "Check diag clear at start",
                 "passed": True,
-                "duration_ms": round((time.time() - step0_ts) * 1000, 1)
+                "duration_ms": round((time.time() - step0_ts) * 1000, 1),
             })
         except Exception as exc:
             log("error", f"    [0] ✗ Failed to clear/check diagnosis at start: {exc}")
             result["passed"] = False
             result["error"] = f"Failed at start: {exc}"
+            result["duration_ms"] = round((time.time() - ch_start) * 1000, 1)
             results.append(result)
             continue
-
-        # ── Determine expected channels ────────────────────────────────────
-        expected_channels = []
-        if bench_config and "module_instances" in bench_config:
-            inst = next((m for m in bench_config["module_instances"] if m.get("address") == addr), None)
-            if inst and "mounted_valves" in inst:
-                for i, v in enumerate(inst["mounted_valves"]):
-                    if v is None:
-                        expected_channels.extend([i*2, i*2+1])
-        result["expected_channels"] = expected_channels
 
         # ── Step 1: activate outputs ──────────────────────────────────────
         step_ts = time.time()
         try:
             hw.write_channels(addr, [True] * num_channels)
             result["steps"].append({
-                "step": 1, "label": "Activate all outputs",
+                "step": 1,
+                "label": "Activate all outputs",
                 "passed": True,
                 "detail": f"Channels activated via write_channels({num_channels})",
                 "duration_ms": round((time.time() - step_ts) * 1000, 1),
@@ -294,8 +386,10 @@ def run(
             result["passed"] = False
             result["error"] = f"Failed to activate outputs: {exc}"
             result["steps"].append({
-                "step": 1, "label": "Activate all outputs",
-                "passed": False, "error": str(exc),
+                "step": 1,
+                "label": "Activate all outputs",
+                "passed": False,
+                "error": str(exc),
                 "duration_ms": round((time.time() - step_ts) * 1000, 1),
             })
             result["duration_ms"] = round((time.time() - ch_start) * 1000, 1)
@@ -307,7 +401,8 @@ def run(
         try:
             hw.write_parameter(addr, enable_param, 1)
             result["steps"].append({
-                "step": 2, "label": f"Enable diag (param {enable_param}=1)",
+                "step": 2,
+                "label": f"Enable diag (param {enable_param}=1)",
                 "passed": True,
                 "duration_ms": round((time.time() - step_ts) * 1000, 1),
             })
@@ -316,11 +411,12 @@ def run(
             result["passed"] = False
             result["error"] = f"Failed to enable diagnostic: {exc}"
             result["steps"].append({
-                "step": 2, "label": f"Enable diag (param {enable_param}=1)",
-                "passed": False, "error": str(exc),
+                "step": 2,
+                "label": f"Enable diag (param {enable_param}=1)",
+                "passed": False,
+                "error": str(exc),
                 "duration_ms": round((time.time() - step_ts) * 1000, 1),
             })
-            # Clean up outputs
             _safe_deactivate(hw, addr, num_channels, log)
             result["duration_ms"] = round((time.time() - ch_start) * 1000, 1)
             results.append(result)
@@ -330,7 +426,8 @@ def run(
         log("info", f"    [3] Waiting {diag_settle_time} s for diagnostic to settle …")
         time.sleep(diag_settle_time)
         result["steps"].append({
-            "step": 3, "label": f"Wait {diag_settle_time} s",
+            "step": 3,
+            "label": f"Wait {diag_settle_time} s",
             "passed": True,
         })
 
@@ -340,57 +437,87 @@ def run(
             diag = hw.read_diagnosis(addr)
             diag_id = _diagnosis_id_from_result(diag)
             diag_name = getattr(diag, "name", "unknown") if diag else "none"
-            diag_id_str = f"0x{diag_id:08X}" if diag_id is not None else "None"
+            diag_id_str = _format_diag_id(diag_id)
+
             log("info", f"    [4] Diagnosis: id={diag_id_str}, name={diag_name!r}")
-            
+
             expected_base = expected_diag_id & 0xFFFF00FF
-            
+
             if diag_id is not None:
                 actual_base = diag_id & 0xFFFF00FF
                 actual_channel = (diag_id >> 8) & 0xFF
+                actual_diag_locations = [{
+                    "channel": actual_channel,
+                    "diag_id": _format_diag_id(diag_id),
+                    "diag_name": diag_name,
+                }]
             else:
                 actual_base = None
                 actual_channel = None
-                
+                actual_diag_locations = []
+
             result["actual_channel"] = actual_channel
+            result["actual_diag_locations"] = actual_diag_locations
 
             if not expected_channels:
                 if diag_id is None:
                     diag_ok = True
-                    detail = "No diagnosis active (none expected) ✓"
+                    detail = "No diagnosis active; none expected ✓"
                     log("info", f"    [4] ✓ {detail}")
                 else:
                     diag_ok = False
-                    detail = f"Unexpected diagnosis 0x{diag_id:08X} on ch {actual_channel}"
+                    detail = f"Unexpected diagnosis {_format_diag_id(diag_id)} on ch {actual_channel}"
                     log("warning", f"    [4] ✗ {detail}")
             else:
                 if diag_id is None:
                     diag_ok = False
-                    detail = f"No diagnosis active (expected on {expected_channels})"
+                    detail = f"No diagnosis active; expected on channels {expected_channels}"
                     log("warning", f"    [4] ✗ {detail}")
+                elif actual_base == expected_base and actual_channel in expected_channels:
+                    diag_ok = True
+                    detail = (
+                        f"Expected diagnosis {_format_diag_id(diag_id)} "
+                        f"({diag_name}) on ch {actual_channel} ✓"
+                    )
+                    log("info", f"    [4] ✓ {detail}")
                 else:
-                    if actual_base == expected_base and actual_channel in expected_channels:
-                        diag_ok = True
-                        detail = f"Expected diagnosis 0x{diag_id:08X} ({diag_name}) on ch {actual_channel} ✓"
-                        log("info", f"    [4] ✓ {detail}")
-                    else:
-                        diag_ok = False
-                        detail = f"Wrong diagnosis 0x{diag_id:08X} on ch {actual_channel} (expected on {expected_channels})"
-                        log("warning", f"    [4] ✗ {detail}")
+                    diag_ok = False
+                    detail = (
+                        f"Wrong diagnosis {_format_diag_id(diag_id)} on ch {actual_channel}; "
+                        f"expected {_format_diag_id(expected_diag_id)} "
+                        f"({expected_diag_name}) on channels {expected_channels}"
+                    )
+                    log("warning", f"    [4] ✗ {detail}")
 
-            result["diag_id"] = hex(diag_id) if diag_id else None
+            log(
+                "info",
+                "    [4] Expected vs actual: "
+                f"expected={_diag_locations_text(expected_channels, expected_diag_id, expected_diag_name)}; "
+                f"actual={_diag_locations_text([actual_channel] if actual_channel is not None else [], diag_id, diag_name)}"
+            )
+
+            result["diag_id"] = _format_diag_id(diag_id) if diag_id is not None else None
             result["diag_name"] = diag_name
             result["steps"].append({
-                "step": 4, "label": "Read & verify diagnosis",
-                "passed": diag_ok, "detail": detail,
-                "diag_id": hex(diag_id) if diag_id else None,
+                "step": 4,
+                "label": "Read & verify diagnosis",
+                "passed": diag_ok,
+                "detail": detail,
+                "expected_diag_locations": expected_diag_locations,
+                "actual_diag_locations": actual_diag_locations,
+                "diag_id": _format_diag_id(diag_id) if diag_id is not None else None,
                 "duration_ms": round((time.time() - step_ts) * 1000, 1),
             })
         except Exception as exc:
             diag_ok = False
+            result["actual_diag_locations"] = []
             result["steps"].append({
-                "step": 4, "label": "Read & verify diagnosis",
-                "passed": False, "error": str(exc),
+                "step": 4,
+                "label": "Read & verify diagnosis",
+                "passed": False,
+                "error": str(exc),
+                "expected_diag_locations": expected_diag_locations,
+                "actual_diag_locations": [],
                 "duration_ms": round((time.time() - step_ts) * 1000, 1),
             })
             log("error", f"    [4] ✗ Failed to read diagnosis on #{addr}: {exc}")
@@ -401,6 +528,7 @@ def run(
             hw.write_parameter(addr, enable_param, 0)
         except Exception:
             pass
+
         time.sleep(diag_clear_time)
 
         step_ts = time.time()
@@ -409,17 +537,25 @@ def run(
             diag_id_after = _diagnosis_id_from_result(diag_after)
             expected_base = expected_diag_id & 0xFFFF00FF
             cleared = diag_id_after is None or (diag_id_after & 0xFFFF00FF) != expected_base
-            result["diag_id_after_deactivate"] = hex(diag_id_after) if diag_id_after else None
+
+            result["diag_id_after_deactivate"] = (
+                _format_diag_id(diag_id_after)
+                if diag_id_after is not None
+                else None
+            )
+
             result["steps"].append({
-                "step": 5, "label": "Deactivate outputs & verify diag clears",
+                "step": 5,
+                "label": "Deactivate outputs & verify diag clears",
                 "passed": cleared,
                 "detail": (
                     "Diagnosis cleared ✓"
                     if cleared
-                    else f"Diagnosis 0x{diag_id_after:08X} still active after deactivation"
+                    else f"Diagnosis {_format_diag_id(diag_id_after)} still active after deactivation"
                 ),
                 "duration_ms": round((time.time() - step_ts) * 1000, 1),
             })
+
             if cleared:
                 log("info", f"    [5] ✓ Diagnosis cleared after output deactivation on #{addr}")
             else:
@@ -427,19 +563,79 @@ def run(
         except Exception as exc:
             cleared = False
             result["steps"].append({
-                "step": 5, "label": "Deactivate outputs & verify diag clears",
-                "passed": False, "error": str(exc),
+                "step": 5,
+                "label": "Deactivate outputs & verify diag clears",
+                "passed": False,
+                "error": str(exc),
                 "duration_ms": round((time.time() - step_ts) * 1000, 1),
             })
 
         result["passed"] = diag_ok and cleared
+
         if result["passed"]:
             log("info", f"  ✓ #{addr} {name}: PASS")
         else:
             log("error", f"  ✗ #{addr} {name}: FAIL")
 
+        actual_channels = [
+            loc["channel"]
+            for loc in result.get("actual_diag_locations", [])
+        ]
+
+        actual_diag_id = None
+        if result.get("diag_id"):
+            actual_diag_id = int(result["diag_id"], 16)
+
+        log(
+            "info",
+            f"  Result #{addr} {name}: "
+            f"expected={_diag_locations_text(expected_channels, expected_diag_id, expected_diag_name)}; "
+            f"actual={_diag_locations_text(actual_channels, actual_diag_id, result.get('diag_name'))}"
+        )
+
         result["duration_ms"] = round((time.time() - ch_start) * 1000, 1)
         results.append(result)
+
+    # ── Final summary ─────────────────────────────────────────────────────
+    log("info", "── Open-load diagnostic summary ──")
+
+    for result in results:
+        if result.get("passed") is None:
+            log(
+                "info",
+                f"  #{result.get('address')} {result.get('module')}: SKIPPED — "
+                f"{result.get('note', '')}"
+            )
+            continue
+
+        expected_locations = result.get("expected_diag_locations", [])
+        actual_locations = result.get("actual_diag_locations", [])
+
+        expected_text = (
+            ", ".join(
+                f"ch {loc['channel']} -> {loc['diag_id']} ({loc['diag_name']})"
+                for loc in expected_locations
+            )
+            if expected_locations
+            else "none"
+        )
+
+        actual_text = (
+            ", ".join(
+                f"ch {loc['channel']} -> {loc['diag_id']} ({loc['diag_name']})"
+                for loc in actual_locations
+            )
+            if actual_locations
+            else "none"
+        )
+
+        status = "PASS" if result.get("passed") else "FAIL"
+
+        log(
+            "info",
+            f"  #{result.get('address')} {result.get('module')}: {status}; "
+            f"expected: {expected_text}; actual: {actual_text}"
+        )
 
     return results
 
