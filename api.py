@@ -500,6 +500,8 @@ async def _sse_generator(run_id: str, request: Request):
     finally:
         _log_queues.pop(run_id, None)
 
+_abort_flag = False
+
 
 @app.get("/test-run/status")
 async def test_run_status():
@@ -540,7 +542,7 @@ class StartTestRunRequest(BaseModel):
 @app.post("/test-run/start")
 async def start_test_run(request: StartTestRunRequest):
     """Start a test run.  Returns 409 if another run is already in progress."""
-    global _current_test_run
+    global _current_test_run, _abort_flag
 
     if _test_run_lock.locked():
         raise HTTPException(
@@ -550,6 +552,7 @@ async def start_test_run(request: StartTestRunRequest):
 
     await _test_run_lock.acquire()
 
+    _abort_flag = False
     run_id = f"run-{int(time.time())}"
     _current_test_run = {
         "run_id": run_id,
@@ -582,6 +585,13 @@ async def start_test_run(request: StartTestRunRequest):
     )
 
     return JSONResponse({"run_id": run_id, "status": "started"})
+
+
+@app.post("/test-run/abort")
+async def abort_test_run():
+    global _abort_flag
+    _abort_flag = True
+    return JSONResponse({"status": "aborting"})
 
 
 def _extract_error_summary(result: dict) -> str:
@@ -787,6 +797,9 @@ async def read_module_parameter(
             hw.connect(ip_address, timeout)
             mod = hw._get_module(address)
             val = mod.read_module_parameter_enum_str(param_id, instances=instance)
+            
+            param_info = mod.module_dicts.parameters.get(param_id)
+
             if isinstance(val, list):
                 return {"value": [str(x) if x is not None else "" for x in val]}
             return {"value": str(val) if val is not None else ""}
@@ -825,13 +838,15 @@ async def write_module_parameter(
             hw.connect(request.ip_address, request.timeout)
             mod = hw._get_module(address)
             val = request.value
+            
+            param_info = mod.module_dicts.parameters.get(param_id)
             try:
-                if "." in val:
-                    val = float(val)
-                else:
-                    val = int(val)
+                    if "." in val:
+                        val = float(val)
+                    else:
+                        val = int(val)
             except ValueError:
-                pass  # keep as string (for enums etc)
+                    pass  # keep as string (for enums etc)
 
             mod.write_module_parameter(param_id, val, instances=request.instance)
             time.sleep(0.05)
@@ -1008,7 +1023,7 @@ def _execute_test_run_safe(
     that overrides resolved instance parameters.  The web UI uses this to
     forward the power-supply comport; CI uses env-vars (see below).
     """
-    global _current_test_run
+    global _current_test_run, _abort_flag
     from pocketbase_logger import pb_log
     from hal import CpxApHardware, SafeSession
     import traceback
@@ -1077,15 +1092,7 @@ def _execute_test_run_safe(
         # ── Merge parameter overrides ────────────────────────────────────────────────────
         # Priority (high → low):
         #   1. test_parameters dict (from web UI or explicit API call)
-        #   2. POWER_SUPPLY_COMPORT env-var (CI)
-        #   3. Resolved-instance defaults (from bench_config / TEST_DEFINITION)
-        ci_ps_comport = os.environ.get("POWER_SUPPLY_COMPORT", "").strip()
-        ci_ps_channels_raw = os.environ.get("POWER_SUPPLY_CHANNELS", "").strip()
-        ci_ps_channels = (
-            [int(c) for c in ci_ps_channels_raw.split(",") if c.strip().isdigit()]
-            if ci_ps_channels_raw else [1, 2, 4]
-        )
-        ci_ps_voltage = float(os.environ.get("POWER_SUPPLY_VOLTAGE", "24.0") or "24.0")
+        #   2. Resolved-instance defaults (from bench_config / TEST_DEFINITION)
 
         _POWER_CYCLE_TEST_IDS = {"remanent-params", "condition-counter", "factory-reset"}
 
@@ -1119,11 +1126,6 @@ def _execute_test_run_safe(
             web_overrides = effective_params.get(inst.test_id, {})
             overrides.update(web_overrides)
 
-            # CI env-var fallback: inject comport only if not already set
-            if inst.test_id in _POWER_CYCLE_TEST_IDS and ci_ps_comport:
-                overrides.setdefault("power_supply_comport", ci_ps_comport)
-                overrides.setdefault("power_supply_channels", ci_ps_channels)
-                overrides.setdefault("power_supply_voltage", ci_ps_voltage)
             if overrides:
                 inst.parameters = {**inst.parameters, **overrides}
 
@@ -1200,6 +1202,13 @@ def _execute_test_run_safe(
         hw = CpxApHardware()
         with SafeSession(hw, ip_address, timeout=10.0) as iface:
             for idx, inst in enumerate(plan_instances):
+                if _abort_flag:
+                    _log("warning", "Test run aborted by user.")
+                    if _current_test_run is not None:
+                        _current_test_run["status"] = "error"
+                        _current_test_run["error"] = "Aborted by user"
+                    break
+
                 test_id = inst.test_id
                 _log("info", f"━━━ [{idx + 1}/{len(plan_instances)}] {test_id} (Module #{inst.module_address}) ━━━")
                 if _current_test_run is not None:
@@ -1530,17 +1539,7 @@ def _run_single_test_hw(
             ip_address=bench_config.test_bench.ip_address if bench_config else "",
             log=log,
             module_address=resolved_instance.module_address,
-            app_tag_param_id=resolved_instance.parameters.get("app_tag_param_id", 20118),
-            cc_setpoint_out_param_id=resolved_instance.parameters.get("cc_setpoint_out_param_id", 20094),
-            cc_actual_out_param_id=resolved_instance.parameters.get("cc_actual_out_param_id", 20095),
-            cc_setpoint_in_param_id=resolved_instance.parameters.get("cc_setpoint_in_param_id", 20294),
-            cc_actual_in_param_id=resolved_instance.parameters.get("cc_actual_in_param_id", 20295),
-            device_reset_param_id=resolved_instance.parameters.get("device_reset_param_id", 20001),
-            reset_reconnect_wait=resolved_instance.parameters.get("reset_reconnect_wait", 10.0),
-            power_supply_comport=resolved_instance.parameters.get("power_supply_comport"),
-            power_supply_channels=resolved_instance.parameters.get("power_supply_channels", [1, 2, 4]),
-            power_supply_voltage=resolved_instance.parameters.get("power_supply_voltage", 24.0),
-            reconnect_wait=resolved_instance.parameters.get("reconnect_wait", 8.0),
+            **resolved_instance.parameters
         )
 
     elif test_id == "open-load-diag":

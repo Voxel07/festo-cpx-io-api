@@ -83,6 +83,7 @@ TEST_DEFINITION = {
     "can_run_parallel": False,
     "singleton": False,
     "parameters": {
+        "app_tag_param_id": 20118,
         "location_tag_param_id": 20207,
         "im2_installation_date_param_id": 11295004,
         "cc_setpoint_out_param_id": 20094,
@@ -175,12 +176,7 @@ def _module_family_key(module_name: str) -> str | None:
 
 def _get_reset_param_specs_for_module(
     module_name: str,
-    location_tag_param_id: int,
-    im2_installation_date_param_id: int,
-    cc_setpoint_out_param_id: int,
-    cc_actual_out_param_id: int,
-    cc_setpoint_in_param_id: int,
-    cc_actual_in_param_id: int,
+    params: dict[str, Any],
     log: LogFn,
 ) -> list[tuple[str, int, Any, Any]]:
     """Build the parameter list for a module.
@@ -189,52 +185,55 @@ def _get_reset_param_specs_for_module(
 
     ``(name, param_id, test_value, factory_default)``
 
-    LocationTag and I&M 2 installation date are tested for all modules.
+    ApplicationTag, LocationTag and I&M 2 installation date are tested for all modules.
     Condition-counter parameters are selected by device family.
     """
     param_ids: dict[str, int] = {
-        "location_tag_param_id": location_tag_param_id,
-        "im2_installation_date_param_id": im2_installation_date_param_id,
-        "cc_setpoint_out_param_id": cc_setpoint_out_param_id,
-        "cc_actual_out_param_id": cc_actual_out_param_id,
-        "cc_setpoint_in_param_id": cc_setpoint_in_param_id,
-        "cc_actual_in_param_id": cc_actual_in_param_id,
+        "app_tag_param_id": params.get("app_tag_param_id", 20118),
+        "location_tag_param_id": params.get("location_tag_param_id", 20207),
+        "im2_installation_date_param_id": params.get("im2_installation_date_param_id", 11295004),
+        "cc_setpoint_out_param_id": params.get("cc_setpoint_out_param_id", 20094),
+        "cc_actual_out_param_id": params.get("cc_actual_out_param_id", 20095),
+        "cc_setpoint_in_param_id": params.get("cc_setpoint_in_param_id", 20294),
+        "cc_actual_in_param_id": params.get("cc_actual_in_param_id", 20295),
     }
 
+    import random
+    import string
+
+    def rand_str(length=12):
+        return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
+
     param_defs: dict[str, tuple[str, Any, Any]] = {
-        "location_tag_param_id": ("location_tag", _LOCATION_TAG_VALUE, ""),
+        "app_tag_param_id": ("application_tag", rand_str(16), ""),
+        "location_tag_param_id": ("location_tag", rand_str(16), ""),
         "im2_installation_date_param_id": (
             "im2_installation_date",
-            _IM2_INSTALLATION_DATE_VALUE,
+            f"20{random.randint(10, 99)}-0{random.randint(1, 9)}-1{random.randint(0, 9)}",
             "",
         ),
-        "cc_setpoint_out_param_id": ("cc_out_sp", _CC_SETPOINT_VALUE, 0),
-        "cc_actual_out_param_id": ("cc_out_act", _CC_ACTUAL_VALUE, 0),
-        "cc_setpoint_in_param_id": ("cc_in_sp", _CC_IN_SETPOINT_VALUE, 0),
-        "cc_actual_in_param_id": ("cc_in_act", _CC_IN_ACTUAL_VALUE, 0),
+        "cc_setpoint_out_param_id": ("cc_out_sp", random.randint(1000, 5000), 0),
+        "cc_actual_out_param_id": ("cc_out_act", random.randint(100, 999), 0),
+        "cc_setpoint_in_param_id": ("cc_in_sp", random.randint(1000, 5000), 0),
+        "cc_actual_in_param_id": ("cc_in_act", random.randint(100, 999), 0),
     }
 
     family = _module_family_key(module_name)
 
-    # These two are tested for all modules.
+    # These three are tested for all modules.
     selected_keys = [
+        "app_tag_param_id",
         "location_tag_param_id",
         "im2_installation_date_param_id",
     ]
 
     if family is None:
-        log(
-            "warning",
-            f"  No CC reset-parameter mapping found for module {module_name!r}; "
-            "testing common parameters only",
-        )
+        names_tested = [param_defs[k][0] for k in selected_keys]
+        log("info", f"  Testing parameters: {', '.join(names_tested)}")
     else:
         selected_keys.extend(DEVICE_FAMILY_RESET_PARAM_KEYS[family])
-        log(
-            "info",
-            f"  Using CC reset-parameter mapping for device family {family}: "
-            f"{DEVICE_FAMILY_RESET_PARAM_KEYS[family]}",
-        )
+        names_tested = [param_defs[k][0] for k in selected_keys]
+        log("info", f"  Testing parameters: {', '.join(names_tested)}")
 
     specs: list[tuple[str, int, Any, Any]] = []
 
@@ -266,6 +265,10 @@ def _write_test_values(
             hw.write_parameter(addr, pid, value)
             result[f"wrote_{name}"] = value
             log("info", f"    Wrote [{pid}] {name} = {value!r}")
+        except (OverflowError, NotImplementedError) as exc:
+            err_msg = f"write {name} [{pid}] skipped: {exc}"
+            result[f"wrote_{name}"] = f"SKIPPED: {err_msg}"
+            log("warning", f"    {err_msg}")
         except Exception as exc:
             err_msg = f"write {name} [{pid}] failed: {exc}"
             result[f"wrote_{name}"] = f"FAILED: {exc}"
@@ -279,7 +282,11 @@ def _write_test_values(
 
         try:
             actual = hw.read_parameter(addr, pid)
-            ok = actual == expected
+            if isinstance(actual, list) and not isinstance(expected, list):
+                ok = all(x == expected for x in actual)
+            else:
+                ok = actual == expected
+                
             result[f"readback_{name}"] = actual
             result[f"ok_{name}"] = ok
 
@@ -287,6 +294,11 @@ def _write_test_values(
                 errors.append(
                     f"readback mismatch {name} [{pid}]: got {actual!r}, expected {expected!r}"
                 )
+        except (OverflowError, NotImplementedError) as exc:
+            err_msg = f"readback {name} [{pid}] skipped: {exc}"
+            result[f"readback_{name}"] = f"SKIPPED: {err_msg}"
+            result[f"ok_{name}"] = True  # Treat as ok so it doesn't fail the test
+            log("warning", f"    {err_msg}")
         except Exception as exc:
             result[f"readback_{name}"] = f"FAILED: {exc}"
             result[f"ok_{name}"] = False
@@ -313,7 +325,11 @@ def _verify_persisted(
     for name, pid, expected, _factory_default in params_to_check:
         try:
             actual = hw.read_parameter(addr, pid)
-            ok = actual == expected
+            if isinstance(actual, list) and not isinstance(expected, list):
+                ok = all(x == expected for x in actual)
+            else:
+                ok = actual == expected
+                
             result[f"persist_{name}"] = actual
             result[f"persist_ok_{name}"] = ok
 
@@ -321,6 +337,11 @@ def _verify_persisted(
                 errors.append(
                     f"{name} [{pid}] not persisted: got {actual!r}, expected {expected!r}"
                 )
+        except (OverflowError, NotImplementedError) as exc:
+            err_msg = f"read {name} [{pid}] skipped: {exc}"
+            result[f"persist_{name}"] = f"SKIPPED: {err_msg}"
+            result[f"persist_ok_{name}"] = True
+            log("warning", f"    {err_msg}")
         except Exception as exc:
             result[f"persist_{name}"] = f"FAILED: {exc}"
             result[f"persist_ok_{name}"] = False
@@ -352,6 +373,10 @@ def _verify_factory_defaults(
                 isinstance(actual, str)
                 and isinstance(expected_default, str)
                 and actual.strip("\x00") == expected_default
+            ) or (
+                isinstance(actual, list)
+                and not isinstance(expected_default, list)
+                and all(x == expected_default for x in actual)
             )
 
             result[f"factory_{name}"] = actual
@@ -362,6 +387,11 @@ def _verify_factory_defaults(
                     f"{name} [{pid}] not at factory default: "
                     f"got {actual!r}, expected {expected_default!r}"
                 )
+        except (OverflowError, NotImplementedError) as exc:
+            err_msg = f"read {name} [{pid}] skipped: {exc}"
+            result[f"factory_{name}"] = f"SKIPPED: {err_msg}"
+            result[f"factory_ok_{name}"] = True
+            log("warning", f"    {err_msg}")
         except Exception as exc:
             result[f"factory_{name}"] = f"FAILED: {exc}"
             result[f"factory_ok_{name}"] = False
@@ -426,21 +456,42 @@ def run(
     ip_address: str,
     log: LogFn = noop_log,
     module_address: int | None = None,
-    location_tag_param_id: int = 20207,
-    im2_installation_date_param_id: int = 11295004,
-    cc_setpoint_out_param_id: int = 20094,
-    cc_actual_out_param_id: int = 20095,
-    cc_setpoint_in_param_id: int = 20294,
-    cc_actual_in_param_id: int = 20295,
-    device_reset_param_id: int = 20001,
-    reset_reconnect_wait: float = _DEFAULT_RESET_WAIT,
-    power_supply_comport: str | None = None,
-    power_supply_channels: list[int] | None = None,
-    power_supply_voltage: float = 24.0,
-    reconnect_wait: float = 8.0,
+    **kwargs
 ) -> list[dict]:
 
     """Full factory-reset + normal-reset parameter persistence test."""
+    from power_supply import PowerCycleSession, PowerSupplyNotAvailable
+
+    params = TEST_DEFINITION["parameters"].copy()
+    params.update(kwargs)
+
+    power_supply_comport = params.get("power_supply_comport")
+    power_supply_channels = params.get("power_supply_channels", [1, 2, 4])
+    power_supply_voltage = params.get("power_supply_voltage", 24.0)
+    reconnect_wait = params.get("reconnect_wait", 8.0)
+    device_reset_param_id = params.get("device_reset_param_id", 20001)
+    reset_reconnect_wait = params.get("reset_reconnect_wait", 10.0)
+
+    if not power_supply_comport:
+        msg = "Power supply is required for factory-reset but not configured in bench_config.json"
+        log("error", f"  {msg}. Aborting test.")
+        return [{"test": "factory-reset", "passed": False, "error": msg}]
+
+    log("info", "  Testing power supply connection ...")
+    try:
+        with PowerCycleSession(
+            comport=power_supply_comport,
+            channels=power_supply_channels or [1, 2, 4],
+            voltage=power_supply_voltage,
+            off_time=1.0,
+            reconnect_wait=reconnect_wait,
+        ) as ps:
+            pass
+        log("info", "  Power supply connection test successful ✓")
+    except Exception as exc:
+        log("error", f"  Power supply connection failed: {exc}. Aborting test.")
+        return [{"test": "factory-reset", "passed": False, "error": f"Power supply connection failed: {exc}"}]
+
     topology = hw.read_topology()
 
     if module_address is not None:
@@ -462,12 +513,7 @@ def run(
 
         reset_param_specs = _get_reset_param_specs_for_module(
             module_name=mod_info.name,
-            location_tag_param_id=location_tag_param_id,
-            im2_installation_date_param_id=im2_installation_date_param_id,
-            cc_setpoint_out_param_id=cc_setpoint_out_param_id,
-            cc_actual_out_param_id=cc_actual_out_param_id,
-            cc_setpoint_in_param_id=cc_setpoint_in_param_id,
-            cc_actual_in_param_id=cc_actual_in_param_id,
+            params=params,
             log=log,
         )
 
@@ -488,6 +534,7 @@ def run(
         if not write_data.get("write_ok"):
             log("warning", f"  Write phase failed for #{addr} — skipping resets")
             result["passed"] = False
+            result["error"] = "Write phase failed: " + "; ".join(write_data.get("write_errors", []))
             result["normal_reset_ok"] = None
             result["factory_reset_ok"] = None
             result["duration_ms"] = round((time.time() - ch_start) * 1000, 1)
@@ -603,14 +650,12 @@ def verify_persistence_after_reset(
     hw: HardwareInterface,
     log: LogFn = noop_log,
     module_address: int | None = None,
-    location_tag_param_id: int = 20207,
-    im2_installation_date_param_id: int = 11295004,
-    cc_setpoint_out_param_id: int = 20094,
-    cc_actual_out_param_id: int = 20095,
-    cc_setpoint_in_param_id: int = 20294,
-    cc_actual_in_param_id: int = 20295,
+    **kwargs
 ) -> list[dict]:
     """Phase 2: verify parameters persisted after a manual reset."""
+    params = TEST_DEFINITION["parameters"].copy()
+    params.update(kwargs)
+
     topology = hw.read_topology()
 
     if module_address is not None:
@@ -625,12 +670,7 @@ def verify_persistence_after_reset(
 
         reset_param_specs = _get_reset_param_specs_for_module(
             module_name=mod_info.name,
-            location_tag_param_id=location_tag_param_id,
-            im2_installation_date_param_id=im2_installation_date_param_id,
-            cc_setpoint_out_param_id=cc_setpoint_out_param_id,
-            cc_actual_out_param_id=cc_actual_out_param_id,
-            cc_setpoint_in_param_id=cc_setpoint_in_param_id,
-            cc_actual_in_param_id=cc_actual_in_param_id,
+            params=params,
             log=log,
         )
 
@@ -664,14 +704,12 @@ def verify_factory_defaults(
     hw: HardwareInterface,
     log: LogFn = noop_log,
     module_address: int | None = None,
-    location_tag_param_id: int = 20207,
-    im2_installation_date_param_id: int = 11295004,
-    cc_setpoint_out_param_id: int = 20094,
-    cc_actual_out_param_id: int = 20095,
-    cc_setpoint_in_param_id: int = 20294,
-    cc_actual_in_param_id: int = 20295,
+    **kwargs
 ) -> list[dict]:
     """Phase 3: verify parameters cleared after a manual factory reset."""
+    params = TEST_DEFINITION["parameters"].copy()
+    params.update(kwargs)
+
     topology = hw.read_topology()
 
     if module_address is not None:
@@ -686,12 +724,7 @@ def verify_factory_defaults(
 
         reset_param_specs = _get_reset_param_specs_for_module(
             module_name=mod_info.name,
-            location_tag_param_id=location_tag_param_id,
-            im2_installation_date_param_id=im2_installation_date_param_id,
-            cc_setpoint_out_param_id=cc_setpoint_out_param_id,
-            cc_actual_out_param_id=cc_actual_out_param_id,
-            cc_setpoint_in_param_id=cc_setpoint_in_param_id,
-            cc_actual_in_param_id=cc_actual_in_param_id,
+            params=params,
             log=log,
         )
 

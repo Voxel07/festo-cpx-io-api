@@ -131,17 +131,7 @@ def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTes
             ip_address=bench_config.test_bench.ip_address,
             log=log,
             module_address=resolved_instance.module_address,
-            app_tag_param_id=resolved_instance.parameters.get("app_tag_param_id", 20118),
-            cc_setpoint_out_param_id=resolved_instance.parameters.get("cc_setpoint_out_param_id", 20094),
-            cc_actual_out_param_id=resolved_instance.parameters.get("cc_actual_out_param_id", 20095),
-            cc_setpoint_in_param_id=resolved_instance.parameters.get("cc_setpoint_in_param_id", 20294),
-            cc_actual_in_param_id=resolved_instance.parameters.get("cc_actual_in_param_id", 20295),
-            device_reset_param_id=resolved_instance.parameters.get("device_reset_param_id", 20001),
-            reset_reconnect_wait=resolved_instance.parameters.get("reset_reconnect_wait", 10.0),
-            power_supply_comport=resolved_instance.parameters.get("power_supply_comport"),
-            power_supply_channels=resolved_instance.parameters.get("power_supply_channels", [1, 2, 4]),
-            power_supply_voltage=resolved_instance.parameters.get("power_supply_voltage", 24.0),
-            reconnect_wait=resolved_instance.parameters.get("reconnect_wait", 8.0),
+            **resolved_instance.parameters
         )
         failed = [r for r in res if r.get("passed") is False]
         assert not failed, f"Factory reset test failed: {failed}"

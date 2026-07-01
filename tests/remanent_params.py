@@ -1,88 +1,48 @@
-"""Remanent Parameter persistence test.
-
-Uses :class:`hal.HardwareInterface` — parameter IDs are configurable.
-
-Two entry points are provided:
-
-``run()``
-    Write test values and verify *immediate* read-back (no power cycle).
-    Sets ``needs_power_cycle: True`` in each result so the caller knows
-    a subsequent power cycle + ``verify()`` call is required.
-
-``run_with_power_cycle()``
-    Full end-to-end test: writes values, cycles the bench power supply via
-    :class:`~power_supply.PowerCycleSession`, reconnects the HAL, then reads
-    back and verifies that the values survived the power cycle.
-
-``verify()``
-    Phase-2 verification: assumes the caller has already power-cycled the
-    hardware externally and re-established the HAL connection.
-"""
-from __future__ import annotations
+"""Remanent parameters test."""
 
 import time
 from typing import Any
 
 from hal import HardwareInterface
 from ._base import LogFn, noop_log
+from .factory_reset import _get_reset_param_specs_for_module, _write_test_values, _verify_persisted
+
 
 TEST_DEFINITION = {
     "test_id": "remanent-params",
     "name": "Remanent Parameters",
     "version": "1.1.0",
-    "description": (
-        "Write test values to remanent parameters, power-cycle the bench, "
-        "and verify persistence after restart"
-    ),
-    "required_capabilities": [
-        "remanent_params"
-    ],
-    "supported_categories": [
-        "input",
-        "output",
-        "inout",
-        "valve",
-        "bus"
-    ],
-    "safety_class": "safe",
-    "allowed_in_ci": True,
+    "description": "Write test values to remanent parameters and verify they survive a power cycle.",
+    "required_capabilities": ["remanent_params"],
+    "supported_categories": ["input", "output", "inout", "valve", "bus"],
+    "safety_class": "caution",
+    "allowed_in_ci": False,
     "can_run_parallel": False,
     "singleton": False,
     "parameters": {
-        "param_id_1": 20118,
-        "param_id_2": 20119,
         "power_supply_comport": None,
         "power_supply_channels": [1, 2, 4],
         "power_supply_voltage": 24.0,
         "reconnect_wait": 8.0,
     },
     "compatible_modules": [
-        "*"
+        "CPX-AP-A*",
+        "CPX-AP-I*",
+        "VABX*"
     ]
 }
 
-
-_TEST_VAL_1 = 0xAA55
-_TEST_VAL_2 = 0x55AA
-
-
 def run(
     hw: HardwareInterface,
-    connections_path: str = "connections.jsonc",  # kept for API symmetry
     log: LogFn = noop_log,
-    param_id_1: int = 20118,
-    param_id_2: int = 20119,
     module_address: int | None = None,
+    **kwargs
 ) -> list[dict]:
-    """Write test values and verify immediate read-back for all modules.
-
-    Does **not** perform a power cycle.  Each result contains
-    ``needs_power_cycle: True`` to signal that :func:`verify` should be
-    called after an external power cycle to confirm persistence.
-    """
+    """Phase 1: write test values to remanent parameters."""
     topology = hw.read_topology()
     if module_address is not None:
         topology = [m for m in topology if m.address == module_address]
+
     log("info", f"Remanent-params write phase on {len(topology)} module(s)")
     results: list[dict] = []
 
@@ -90,57 +50,37 @@ def run(
         addr = mod_info.address
         ch_start = time.time()
         log("info", f"  Module #{addr} {mod_info.name} …")
+
         result: dict[str, Any] = {
-            "test": "remanent-params", "module": mod_info.name,
-            "address": addr, "phase": "write",
+            "test": "remanent-params",
+            "module": mod_info.name,
+            "address": addr,
+            "phase": "write",
         }
 
-        try:
-            hw.write_parameter(addr, param_id_1, _TEST_VAL_1)
-            result["wrote_param_1"] = _TEST_VAL_1
-            log("info", f"    Wrote {param_id_1} = 0x{_TEST_VAL_1:04X}")
-        except Exception as exc:
-            result["wrote_param_1"] = f"FAILED: {exc}"
+        # Reuse parameter specification logic from factory-reset
+        param_specs = _get_reset_param_specs_for_module(mod_info.name, kwargs, log)
 
-        try:
-            hw.write_parameter(addr, param_id_2, _TEST_VAL_2)
-            result["wrote_param_2"] = _TEST_VAL_2
-            log("info", f"    Wrote {param_id_2} = 0x{_TEST_VAL_2:04X}")
-        except Exception as exc:
-            result["wrote_param_2"] = f"FAILED: {exc}"
+        write_result = _write_test_values(hw, addr, param_specs, log)
+        result.update(write_result)
 
-        ok_1 = ok_2 = False
-        try:
-            val1 = hw.read_parameter(addr, param_id_1)
-            result["readback_param_1"] = val1
-            ok_1 = val1 == _TEST_VAL_1
-            result["write_ok_param_1"] = ok_1
-        except Exception as exc:
-            result["readback_param_1"] = f"FAILED: {exc}"
-            result["write_ok_param_1"] = False
-
-        try:
-            val2 = hw.read_parameter(addr, param_id_2)
-            result["readback_param_2"] = val2
-            ok_2 = val2 == _TEST_VAL_2
-            result["write_ok_param_2"] = ok_2
-        except Exception as exc:
-            result["readback_param_2"] = f"FAILED: {exc}"
-            result["write_ok_param_2"] = False
-
-        result["passed"] = ok_1 and ok_2
+        result["passed"] = write_result.get("write_ok", False)
         result["needs_power_cycle"] = True
-        result["note"] = (
-            "Write phase complete. Power-cycle the CPX-AP system and run "
-            "'remanent-params-verify' to confirm persistence."
-        )
+        result["note"] = "Write phase complete. Run verify phase after power cycle."
+        result["duration_ms"] = round((time.time() - ch_start) * 1000, 1)
+        
+        # Save specs into result so verify phase knows what to check
+        result["_param_specs"] = param_specs
 
         if result["passed"]:
             log("info", f"  ✓ #{addr} {mod_info.name}: write phase PASS")
         else:
             log("error", f"  ✗ #{addr} {mod_info.name}: write phase FAIL")
+            if "write_errors" in write_result:
+                result["error"] = "Write errors: " + ", ".join(write_result["write_errors"])
+            else:
+                result["error"] = "Write phase failed."
 
-        result["duration_ms"] = round((time.time() - ch_start) * 1000, 1)
         results.append(result)
 
     return results
@@ -149,51 +89,53 @@ def run(
 def verify(
     hw: HardwareInterface,
     log: LogFn = noop_log,
-    param_id_1: int = 20118,
-    param_id_2: int = 20119,
     module_address: int | None = None,
+    write_results: list[dict] | None = None,
+    **kwargs
 ) -> list[dict]:
-    """Phase 2: verify test values survived a power cycle.
-
-    Should be called after the hardware has been power-cycled and *hw*
-    has been reconnected.
-    """
+    """Phase 2: verify test values survived a power cycle."""
     topology = hw.read_topology()
     if module_address is not None:
         topology = [m for m in topology if m.address == module_address]
+
     log("info", "Remanent-params verify phase")
     results: list[dict] = []
+
+    # Map address to param_specs from write phase if available
+    specs_map = {}
+    if write_results:
+        for r in write_results:
+            if "_param_specs" in r:
+                specs_map[r["address"]] = r["_param_specs"]
 
     for mod_info in topology:
         addr = mod_info.address
         ch_start = time.time()
         log("info", f"  Module #{addr} {mod_info.name} …")
+
         result: dict[str, Any] = {
             "test": "remanent-params-verify",
-            "module": mod_info.name, "address": addr, "phase": "verify",
+            "module": mod_info.name,
+            "address": addr,
+            "phase": "verify",
         }
-        try:
-            val1 = hw.read_parameter(addr, param_id_1)
-            val2 = hw.read_parameter(addr, param_id_2)
-            ok_1 = val1 == _TEST_VAL_1
-            ok_2 = val2 == _TEST_VAL_2
-            result.update({
-                "value_param_1": val1, "ok_param_1": ok_1,
-                "value_param_2": val2, "ok_param_2": ok_2,
-                "passed": ok_1 and ok_2,
-            })
-            if not result["passed"]:
-                result["error"] = (
-                    f"Mismatch — {param_id_1}=0x{val1:04X} (exp 0x{_TEST_VAL_1:04X}), "
-                    f"{param_id_2}=0x{val2:04X} (exp 0x{_TEST_VAL_2:04X})"
-                )
-                log("error", f"  ✗ #{addr}: {result['error']}")
-            else:
-                log("info", f"  ✓ #{addr} {mod_info.name}: values persisted after power cycle")
-        except Exception as exc:
-            result["passed"] = False
-            result["error"] = str(exc)
-            log("error", f"  ✗ #{addr} verify failed: {exc}")
+
+        # Retrieve specs from write phase, or regenerate them
+        param_specs = specs_map.get(addr)
+        if not param_specs:
+            param_specs = _get_reset_param_specs_for_module(mod_info.name, kwargs, log)
+
+        verify_res = _verify_persisted(hw, addr, param_specs, log)
+        result.update(verify_res)
+
+        result["passed"] = verify_res.get("persist_ok", False)
+        if not result["passed"]:
+            errs = verify_res.get("persist_errors", [])
+            result["error"] = "Verify errors: " + ", ".join(errs) if errs else "Verify failed"
+            log("error", f"  ✗ #{addr}: {result['error']}")
+        else:
+            log("info", f"  ✓ #{addr} {mod_info.name}: values persisted after power cycle")
+
         result["duration_ms"] = round((time.time() - ch_start) * 1000, 1)
         results.append(result)
 
@@ -206,41 +148,19 @@ def run_with_power_cycle(
     power_supply_comport: str,
     power_supply_channels: list[int],
     log: LogFn = noop_log,
-    param_id_1: int = 20118,
-    param_id_2: int = 20119,
     module_address: int | None = None,
     power_supply_voltage: float = 24.0,
     reconnect_wait: float = 8.0,
     off_time: float = 1.0,
+    **kwargs
 ) -> list[dict]:
-    """Full end-to-end remanent-params test with bench power cycle.
-
-    Procedure (per module):
-      1. Write test sentinel values to both parameters.
-      2. Verify immediate read-back (sanity check).
-      3. Power-cycle the bench via the HMP40x0 power supply.
-      4. Reconnect the HAL after restart.
-      5. Read back both parameters and verify they survived the cycle.
-
-    Args:
-        hw:                      Connected :class:`~hal.HardwareInterface`.
-        ip_address:              IP address for HAL reconnect after power cycle.
-        power_supply_comport:    Serial port of the HMP40x0 (e.g. ``"COM3"``).
-        power_supply_channels:   HMP output channels to switch (1-based).
-        log:                     Optional logging callback.
-        param_id_1:              First remanent parameter ID (default 20118).
-        param_id_2:              Second remanent parameter ID (default 20119).
-        module_address:          Restrict to a single module address; ``None``
-                                 tests all modules.
-        power_supply_voltage:    Voltage to restore after power-off (V).
-        reconnect_wait:          Seconds to wait after power-on before
-                                 reconnecting (default 8 s).
-        off_time:                Seconds to keep the power off (default 1 s).
-
-    Returns:
-        Combined list of write-phase and verify-phase result dicts.
-    """
+    """Full end-to-end remanent-params test with bench power cycle."""
     from power_supply import PowerCycleSession, PowerSupplyNotAvailable
+
+    if not power_supply_comport:
+        msg = "Power supply is required for remanent-params but not configured in bench_config.json"
+        log("error", f"  {msg}. Aborting test.")
+        return [{"test": "remanent-params", "passed": False, "error": msg}]
 
     # ── Test power supply connection first ──
     log("info", "  Testing power supply connection ...")
@@ -262,9 +182,8 @@ def run_with_power_cycle(
     write_results = run(
         hw=hw,
         log=log,
-        param_id_1=param_id_1,
-        param_id_2=param_id_2,
         module_address=module_address,
+        **kwargs
     )
 
     write_failures = [r for r in write_results if r.get("passed") is False]
@@ -299,9 +218,13 @@ def run_with_power_cycle(
     verify_results = verify(
         hw=hw,
         log=log,
-        param_id_1=param_id_1,
-        param_id_2=param_id_2,
         module_address=module_address,
+        write_results=write_results,
+        **kwargs
     )
+
+    # Clean up internal specs before returning
+    for r in write_results:
+        r.pop("_param_specs", None)
 
     return write_results + verify_results

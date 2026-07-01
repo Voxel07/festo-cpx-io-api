@@ -612,7 +612,7 @@ class BenchConfig(BaseModel):
                     address=addr,
                     category=cat,
                     module_type_ref=type_ref,
-                    mounted_valves=[],
+                    mounted_valves=list(range(16)) if cat == ModuleCategory.VALVE else [],
                     num_inputs=m.num_inputs,
                     num_outputs=m.num_outputs,
                     num_inouts=m.num_inouts,

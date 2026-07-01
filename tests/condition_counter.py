@@ -331,6 +331,11 @@ def run_with_power_cycle(
     """
     from power_supply import PowerCycleSession, PowerSupplyNotAvailable
 
+    if not power_supply_comport:
+        msg = "Power supply is required for condition-counter but not configured in bench_config.json"
+        log("error", f"  {msg}. Aborting test.")
+        return [{"test": "condition-counter", "passed": False, "error": msg}]
+
     # ── Test power supply connection first ──
     log("info", "  Testing power supply connection ...")
     try:
