@@ -60,6 +60,9 @@ def validate_single(
     tgt_addr = conn["target_module_addr"]
     src_ch = conn["source_channel"]
     tgt_ch = conn["target_channel"]
+    
+    src_sub = conn.get("source_subchannel")
+    tgt_sub = conn.get("target_subchannel")
 
     cpp_src = 2 if "M12" in src_mod.name else 1
     cpp_tgt = 2 if "M12" in tgt_mod.name else 1
@@ -71,21 +74,25 @@ def validate_single(
     port_num_tgt = int(tgt_ch.lstrip("X"))
     base_idx_tgt = port_num_tgt * cpp_tgt
 
+    # Determine which exact channels to test
+    src_offsets = [src_sub] if src_sub is not None else range(cpp_src)
+    tgt_offsets = [tgt_sub] if tgt_sub is not None else range(cpp_tgt)
+
     try:
-        for i in range(cpp_src):
+        for i in src_offsets:
             hw.write_output(src_addr, out_base + i, False)
     except Exception:
         pass
     time.sleep(0.05)
 
     try:
-        baseline_vals = [hw.read_input(tgt_addr, base_idx_tgt + i) for i in range(cpp_tgt)]
+        baseline_vals = [hw.read_input(tgt_addr, base_idx_tgt + i) for i in tgt_offsets]
         baseline = all(baseline_vals)
     except Exception:
         baseline = False
 
     try:
-        for i in range(cpp_src):
+        for i in src_offsets:
             hw.write_output(src_addr, out_base + i, True)
     except Exception as exc:
         return {
@@ -97,13 +104,13 @@ def validate_single(
 
     time.sleep(pulse_duration_s)
     try:
-        actual_vals = [hw.read_input(tgt_addr, base_idx_tgt + i) for i in range(cpp_tgt)]
+        actual_vals = [hw.read_input(tgt_addr, base_idx_tgt + i) for i in tgt_offsets]
         actual = all(actual_vals)
     except Exception:
         actual = False
 
     try:
-        for i in range(cpp_src):
+        for i in src_offsets:
             hw.write_output(src_addr, out_base + i, False)
     except Exception:
         pass
