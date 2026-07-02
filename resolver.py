@@ -24,7 +24,6 @@ from typing import Any
 from config_models import (
     BenchConfig,
     ConnectionType,
-    ExpectedState,
     ModuleInstance,
     SafetyClass,
     TestDefinition,

@@ -22,6 +22,7 @@ from pydantic import (
     Field,
     model_validator,
     StringConstraints,
+    ConfigDict,
 )
 
 
@@ -34,12 +35,8 @@ class ModuleCategory(str, Enum):
     INOUT = "inout"
     BUS = "bus"
     VALVE = "valve"
+    INTERFACE = "interface"
 
-
-class ExpectedState(str, Enum):
-    PRESENT = "present"
-    OPTIONAL = "optional"
-    ABSENT = "absent"
 
 
 class SafetyClass(str, Enum):
@@ -101,7 +98,6 @@ class ModuleTypeDefinition(BaseModel):
     """Static definition of a module type — capabilities, channel layout, image."""
 
     module_code: int = Field(..., description="Numeric module code")
-    product_family: str = Field("", description="e.g. 'CPX-AP-A', 'CPX-AP-I', 'VABX'")
     capabilities: list[str] = Field(
         default_factory=list,
         description="Supported capabilities: digital_input, digital_output, condition_counter, etc.",
@@ -141,7 +137,6 @@ class ModuleInstance(BaseModel):
         "",
         description="Key into module_types map for this module's type definition",
     )
-    expected_state: ExpectedState = Field(ExpectedState.PRESENT)
     firmware_version: str | None = Field(None)
     compatible_tests_override: list[str] = Field(
         default_factory=list,
@@ -328,19 +323,6 @@ def infer_type_definition_from_instance(mod: ModuleInstance) -> ModuleTypeDefini
             if do_match:
                 num_out = int(do_match.group(1))
         
-    product_family = "CPX-AP-A" if "CPX-AP-A" in name else ("CPX-AP-I" if "CPX-AP-I" in name else "CPX-AP")
-    if "VABX" in name:
-        product_family = "VABX"
-        valve_count = 4
-    elif "VMPAL" in name:
-        product_family = "VMPAL"
-        valve_count = 16
-        num_out = 32
-    elif "VAEM" in name:
-        product_family = "VAEM"
-        valve_count = 12 if "12" in name else 24
-        num_out = 24 if "12" in name else 48
-        
     caps = get_module_capabilities(mod.display_name, category.value)
     
     channels = []
@@ -364,7 +346,6 @@ def infer_type_definition_from_instance(mod: ModuleInstance) -> ModuleTypeDefini
         
     return ModuleTypeDefinition(
         module_code=code,
-        product_family=product_family,
         capabilities=caps,
         num_inputs=num_in,
         num_outputs=num_out,
@@ -376,6 +357,7 @@ def infer_type_definition_from_instance(mod: ModuleInstance) -> ModuleTypeDefini
 
 class PowerSupplyConfig(BaseModel):
     """Power supply configuration parameters."""
+    model_config = ConfigDict(populate_by_name=True)
 
     comport: str | None = Field(None, alias="ComPort")
     ip_address: str | None = Field(None, alias="Ip addr")
@@ -594,7 +576,6 @@ class BenchConfig(BaseModel):
             if type_ref not in type_defs:
                 type_defs[type_ref] = ModuleTypeDefinition(
                     module_code=m_code,
-                    product_family=m.series or "CPX-AP",
                     capabilities=caps,
                     num_inputs=m.num_inputs,
                     num_outputs=m.num_outputs,

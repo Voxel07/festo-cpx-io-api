@@ -60,7 +60,6 @@ def run(
         num_in = inst.num_inputs
         num_out = inst.num_outputs
         num_io = inst.num_inouts
-        series = type_def.product_family if type_def else ""
 
         cat = inst.category.value
         m_type = "Input"
@@ -78,7 +77,6 @@ def run(
             "Modulecode": inst.module_code,
             "ProductKey": inst.product_key,
             "Adress": inst.address,
-            "Series": series,
             "Type": m_type,
             "NumOfInputs": num_in,
             "NumOfOutputs": num_out,
@@ -116,7 +114,7 @@ def run(
         {
             "Name": m.name, "Modulecode": m.module_code,
             "ProductKey": m.product_key, "Adress": m.address,
-            "Series": m.series, "Type": _derive_type(m),
+            "Type": _derive_type(m),
             "NumOfInputs": m.num_inputs, "NumOfOutputs": m.num_outputs,
             "NumOfInOuts": m.num_inouts,
         }

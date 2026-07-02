@@ -51,7 +51,10 @@ try:
         ResultRepository,
     )
     _NEW_COMPONENTS = True
-except ImportError:
+except ImportError as e:
+    print(f"FAILED TO IMPORT NEW COMPONENTS: {e}")
+    import traceback
+    traceback.print_exc()
     _NEW_COMPONENTS = False
 
 app = FastAPI(
@@ -85,36 +88,78 @@ class ConfigSavePayload(BaseModel):
     save_path: str = Field("bench_config.json", description="File path to save the BenchConfig JSON")
 
 
-def _is_vabx_interface_module(name: str) -> bool:
-    """Return True for VABX AP interface modules, not valve-body terminals."""
-    normalized = name.upper().replace("_", "-")
-    return any(
-        marker in normalized
-        for marker in (
-            "VABX-A-S-EL-E12-API",
-            "VABX-A-S-EL-E12-APP",
-            "VABX-A-S-EL-E12-APA",
-            "VABX-A-S-EL-E34-API",
-            "VABX-A-S-EL-E34-APP",
-            "VABX-A-S-EL-E34-APA",
-        )
-    )
-
-
-def _normalize_generated_valve_metadata(config: BenchConfig) -> None:
-    """Fix generated valve metadata that cannot be inferred reliably from live topology."""
+def _enrich_generated_metadata(config: BenchConfig) -> None:
+    """Fix generated module metadata that cannot be inferred reliably from live topology using module_metadata.json."""
+    metadata_path = Path(__file__).parent / "module_metadata.json"
+    if not metadata_path.exists():
+        return
+        
+    try:
+        with open(metadata_path, encoding="utf-8") as f:
+            metadata = json.load(f)
+    except Exception:
+        return
+        
     for inst in config.module_instances or []:
-        name = inst.display_name.upper()
-        if _is_vabx_interface_module(inst.display_name):
-            inst.category = ModuleCategory.BUS
-            inst.mounted_valves = []
-            inst.valve_slots = None
-            continue
-
-        if name.startswith("VTUX"):
-            inst.valve_slots = 4
-            mounted = inst.mounted_valves or list(range(4))
-            inst.mounted_valves = [idx for idx in mounted if 0 <= idx < 4]
+        name = inst.display_name
+        name_upper = name.upper()
+        
+        # Try exact match first
+        match = metadata.get(name) or metadata.get(name_upper)
+        if not match:
+            # Try prefix match for things like VTUX
+            for key, val in metadata.items():
+                if name_upper.startswith(key.upper()):
+                    match = val
+                    break
+                    
+        if match:
+            if "category" in match:
+                try:
+                    cat_val = match["category"].lower() if match["category"] else None
+                    inst.category = ModuleCategory(cat_val) if cat_val else inst.category
+                except ValueError:
+                    inst.category = match["category"]
+            if "valve_slots" in match:
+                inst.valve_slots = match["valve_slots"]
+            if "mounted_valves" in match:
+                # If they already had mounted_valves, respect them, otherwise use default from metadata
+                mounted = inst.mounted_valves if inst.mounted_valves else match["mounted_valves"]
+                if inst.valve_slots is not None:
+                    inst.mounted_valves = [idx for idx in mounted if 0 <= idx < inst.valve_slots]
+                else:
+                    inst.mounted_valves = mounted
+            
+            # Apply IO counts
+            if "num_inputs" in match:
+                inst.num_inputs = match["num_inputs"] or 0
+            if "num_outputs" in match:
+                inst.num_outputs = match["num_outputs"] or 0
+            if "num_inouts" in match:
+                inst.num_inouts = match["num_inouts"] or 0
+            
+            # Update the type definition to match
+            type_ref = inst.module_type_ref
+            if type_ref and config.module_types and type_ref in config.module_types:
+                tdef = config.module_types[type_ref]
+                if "num_inputs" in match: tdef.num_inputs = match["num_inputs"] or 0
+                if "num_outputs" in match: tdef.num_outputs = match["num_outputs"] or 0
+                if "num_inouts" in match: tdef.num_configurable = match["num_inouts"] or 0
+                if "valve_slots" in match: tdef.valve_count = match["valve_slots"] or 0
+                
+                # Rebuild channels
+                from config_models import ChannelDefinition
+                max_ch = max(tdef.num_inputs, tdef.num_outputs, tdef.num_configurable, 8)
+                tdef.channels = []
+                for ch_idx in range(max_ch):
+                    ch_caps = []
+                    if tdef.num_outputs > 0 or inst.category == ModuleCategory.VALVE:
+                        ch_caps.append("digital_output")
+                    if tdef.num_inputs > 0:
+                        ch_caps.append("digital_input")
+                    if tdef.num_configurable > 0:
+                        ch_caps.append("configurable_io")
+                    tdef.channels.append(ChannelDefinition(index=ch_idx, name=f"X{ch_idx}", capabilities=ch_caps))
 
 
 @app.get("/", response_class=FileResponse, include_in_schema=False)
@@ -145,7 +190,7 @@ async def generate_config(request: ConfigGenerateRequest):
         with SafeSession(hw, request.ip_address, timeout=request.timeout) as iface:
             modules = iface.read_topology()
         config = BenchConfig.from_hardware(modules, request.ip_address)
-        _normalize_generated_valve_metadata(config)
+        _enrich_generated_metadata(config)
 
         # Preserve existing wiring and mounted_valves from the current file (if explicitly provided).
         if request.save_path and (save_path := Path(request.save_path)).exists():
@@ -163,10 +208,13 @@ async def generate_config(request: ConfigGenerateRequest):
                 for inst in (config.module_instances or []):
                     if inst.address in existing_valves:
                         inst.mounted_valves = existing_valves[inst.address]
-                _normalize_generated_valve_metadata(config)
+                _enrich_generated_metadata(config)
             except Exception:
                 pass  # existing file is corrupt or missing — proceed with fresh config
     except Exception as exc:
+        import traceback
+        with open("crash_log.txt", "w") as f:
+            f.write(traceback.format_exc())
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     return JSONResponse({"config": config.model_dump()})

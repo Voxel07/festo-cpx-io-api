@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "D:\Code\festo\festo-cpx-io-api\api.py", line 189, in generate_config
+    config = BenchConfig.from_hardware(modules, request.ip_address)
+             ^^^^^^^^^^^
+NameError: name 'BenchConfig' is not defined
