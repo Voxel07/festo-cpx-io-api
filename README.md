@@ -17,6 +17,12 @@ requirements.txt          # Python dependencies
 pyproject.toml            # Package metadata
 ```
 
+## API Stuff
+
+You can see all available endpoints by visiting:
+<http://localhost:8000/docs#/>
+assuming this is the port of your local deployment.
+
 ## Setup
 
 ### 1 – Install the CPX-IO library

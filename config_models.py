@@ -527,7 +527,7 @@ class BenchConfig(BaseModel):
 
         def infer_cat(name: str, is_valve: bool, num_in: int, num_out: int, num_io: int) -> ModuleCategory:
             name_up = name.upper()
-            if is_valve or "VABX" in name_up or "VMPAL" in name_up or "VAEM" in name_up:
+            if is_valve or "VABX-A-S-BV-V" in name_up or "VMPAL" in name_up or "VAEM" in name_up:
                 return ModuleCategory.VALVE
             if any(x in name_up for x in ("EP", "EC", "PN", "PB", "EPLI")) or "bus" in name_up:
                 return ModuleCategory.BUS

@@ -71,7 +71,7 @@ _DIST = Path("dist")
 class ConfigGenerateRequest(BaseModel):
     ip_address: str = Field(..., examples=["192.168.0.11"], description="IP address of the CPX-AP gateway")
     timeout: float = Field(0.0, ge=0, description="Modbus timeout in seconds")
-    save_path: str = Field("bench_config.json", description="File path to save the generated BenchConfig")
+    save_path: str | None = Field(None, description="Optional existing BenchConfig path to merge non-live metadata from")
 
 
 class ConfigCompareRequest(BaseModel):
@@ -83,6 +83,38 @@ class ConfigCompareRequest(BaseModel):
 class ConfigSavePayload(BaseModel):
     config: BenchConfig = Field(..., description="Full BenchConfig structure")
     save_path: str = Field("bench_config.json", description="File path to save the BenchConfig JSON")
+
+
+def _is_vabx_interface_module(name: str) -> bool:
+    """Return True for VABX AP interface modules, not valve-body terminals."""
+    normalized = name.upper().replace("_", "-")
+    return any(
+        marker in normalized
+        for marker in (
+            "VABX-A-S-EL-E12-API",
+            "VABX-A-S-EL-E12-APP",
+            "VABX-A-S-EL-E12-APA",
+            "VABX-A-S-EL-E34-API",
+            "VABX-A-S-EL-E34-APP",
+            "VABX-A-S-EL-E34-APA",
+        )
+    )
+
+
+def _normalize_generated_valve_metadata(config: BenchConfig) -> None:
+    """Fix generated valve metadata that cannot be inferred reliably from live topology."""
+    for inst in config.module_instances or []:
+        name = inst.display_name.upper()
+        if _is_vabx_interface_module(inst.display_name):
+            inst.category = ModuleCategory.BUS
+            inst.mounted_valves = []
+            inst.valve_slots = None
+            continue
+
+        if name.startswith("VTUX"):
+            inst.valve_slots = 4
+            mounted = inst.mounted_valves or list(range(4))
+            inst.mounted_valves = [idx for idx in mounted if 0 <= idx < 4]
 
 
 @app.get("/", response_class=FileResponse, include_in_schema=False)
@@ -113,10 +145,10 @@ async def generate_config(request: ConfigGenerateRequest):
         with SafeSession(hw, request.ip_address, timeout=request.timeout) as iface:
             modules = iface.read_topology()
         config = BenchConfig.from_hardware(modules, request.ip_address)
+        _normalize_generated_valve_metadata(config)
 
-        # Preserve existing wiring and mounted_valves from the current file (if any)
-        save_path = Path(request.save_path)
-        if save_path.exists():
+        # Preserve existing wiring and mounted_valves from the current file (if explicitly provided).
+        if request.save_path and (save_path := Path(request.save_path)).exists():
             try:
                 existing = BenchConfig.model_validate_json(save_path.read_text(encoding="utf-8"))
                 # Merge wiring
@@ -131,19 +163,13 @@ async def generate_config(request: ConfigGenerateRequest):
                 for inst in (config.module_instances or []):
                     if inst.address in existing_valves:
                         inst.mounted_valves = existing_valves[inst.address]
+                _normalize_generated_valve_metadata(config)
             except Exception:
                 pass  # existing file is corrupt or missing — proceed with fresh config
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    try:
-        save_path = Path(request.save_path)
-        save_path.parent.mkdir(parents=True, exist_ok=True)
-        save_path.write_text(config.model_dump_json(indent=2, exclude={"module_types", "test_definitions"}), encoding="utf-8")
-    except OSError as exc:
-        raise HTTPException(status_code=500, detail=f"Could not save file: {exc}") from exc
-
-    return JSONResponse({"config": config.model_dump(), "saved_to": str(save_path.resolve())})
+    return JSONResponse({"config": config.model_dump()})
 
 
 @app.get("/config")

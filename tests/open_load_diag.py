@@ -122,9 +122,6 @@ _MODULE_CONFIGS: list[tuple[str, int, int, int]] = [
     ("VMPAL-*",          4, 20021, DIAG_VALVE_DEFECT),
 ]
 
-# Fallback for any other VABX pattern not listed above
-_VABX_FALLBACK = ("VABX-*", 1, 20021, DIAG_VALVE_DEFECT)
-
 
 # ── Internal helpers ───────────────────────────────────────────────────────────
 
@@ -136,18 +133,7 @@ def _get_module_config(
     for pattern, num_bytes, enable_param, diag_id in _MODULE_CONFIGS:
         if fnmatch.fnmatch(module_name.upper(), pattern.upper()):
             return num_bytes, enable_param, diag_id
-    # Fallback for any VABX
-    if fnmatch.fnmatch(module_name.upper(), "VABX-*"):
-        return _VABX_FALLBACK[1], _VABX_FALLBACK[2], _VABX_FALLBACK[3]
-    # Fallback for any VMPAL
-    if fnmatch.fnmatch(module_name.upper(), "VMPAL-*"):
-        return 4, 20021, DIAG_VALVE_DEFECT
     return None
-
-
-def _all_ones_mask(num_bytes: int) -> int:
-    """Return an integer with all ``num_bytes * 8`` bits set."""
-    return (1 << (num_bytes * 8)) - 1
 
 
 def _diagnosis_id_from_result(diag_result: Any) -> int | None:
@@ -183,25 +169,34 @@ def _expected_diag_name(expected_diag_id: int) -> str:
 
 
 def _mounted_valves_from_bench_config(
-    bench_config: dict | None,
+    bench_config: Any | None,
     addr: int,
 ) -> list[Any] | None:
     """Return mounted_valves for a module address, if available."""
-    if not bench_config or "module_instances" not in bench_config:
+
+    if bench_config is None:
+        print("Warning: bench_config is None; cannot determine mounted_valves")
+        return None
+
+    module_instances = getattr(bench_config, "module_instances", None)
+
+    if module_instances is None:
+        print("Warning: bench_config missing 'module_instances'; cannot determine mounted_valves")
         return None
 
     inst = next(
         (
-            m for m in bench_config["module_instances"]
-            if m.get("address") == addr
+            m for m in module_instances
+            if getattr(m, "address", None) == addr
         ),
         None,
     )
 
-    if not inst:
+    if inst is None:
+        print(f"Warning: no module instance found for address {addr}")
         return None
 
-    return inst.get("mounted_valves")
+    return getattr(inst, "mounted_valves", None)
 
 
 def _expected_channels_from_mounted_valves(
