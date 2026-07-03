@@ -1,90 +1,74 @@
-"""Output toggle test — turns on all outputs one by one for all output modules.
+"""DIO toggle test — changes port direction to output, turns on, reads back, turns off, restores to input.
 
-Per-channel validation with timing and structured logging.
-Uses :class:`hal.HardwareInterface` — never imports ``CpxAp`` directly.
+Uses :class:`hal.HardwareInterface`.
 """
 from __future__ import annotations
 
 import time
 from typing import Any
 
-from hal import HardwareInterface, ModuleInfo
+from hal import HardwareInterface
 from config_models import BenchConfig
-from valve_channels import channels_per_valve
 from ._base import LogFn, noop_log
 
-TEST_DEFINITIONS = [
-    {
-        "test_id": "output-toggle",
-        "name": "Output Toggle",
-        "version": "1.0.0",
-        "description": "Toggle all digital output channels ON/OFF and verify state changes",
-        "required_capabilities": [
-            "digital_output"
-        ],
-        "supported_categories": [
-            "output",
-            "inout"
-        ],
-        "safety_class": "caution",
-        "allowed_in_ci": True,
-        "can_run_parallel": False,
-        "singleton": False,
-        "parameters": {},
-        "compatible_modules": [
-            "CPX-AP-A-*DO*",
-            "CPX-AP-A-*HDO*",
-            "CPX-AP-I-*DO*",
-        ]
-    }
-]
+TEST_DEFINITION = {
+    "test_id": "dio-toggle",
+    "name": "DIO Toggle",
+    "version": "1.0.0",
+    "description": "Configure DIO channels to output mode, toggle ON/OFF, and restore to input mode",
+    "required_capabilities": [],
+    "supported_categories": [
+        "inout"
+    ],
+    "safety_class": "caution",
+    "allowed_in_ci": True,
+    "can_run_parallel": False,
+    "singleton": False,
+    "parameters": {},
+    "compatible_modules": [
+        "CPX-AP-A-*DIO*",
+        "CPX-AP-A-*DIDO*",
+        "CPX-AP-A-*DI*DO*",
+        "CPX-AP-I-*DIO*",
+        "CPX-AP-A-*IOL*",
+        "CPX-AP-I-*IOL*"
+    ]
+}
 
 
 def run(
     hw: HardwareInterface,
     log: LogFn = noop_log,
     bench_config: BenchConfig | None = None,
-    on_module: callable = None,  # (address: int) -> None — called before each module
-    on_result: callable = None,  # (result: dict) -> None — called after each module (live push)
+    on_module: callable = None,
+    on_result: callable = None,
     module_address: int | None = None,
 ) -> list[dict]:
-    """Toggle each output channel on every output-capable module.
-
-    For each module with outputs:
-    1. Turn each channel HIGH → wait → read back → turn LOW
-    2. Log per-channel progress
-    3. Report duration and pass/fail
-
-    :param hw: Pre-connected HardwareInterface
-    :param connections_path: Unused — kept for API symmetry
-    :param log: Logging callback ``(level, message) -> None``
-    :param pulse_duration_s: How long to hold each output HIGH
-    :param pause_between_modules_s: Pause between modules
-    :returns: List of per-module result dicts with per-channel details
-    """
     pulse_duration_s = 0.2
     pause_between_modules_s = 0.3
+    direction_param_id = 20145
 
     topology = hw.read_topology()
-    output_mods = [m for m in topology if m.num_outputs > 0 or m.num_inouts > 0]
+    dio_mods = [m for m in topology if m.num_inouts > 0 or "DIO" in m.name.upper() or "IOL" in m.name.upper()]
     if module_address is not None:
-        output_mods = [m for m in output_mods if m.address == module_address]
+        dio_mods = [m for m in dio_mods if m.address == module_address]
 
-    if not output_mods:
-        log("warning", "No output-capable modules found on bus")
+    if not dio_mods:
+        log("warning", "No DIO modules found on bus")
         return [{
-            "test": "output-toggle",
+            "test": "dio-toggle",
             "passed": None,
-            "error": "No output modules found",
+            "error": "No DIO modules found",
         }]
 
-    log("info", f"Found {len(output_mods)} output-capable module(s): "
-        f"{[f'#{m.address} {m.name}' for m in output_mods]}")
+    log("info", f"Found {len(dio_mods)} DIO module(s): {[f'#{m.address} {m.name}' for m in dio_mods]}")
 
     results: list[dict] = []
 
-    for mod in output_mods:
-        total_channels = mod.num_outputs
+    for mod in dio_mods:
+        # Some modules mix DO and DIO, but we focus on all outputs + inouts for toggling.
+        # Actually for DIO toggle we should toggle the inout channels.
+        total_channels = mod.num_outputs + mod.num_inouts
         if on_module:
             try:
                 on_module(mod.address)
@@ -96,13 +80,20 @@ def run(
 
         for ch in range(total_channels):
             ch_start = time.time()
-
             try:
+                # Configure as output (True)
+                # Note: instances are 1-based, channel is 0-based
+                instance = ch + 1
+                hw.write_parameter(mod.address, direction_param_id, True, instance=instance)
+                
+                # Small delay to let the configuration settle
+                time.sleep(0.05)
+                
                 # Set HIGH
                 hw.write_output(mod.address, ch, True)
                 time.sleep(pulse_duration_s)
 
-                # Read back 
+                # Read back
                 try:
                     actual = hw.read_input(mod.address, ch)
                 except Exception:
@@ -110,6 +101,10 @@ def run(
 
                 # Set LOW
                 hw.write_output(mod.address, ch, False)
+                time.sleep(0.05)
+
+                # Restore configuration to input (False)
+                hw.write_parameter(mod.address, direction_param_id, False, instance=instance)
 
                 ch_dur = round((time.time() - ch_start) * 1000, 1)
                 passed = actual is None or bool(actual)
@@ -122,7 +117,7 @@ def run(
                 })
 
                 status = "✓" if passed else "✗ (readback LOW)"
-                log("info", f"    ch {ch} {status}  ({ch_dur}ms)")
+                log("info", f"    ch {ch} (as output) {status}  ({ch_dur}ms)")
 
             except Exception as exc:
                 ch_dur = round((time.time() - ch_start) * 1000, 1)
@@ -136,6 +131,7 @@ def run(
                 # Try to reset
                 try:
                     hw.write_output(mod.address, ch, False)
+                    hw.write_parameter(mod.address, direction_param_id, False, instance=ch + 1)
                 except Exception:
                     pass
 
@@ -143,7 +139,7 @@ def run(
         all_ok = all(c.get("passed", False) for c in channels)
 
         result = {
-            "test": "output-toggle",
+            "test_id": "dio-toggle",
             "module": mod.name,
             "address": mod.address,
             "module_code": mod.module_code,
@@ -158,7 +154,6 @@ def run(
 
         results.append(result)
 
-        # Live push: notify caller of this module's result immediately
         if on_result:
             try:
                 on_result(result)
@@ -170,7 +165,7 @@ def run(
             f"  {status_icon} #{mod.address} {mod.name}: "
             f"{result['passed_channels']}/{total_channels} passed  ({t_total}ms)")
 
-        if mod != output_mods[-1]:
+        if mod != dio_mods[-1]:
             time.sleep(pause_between_modules_s)
 
     return results

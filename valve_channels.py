@@ -28,6 +28,9 @@ _VALVE_CHANNEL_CONFIG: list[tuple[str, int]] = [
 
     # VP (proportional): 2 channels per valve
     ("VABX-A-VP-*",      2),
+
+    # MPAL valves (configurable, assuming bistable default: 2 channels)
+    ("VMPAL-*",          2),
 ]
 
 # Default for any VABX body not matched above

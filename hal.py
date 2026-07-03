@@ -89,11 +89,11 @@ class HardwareInterface(ABC):
         """Force all output channels on all modules to a safe (LOW) state."""
 
     @abstractmethod
-    def read_parameter(self, address: int, param_id: int) -> int:
+    def read_parameter(self, address: int, param_id: int, instance: int = 0) -> int:
         """Read a parameter value from a module."""
 
     @abstractmethod
-    def write_parameter(self, address: int, param_id: int, value: int) -> None:
+    def write_parameter(self, address: int, param_id: int, value: int, instance: int = 0) -> None:
         """Write a parameter value to a module."""
 
     @abstractmethod
@@ -205,7 +205,7 @@ class CpxApHardware(HardwareInterface):
             except Exception:
                 continue
 
-    def read_parameter(self, address: int, param_id: int) -> int:
+    def read_parameter(self, address: int, param_id: int, instance: int = 0) -> int:
         """Read a parameter via the module's own parameter dictionary.
 
         Uses ``module.read_module_parameter()`` which resolves the real
@@ -214,12 +214,17 @@ class CpxApHardware(HardwareInterface):
         parameters are per-channel instances.
         """
         mod = self._get_module(address)
+        if instance:
+            return mod.read_module_parameter(param_id, instances=instance)
         return mod.read_module_parameter(param_id)
 
-    def write_parameter(self, address: int, param_id: int, value: int) -> None:
+    def write_parameter(self, address: int, param_id: int, value: int, instance: int = 0) -> None:
         """Write a parameter via the module's own parameter dictionary."""
         mod = self._get_module(address)
-        mod.write_module_parameter(param_id, value)
+        if instance:
+            mod.write_module_parameter(param_id, value, instances=instance)
+        else:
+            mod.write_module_parameter(param_id, value)
 
     def read_diagnosis(self, address: int) -> Any:
         mod = self._get_module(address)

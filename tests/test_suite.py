@@ -127,6 +127,17 @@ def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTes
         assert not failed, f"Condition counter check failed for connections: {failed}"
 
     elif test_id == "valve-condition-counter":
+        from tests.valve_condition_counter import run as run_vcc
+        res = run_vcc(
+            hw=hw,
+            log=log,
+            bench_config=bench_config,
+            module_address=resolved_instance.module_address
+        )
+        failed = [r for r in res if r.get("passed") is False]
+        assert not failed, f"Valve condition counter failed: {failed}"
+
+    elif test_id == "output-toggle":
         from tests.output_toggle import run as run_output_toggle
         res = run_output_toggle(
             hw=hw,
@@ -136,6 +147,28 @@ def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTes
         )
         failed = [r for r in res if r.get("passed") is False]
         assert not failed, f"Output toggle failed: {failed}"
+
+    elif test_id == "valve-toggle":
+        from tests.valve_toggle import run as run_valve_toggle
+        res = run_valve_toggle(
+            hw=hw,
+            log=log,
+            bench_config=bench_config,
+            module_address=resolved_instance.module_address
+        )
+        failed = [r for r in res if r.get("passed") is False]
+        assert not failed, f"Valve toggle failed: {failed}"
+
+    elif test_id == "dio-toggle":
+        from tests.dio_toggle import run as run_dio_toggle
+        res = run_dio_toggle(
+            hw=hw,
+            log=log,
+            bench_config=bench_config,
+            module_address=resolved_instance.module_address
+        )
+        failed = [r for r in res if r.get("passed") is False]
+        assert not failed, f"DIO toggle failed: {failed}"
 
     elif test_id == "compare-topology":
         from tests.compare_topology import run as run_compare

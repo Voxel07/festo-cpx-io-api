@@ -20,6 +20,9 @@ from . import (
     remanent_params,
     factory_reset,
     open_load_diag,
+    output_toggle,
+    valve_toggle,
+    dio_toggle,
 )
 
 # Canonical registry used by api.py to dispatch test runs.
@@ -44,7 +47,7 @@ REGISTRY: dict[str, dict] = {
         "needs_cpx_connection": True,    # caller provides a CpxAp instance
     },
     "valve-condition-counter": {
-        "label": "Valve CC (VABX)",
+        "label": "Valve CC",
         "description": "Triggers CC maintenance warning on VABX valve terminals.",
         "module": valve_condition_counter,
         "needs_cpx_connection": True,
@@ -65,6 +68,24 @@ REGISTRY: dict[str, dict] = {
         "label": "Open-Load Diagnostic",
         "description": "Activates outputs, enables open-load diagnostic, verifies diagnosis raised and clears.",
         "module": open_load_diag,
+        "needs_cpx_connection": True,
+    },
+    "output-toggle": {
+        "label": "Output Toggle",
+        "description": "Toggle all digital output channels ON/OFF and verify state changes.",
+        "module": output_toggle,
+        "needs_cpx_connection": True,
+    },
+    "valve-toggle": {
+        "label": "Valve Toggle",
+        "description": "Toggle all valve channels ON/OFF and verify state changes.",
+        "module": valve_toggle,
+        "needs_cpx_connection": True,
+    },
+    "dio-toggle": {
+        "label": "DIO Toggle",
+        "description": "Configure DIO channels to output mode, toggle ON/OFF, and restore to input mode.",
+        "module": dio_toggle,
         "needs_cpx_connection": True,
     },
 }

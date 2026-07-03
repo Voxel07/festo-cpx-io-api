@@ -79,6 +79,26 @@ def validate_single(
     src_offsets = [src_sub] if src_sub is not None else range(cpp_src)
     tgt_offsets = [tgt_sub] if tgt_sub is not None else range(cpp_tgt)
 
+    direction_param_id = 20145
+
+    # Configure target direction if it has inouts (False = input)
+    if tgt_mod.num_inouts > 0:
+        for i in tgt_offsets:
+            try:
+                hw.write_parameter(tgt_addr, direction_param_id, False, instance=base_idx_tgt + i + 1)
+            except Exception:
+                pass
+
+    # Configure source direction if it has inouts (True = output)
+    if src_mod.num_inouts > 0:
+        for i in src_offsets:
+            try:
+                hw.write_parameter(src_addr, direction_param_id, True, instance=out_base + i + 1)
+            except Exception:
+                pass
+            
+    time.sleep(0.05)
+
     try:
         for i in src_offsets:
             hw.write_output(src_addr, out_base + i, False)
@@ -113,6 +133,12 @@ def validate_single(
     try:
         for i in src_offsets:
             hw.write_output(src_addr, out_base + i, False)
+            if src_mod.num_inouts > 0:
+                # Restore to input (default)
+                try:
+                    hw.write_parameter(src_addr, direction_param_id, False, instance=out_base + i + 1)
+                except Exception:
+                    pass
     except Exception:
         pass
 
