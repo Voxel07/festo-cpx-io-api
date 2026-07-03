@@ -249,6 +249,19 @@ async def save_config(payload: ConfigSavePayload):
     return JSONResponse({"saved_to": str(path.resolve())})
 
 
+@app.delete("/config")
+async def delete_config(file_path: str = Query("data/bench_config.json", description="Path to the BenchConfig JSON file to delete")):
+    """Delete a saved BenchConfig file."""
+    path = Path(file_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Configuration file not found.")
+    try:
+        path.unlink()
+        return JSONResponse({"detail": f"Deleted {file_path}"})
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Could not delete config: {exc}") from exc
+
+
 @app.post("/config/compare")
 async def compare_config(request: ConfigCompareRequest):
     """Compare a stored BenchConfig module instances against the live CPX-AP system."""
@@ -261,9 +274,11 @@ async def compare_config(request: ConfigCompareRequest):
     try:
         from hal import CpxApHardware, SafeSession
         from tests.compare_topology import run as run_compare
+        
+        bench_config = BenchConfig.model_validate_json(stored_path.read_text(encoding="utf-8"))
         hw = CpxApHardware()
         with SafeSession(hw, request.ip_address, timeout=request.timeout) as iface:
-            result = run_compare(str(stored_path), iface)
+            result = run_compare(hw=iface, bench_config=bench_config)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

@@ -27,7 +27,7 @@ services:
       - "8000:8000"
 
     environment:
-      - POCKETBASE_URL=http://localhost:8090
+      - POCKETBASE_URL=http://pocketbase:8090
       - PB_USERNAME=${PB_USERNAME:-}
       - PB_PASSWORD=${PB_PASSWORD:-}
       - CPX_IP=${CPX_IP:-192.168.0.11}
