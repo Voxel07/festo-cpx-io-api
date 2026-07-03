@@ -1,0 +1,63 @@
+# =============================================================================
+# Docker Compose for Festo CPX-IO Test System
+#
+# Usage:
+#   Production (pull from registry):
+#     TAG=v1.0.0 docker compose up -d
+#
+#   Development (local build):
+#     docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# Environment variables are loaded from .env in the same directory.
+# =============================================================================
+
+services:
+  # ── FastAPI backend + pre-built React GUI ──────────────────────────────────
+  app:
+    # Pull from GitLab Container Registry (production)
+    image: ${REGISTRY_IMAGE:-registry.gitlab.com/your-group/festo-cpx-io-api}:${TAG:-latest}
+
+    # Uncomment below for local builds (and comment out 'image' above):
+    build:
+      context: ..
+      dockerfile: festo-cpx-io-api/Dockerfile
+
+    # Host networking for direct access to CPX-AP hardware (Modbus TCP)
+    ports:
+      - "8000:8000"
+
+    environment:
+      - POCKETBASE_URL=http://localhost:8090
+      - PB_USERNAME=${PB_USERNAME:-}
+      - PB_PASSWORD=${PB_PASSWORD:-}
+      - CPX_IP=${CPX_IP:-192.168.0.11}
+      - TESTBENCH_ID=${TESTBENCH_ID:-default}
+      - IO_AUTO_RESET_S=${IO_AUTO_RESET_S:-60}
+
+    # Serial device for HMP40x0 power supply control (Linux test benches only)
+    # Uncomment on machines with a connected power supply:
+    # devices:
+    #   - ${SERIAL_DEVICE:-/dev/ttyUSB0}:/dev/ttyUSB0
+
+    # Local bind mount to store .json configurations on the host
+    volumes:
+      - ./data:/app/data
+
+    restart: unless-stopped
+
+    depends_on:
+      pocketbase:
+        condition: service_started
+
+  # ── PocketBase (test result database) ──────────────────────────────────────
+  pocketbase:
+    image: ghcr.io/muchobien/pocketbase:0.39.5
+    ports:
+      - "8090:8090"
+    volumes:
+      - pb_data:/pb/pb_data
+    restart: unless-stopped
+
+volumes:
+  pb_data:
+    driver: local

@@ -63,9 +63,6 @@ app = FastAPI(
     version="3.0.0",
 )
 
-# Serve SVG product images at /svg/<filename>
-# app.mount("/svg", StaticFiles(directory="SVG"), name="svg")
-
 # Serve the compiled Vite app (dist/) in production.
 # Must be mounted AFTER the API routes so it only catches remaining paths.
 _DIST = Path("dist")
@@ -80,12 +77,12 @@ class ConfigGenerateRequest(BaseModel):
 class ConfigCompareRequest(BaseModel):
     ip_address: str = Field(..., examples=["192.168.0.11"], description="IP address of the CPX-AP gateway")
     timeout: float = Field(0.0, ge=0, description="Modbus timeout in seconds")
-    config_path: str = Field("bench_config.json", description="Path to the stored bench_config.json to compare against")
+    config_path: str = Field("data/bench_config.json", description="Path to the stored bench_config.json to compare against")
 
 
 class ConfigSavePayload(BaseModel):
     config: BenchConfig = Field(..., description="Full BenchConfig structure")
-    save_path: str = Field("bench_config.json", description="File path to save the BenchConfig JSON")
+    save_path: str = Field("data/bench_config.json", description="File path to save the BenchConfig JSON")
 
 
 def _enrich_generated_metadata(config: BenchConfig) -> None:
@@ -177,7 +174,14 @@ async def ui():
 @app.get("/svg-map", include_in_schema=False)
 async def svg_map():
     """Return the SVG icon file mapping (OrderCode -> filename)."""
-    with open("SVG/IconFileMapping.json", encoding="utf-8") as f:
+    # Prefer the file from the Vite build output (dist/svg) over the local SVG dir
+    map_file = _DIST / "svg" / "IconFileMapping.json"
+    if not map_file.exists():
+        map_file = Path("SVG/IconFileMapping.json")
+        if not map_file.exists():
+            return JSONResponse({})
+            
+    with open(map_file, encoding="utf-8") as f:
         return JSONResponse(json.load(f))
 
 
@@ -221,7 +225,7 @@ async def generate_config(request: ConfigGenerateRequest):
 
 
 @app.get("/config")
-async def load_config(file_path: str = Query("bench_config.json", description="Path to the BenchConfig JSON file")):
+async def load_config(file_path: str = Query("data/bench_config.json", description="Path to the BenchConfig JSON file")):
     """Load a previously saved unified BenchConfig file."""
     path = Path(file_path)
     if not path.exists():
@@ -601,7 +605,7 @@ async def stream_run_logs(run_id: str, request: Request):
 
 class StartTestRunRequest(BaseModel):
     ip_address: str = Field(..., description="IP address of the CPX-AP gateway")
-    config_path: str = Field("bench_config.json", description="Path to unified bench configuration file")
+    config_path: str = Field("data/bench_config.json", description="Path to unified bench configuration file")
     tests: list[str] = Field(..., description="List of test IDs to run")
     source: str = Field("web", description="Initiator: 'web' or 'ci'")
 
@@ -1874,3 +1878,5 @@ def _run_single_test_hw(
 # API routes take precedence.  Only activated when dist/ exists.
 if _DIST.is_dir():
     app.mount("/assets", StaticFiles(directory=str(_DIST / "assets")), name="assets")
+    if (_DIST / "svg").is_dir():
+        app.mount("/svg", StaticFiles(directory=str(_DIST / "svg")), name="svg")

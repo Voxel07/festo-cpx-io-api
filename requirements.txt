@@ -1,14 +1,18 @@
-# Install festo-cpx-io from the local sibling repo (editable – picks up updates automatically).
-# Switch to a pinned PyPI release once the library is published:
-#   festo-cpx-io==<version>
--e ../festo-cpx-io
+# festo-cpx-io is installed separately:
+#   - Local dev:  pip install -e ../festo-cpx-io
+#   - Docker:     installed during image build (see Dockerfile)
+#   - PyPI:       festo-cpx-io==<version>  (once published)
 
 # FastAPI stack
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
 python-multipart>=0.0.9
+python-dotenv>=1.0.0
 pytest>=8.0.0
 
 # Power supply control (HMP40x0 serial driver via testing-lib)
 pyserial>=3.5
+
+# HTTP client for PocketBase logger
+requests>=2.32.0
 
