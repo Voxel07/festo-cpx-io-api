@@ -1018,6 +1018,217 @@ async def dry_run(request: DryRunRequest):
     if not _NEW_COMPONENTS:
         raise HTTPException(status_code=501, detail="Resolver not available — check imports")
 
+
+# ─── Dashboard ─────────────────────────────────────────────────────────────
+
+@app.get("/dashboard")
+async def dashboard_data():
+    """Aggregate metrics for the dashboard from PocketBase and in-memory history.
+
+    Returns summary statistics, per-source breakdown, success rate over time,
+    module test statistics, and recent run details.
+    """
+    from datetime import datetime, timezone
+    from collections import defaultdict
+
+    # ── Gather runs from PocketBase + in-memory ──
+    all_runs: list[dict] = []
+    try:
+        from pocketbase_logger import pb_log
+        pb_runs = pb_log.get_run_history(500)
+        if pb_runs:
+            all_runs = pb_runs
+    except Exception:
+        pass
+
+    # Merge in-memory runs that aren't already in PocketBase data
+    mem_ids = {r.get("run_id") for r in all_runs}
+    for r in _run_history:
+        if r.get("run_id") not in mem_ids:
+            all_runs.append(r)
+
+    # Also include currently running test if any
+    if _current_test_run and _current_test_run.get("run_id"):
+        cur_id = _current_test_run["run_id"]
+        if cur_id not in {r.get("run_id") for r in all_runs}:
+            all_runs.append(dict(_current_test_run))
+
+    all_runs.sort(key=lambda r: r.get("started_at", ""), reverse=True)
+
+    # ── Parse helper ──
+    def parse_tests(raw) -> list[str]:
+        if isinstance(raw, list):
+            return raw
+        if isinstance(raw, str):
+            try:
+                return json.loads(raw)
+            except Exception:
+                return []
+        return []
+
+    def parse_results(raw):
+        if isinstance(raw, list):
+            return raw
+        if isinstance(raw, str):
+            try:
+                return json.loads(raw)
+            except Exception:
+                return []
+        return []
+
+    # ── Compute metrics ──
+    total_runs = len(all_runs)
+    completed_runs = [r for r in all_runs if r.get("status") == "completed"]
+    running = [r for r in all_runs if r.get("status") == "running"]
+    failed_runs = [r for r in all_runs if r.get("status") == "failed"]
+
+    # Per-source breakdown
+    ci_runs = [r for r in all_runs if r.get("source") == "ci"]
+    web_runs = [r for r in all_runs if r.get("source") == "web"]
+
+    def _run_success(r: dict) -> bool | None:
+        """Return True if all tests passed, False if any failed, None if can't determine."""
+        status = r.get("status", "")
+        if status == "running":
+            return None
+        results = parse_results(r.get("results"))
+        if not results:
+            return status == "completed"
+        passed = sum(1 for x in results if isinstance(x, dict) and x.get("passed"))
+        failed = sum(1 for x in results if isinstance(x, dict) and x.get("passed") is False)
+        if passed + failed == 0:
+            return status == "completed"
+        return failed == 0
+
+    # Success rate
+    evaluated = [r for r in completed_runs if _run_success(r) is not None]
+    successful_runs = [r for r in evaluated if _run_success(r) is True]
+    success_rate = round(len(successful_runs) / len(evaluated) * 100, 1) if evaluated else 0
+
+    # CI vs UI success rates
+    ci_evaluated = [r for r in ci_runs if r.get("status") == "completed" and _run_success(r) is not None]
+    ci_success = sum(1 for r in ci_evaluated if _run_success(r) is True)
+    ci_success_rate = round(ci_success / len(ci_evaluated) * 100, 1) if ci_evaluated else 0
+
+    web_evaluated = [r for r in web_runs if r.get("status") == "completed" and _run_success(r) is not None]
+    web_success = sum(1 for r in web_evaluated if _run_success(r) is True)
+    web_success_rate = round(web_success / len(web_evaluated) * 100, 1) if web_evaluated else 0
+
+    # ── Module statistics ──
+    module_test_counts: dict[str, int] = defaultdict(int)
+    module_fail_counts: dict[str, int] = defaultdict(int)
+    total_tests_run = 0
+    total_tests_passed = 0
+
+    for r in all_runs:
+        tests = parse_tests(r.get("tests"))
+        total_tests_run += len(tests)
+        results = parse_results(r.get("results"))
+        for t in tests:
+            module_test_counts[t] += 1
+        for res in results:
+            if isinstance(res, dict):
+                test_id = res.get("test_id") or res.get("test")
+                if test_id:
+                    if res.get("passed") is True:
+                        total_tests_passed += 1
+                    elif res.get("passed") is False:
+                        module_fail_counts[test_id] += 1
+
+    overall_pass_rate = round(total_tests_passed / total_tests_run * 100, 1) if total_tests_run else 0
+
+    top_modules = sorted(module_test_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+    most_failing = sorted(module_fail_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+
+    # ── Time-series: success rate per day ──
+    daily_stats: dict[str, dict] = defaultdict(lambda: {"total": 0, "passed": 0})
+    for r in completed_runs:
+        ts = r.get("started_at") or r.get("created", "")
+        if ts:
+            day = ts[:10]  # YYYY-MM-DD
+            daily_stats[day]["total"] += 1
+            if _run_success(r) is True:
+                daily_stats[day]["passed"] += 1
+
+    daily_trend = [
+        {
+            "date": day,
+            "total": stats["total"],
+            "passed": stats["passed"],
+            "failed": stats["total"] - stats["passed"],
+            "rate": round(stats["passed"] / stats["total"] * 100, 1) if stats["total"] else 0,
+        }
+        for day, stats in sorted(daily_stats.items())
+    ]
+
+    # ── Duration stats ──
+    durations: list[float] = []
+    for r in completed_runs:
+        started = r.get("started_at", "")
+        completed = r.get("completed_at", "")
+        if started and completed:
+            try:
+                s = datetime.fromisoformat(started.replace("Z", "+00:00"))
+                e = datetime.fromisoformat(completed.replace("Z", "+00:00"))
+                durations.append((e - s).total_seconds())
+            except Exception:
+                pass
+
+    avg_duration = round(sum(durations) / len(durations), 1) if durations else 0
+    max_duration = round(max(durations), 1) if durations else 0
+    min_duration = round(min(durations), 1) if durations else 0
+
+    # ── Recent runs (last 10) ──
+    recent_runs = []
+    for r in all_runs[:10]:
+        tests = parse_tests(r.get("tests"))
+        results = parse_results(r.get("results"))
+        total = len(results) or len(tests)
+        passed = sum(1 for x in results if isinstance(x, dict) and x.get("passed"))
+        recent_runs.append({
+            "run_id": r.get("run_id", ""),
+            "source": r.get("source", "unknown"),
+            "ip_address": r.get("ip_address", ""),
+            "status": r.get("status", "unknown"),
+            "test_count": len(tests),
+            "passed": passed,
+            "failed": total - passed,
+            "started_at": r.get("started_at", ""),
+            "completed_at": r.get("completed_at", ""),
+            "branch": r.get("test_code_commit", "")[:8] if r.get("test_code_commit") else "",
+            "pipeline_id": r.get("gitlab_pipeline_id", ""),
+        })
+
+    return JSONResponse({
+        "summary": {
+            "total_runs": total_runs,
+            "completed_runs": len(completed_runs),
+            "failed_runs": len(failed_runs),
+            "running": len(running),
+            "success_rate": success_rate,
+            "ci_runs": len(ci_runs),
+            "web_runs": len(web_runs),
+            "ci_success_rate": ci_success_rate,
+            "web_success_rate": web_success_rate,
+            "total_tests_run": total_tests_run,
+            "total_tests_passed": total_tests_passed,
+            "overall_pass_rate": overall_pass_rate,
+            "avg_duration_seconds": avg_duration,
+            "max_duration_seconds": max_duration,
+            "min_duration_seconds": min_duration,
+        },
+        "daily_trend": daily_trend,
+        "top_modules": [
+            {"test_id": k, "count": v, "failures": module_fail_counts.get(k, 0)}
+            for k, v in top_modules
+        ],
+        "most_failing": [
+            {"test_id": k, "failures": v}
+            for k, v in most_failing
+        ],
+        "recent_runs": recent_runs,
+    })
+
     try:
         # Build a minimal bench config from live topology
         hw = CpxApHardware()
@@ -1308,7 +1519,15 @@ def _execute_test_run_safe(
                             if isinstance(existing, dict) and "results" in existing and "results" in result:
                                 # Merge sub-results by address to avoid duplicates from live pushes
                                 _merge_sub_results(existing["results"], result["results"])
-                                existing["passed"] = existing.get("passed", True) and result.get("passed", True)
+                                
+                                prev_passed = existing.get("passed")
+                                if prev_passed is None:
+                                    prev_passed = True
+                                res_passed = result.get("passed")
+                                if res_passed is None:
+                                    res_passed = True
+                                    
+                                existing["passed"] = prev_passed and res_passed
                                 existing["all_passed"] = existing["passed"]
                                 if "duration_ms" in existing and "duration_ms" in result and result["duration_ms"] is not None:
                                     existing["duration_ms"] = round((existing["duration_ms"] or 0) + result["duration_ms"], 1)
@@ -1491,6 +1710,8 @@ def _run_single_test_hw(
     from tests.valve_condition_counter import run as run_vcc
     from tests.remanent_params import run as run_rem
     from tests.output_toggle import run as run_output_toggle
+    from tests.valve_toggle import run as run_valve_toggle
+    from tests.dio_toggle import run as run_dio_toggle
     from tests.system_diagnosis import run as run_sysdiag
 
     raw = None
@@ -1547,10 +1768,32 @@ def _run_single_test_hw(
             module_address=resolved_instance.module_address
         )
 
-    elif test_id in ("valve-toggle", "output-toggle"):
+    elif test_id == "output-toggle":
         _init_live_results([m for m in hw.read_topology() if m.address == resolved_instance.module_address])
         _update_current_module(resolved_instance.module_address)
         raw = run_output_toggle(
+            hw=hw,
+            log=log,
+            bench_config=bench_config,
+            module_address=resolved_instance.module_address,
+            on_result=lambda r: _push_live_module_result(r)
+        )
+
+    elif test_id == "valve-toggle":
+        _init_live_results([m for m in hw.read_topology() if m.address == resolved_instance.module_address])
+        _update_current_module(resolved_instance.module_address)
+        raw = run_valve_toggle(
+            hw=hw,
+            log=log,
+            bench_config=bench_config,
+            module_address=resolved_instance.module_address,
+            on_result=lambda r: _push_live_module_result(r)
+        )
+
+    elif test_id == "dio-toggle":
+        _init_live_results([m for m in hw.read_topology() if m.address == resolved_instance.module_address])
+        _update_current_module(resolved_instance.module_address)
+        raw = run_dio_toggle(
             hw=hw,
             log=log,
             bench_config=bench_config,
