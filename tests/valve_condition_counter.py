@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from hal import HardwareInterface
+from config_models import BenchConfig
 from valve_channels import expand_valve_indices, channels_per_valve
 from ._base import (
     LogFn, is_module_compatible, is_valve_terminal, load_compatibility, noop_log,
@@ -53,24 +54,29 @@ TEST_DEFINITION = {
 }
 
 
-def _load_mounted_valves(connections_path: str) -> dict[int, list[int]]:
-    """Return ``{module_address: [valve_channel, ...]}`` from connections."""
-    path = Path(connections_path)
-    if not path.exists():
+def _get_mounted_valves(bench_config: BenchConfig | None) -> dict[int, list[int]]:
+    """Return ``{module_address: [valve_channel, ...]}`` from bench_config."""
+    if not bench_config:
         return {}
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
-    raw = data.get("mounted_valves", {})
-    return {int(k): [int(v) for v in vs] for k, vs in raw.items()}
+    
+    # Map instance_id -> address
+    inst_to_addr = {m.instance_id: m.address for m in bench_config.module_instances}
+    
+    mounted = {}
+    for wire in bench_config.wiring:
+        addr = inst_to_addr.get(wire.target_instance_id)
+        if addr is not None:
+            if addr not in mounted:
+                mounted[addr] = []
+            if wire.target_channel not in mounted[addr]:
+                mounted[addr].append(wire.target_channel)
+    return mounted
 
 
 def run(
     hw: HardwareInterface,
-    connections_path: str = "connections.jsonc",
-    toggle_cycles: int = 5,
     log: LogFn = noop_log,
-    cc_param_id: int = 20094,
-    cc_readback_param_id: int = 20095,
+    bench_config: BenchConfig | None = None,
     module_address: int | None = None,
 ) -> list[dict]:
     """Test CC behaviour on VABX valve terminals.
@@ -81,6 +87,10 @@ def run(
       3. Read new CC value
       4. Verify CC incremented ≥ N
     """
+    cc_param_id = TEST_DEFINITION["parameters"]["cc_param_id"]
+    cc_readback_param_id = TEST_DEFINITION["parameters"]["cc_readback_param_id"]
+    toggle_cycles = TEST_DEFINITION["parameters"]["toggle_cycles"]
+
     topology = hw.read_topology()
     if module_address is not None:
         topology = [m for m in topology if m.address == module_address]
@@ -109,7 +119,7 @@ def run(
                             "error": "No valve terminals found"})
         return results
 
-    mounted_valves = _load_mounted_valves(connections_path)
+    mounted_valves = _get_mounted_valves(bench_config)
     log("info", f"Found {len(valve_mods)} valve terminal(s): "
         f"{[m.name for m in valve_mods]}")
 

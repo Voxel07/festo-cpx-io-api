@@ -178,38 +178,7 @@
       "num_inouts": 0
     }
   ],
-  "wiring": [
-    {
-      "id": "io-2-X0-3-X0",
-      "source_instance_id": "mod-002",
-      "source_channel": "X0",
-      "target_instance_id": "mod-003",
-      "target_channel": "X0",
-      "signal_type": "digital_24v",
-      "direction": "output_to_input",
-      "connection_type": "physical",
-      "expected_behavior": "",
-      "waypoints": [],
-      "source_handle": "src-out-X0",
-      "target_handle": "tgt-in-X0",
-      "straight": false
-    },
-    {
-      "id": "io-2-X3-3-X7",
-      "source_instance_id": "mod-002",
-      "source_channel": "X3",
-      "target_instance_id": "mod-003",
-      "target_channel": "X7",
-      "signal_type": "digital_24v",
-      "direction": "output_to_input",
-      "connection_type": "physical",
-      "expected_behavior": "",
-      "waypoints": [],
-      "source_handle": "src-out-X3",
-      "target_handle": "tgt-in-X7",
-      "straight": false
-    }
-  ],
+  "wiring": [],
   "ui_metadata": {
     "module_positions": [],
     "channel_anchors": []

@@ -74,53 +74,22 @@ def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTes
         
     if test_id == "connection-validation":
         from tests.validate_connections import run as run_validate
-        wire = next((w for w in bench_config.wiring if w.id == resolved_instance.wiring_id), None)
-        if not wire:
-            pytest.fail(f"Wiring connection '{resolved_instance.wiring_id}' not found in configuration")
-            
-        src_mod = next((m for m in bench_config.module_instances if m.instance_id == wire.source_instance_id), None)
-        tgt_mod = next((m for m in bench_config.module_instances if m.instance_id == wire.target_instance_id), None)
-        if not src_mod or not tgt_mod:
-            pytest.fail(f"Modules for wiring '{wire.id}' not found in configuration")
-            
-        conn = {
-            "source_module_addr": src_mod.address,
-            "source_channel": wire.source_channel,
-            "target_module_addr": tgt_mod.address,
-            "target_channel": wire.target_channel,
-        }
         res = run_validate(
             hw_or_ip=hw,
             log=log,
-            connections=[conn],
-            pulse_duration_s=resolved_instance.parameters.get("pulse_duration_s", 0.3)
+            bench_config=bench_config,
+            module_address=resolved_instance.module_address
         )
         assert res.get("all_passed"), f"Wiring validation failed: {res.get('error') or res.get('results')}"
 
     elif test_id == "remanent-params":
-        from tests.remanent_params import run as run_rem, run_with_power_cycle as run_rem_pc
-        comport = resolved_instance.parameters.get("power_supply_comport")
-        if comport:
-            res = run_rem_pc(
-                hw=hw,
-                ip_address=bench_config.test_bench.ip_address,
-                power_supply_comport=comport,
-                power_supply_channels=resolved_instance.parameters.get("power_supply_channels", [1, 2, 4]),
-                log=log,
-                param_id_1=resolved_instance.parameters.get("param_id_1", 20118),
-                param_id_2=resolved_instance.parameters.get("param_id_2", 20119),
-                module_address=resolved_instance.module_address,
-                power_supply_voltage=resolved_instance.parameters.get("power_supply_voltage", 24.0),
-                reconnect_wait=resolved_instance.parameters.get("reconnect_wait", 8.0),
-            )
-        else:
-            res = run_rem(
-                hw=hw,
-                log=log,
-                param_id_1=resolved_instance.parameters.get("param_id_1", 20118),
-                param_id_2=resolved_instance.parameters.get("param_id_2", 20119),
-                module_address=resolved_instance.module_address,
-            )
+        from tests.remanent_params import run_with_power_cycle as run_rem_pc
+        res = run_rem_pc(
+            hw=hw,
+            log=log,
+            bench_config=bench_config,
+            module_address=resolved_instance.module_address,
+        )
         failed = [r for r in res if r.get("passed") is False]
         assert not failed, f"Remanent parameters test failed: {failed}"
 
@@ -128,10 +97,9 @@ def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTes
         from tests.factory_reset import run as run_fr
         res = run_fr(
             hw=hw,
-            ip_address=bench_config.test_bench.ip_address,
             log=log,
+            bench_config=bench_config,
             module_address=resolved_instance.module_address,
-            **resolved_instance.parameters
         )
         failed = [r for r in res if r.get("passed") is False]
         assert not failed, f"Factory reset test failed: {failed}"
@@ -141,58 +109,20 @@ def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTes
         res = run_old(
             hw=hw,
             log=log,
+            bench_config=bench_config,
             module_address=resolved_instance.module_address,
-            force_mask_param_id=resolved_instance.parameters.get("force_mask_param_id", 20081),
-            force_value_param_id=resolved_instance.parameters.get("force_value_param_id", 20082),
-            valve_defect_diag_enable_param_id=resolved_instance.parameters.get("valve_defect_diag_enable_param_id", 20021),
-            openload_diag_enable_param_id=resolved_instance.parameters.get("openload_diag_enable_param_id", 20027),
-            diag_settle_time=resolved_instance.parameters.get("diag_settle_time", 1.5),
-            diag_clear_time=resolved_instance.parameters.get("diag_clear_time", 1.0),
         )
         failed = [r for r in res if r.get("passed") is False]
         assert not failed, f"Open-load diagnostic test failed: {failed}"
 
     elif test_id == "condition-counter":
-        from tests.condition_counter import run as run_cc, run_with_power_cycle as run_cc_pc
-        conns = []
-        for wire in bench_config.wiring:
-            if wire.target_instance_id == resolved_instance.module_instance_id:
-                src_mod = next((m for m in bench_config.module_instances if m.instance_id == wire.source_instance_id), None)
-                tgt_mod = next((m for m in bench_config.module_instances if m.instance_id == wire.target_instance_id), None)
-                if src_mod and tgt_mod:
-                    conns.append({
-                        "source_module_addr": src_mod.address,
-                        "source_channel": wire.source_channel,
-                        "target_module_addr": tgt_mod.address,
-                        "target_channel": wire.target_channel,
-                    })
-        if not conns:
-            pytest.skip(f"No wiring connections target module {resolved_instance.module_instance_id} for condition counter test")
-
-        comport = resolved_instance.parameters.get("power_supply_comport")
-        if comport:
-            res = run_cc_pc(
-                hw=hw,
-                ip_address=bench_config.test_bench.ip_address,
-                power_supply_comport=comport,
-                power_supply_channels=resolved_instance.parameters.get("power_supply_channels", [1, 2, 4]),
-                log=log,
-                cc_param_id=resolved_instance.parameters.get("cc_param_id", 20094),
-                cc_readback_param_id=resolved_instance.parameters.get("cc_readback_param_id", 20095),
-                toggle_cycles=resolved_instance.parameters.get("toggle_cycles", 3),
-                connections=conns,
-                power_supply_voltage=resolved_instance.parameters.get("power_supply_voltage", 24.0),
-                reconnect_wait=resolved_instance.parameters.get("reconnect_wait", 8.0),
-            )
-        else:
-            res = run_cc(
-                hw=hw,
-                log=log,
-                cc_param_id=resolved_instance.parameters.get("cc_param_id", 20094),
-                cc_readback_param_id=resolved_instance.parameters.get("cc_readback_param_id", 20095),
-                toggle_cycles=resolved_instance.parameters.get("toggle_cycles", 3),
-                connections=conns,
-            )
+        from tests.condition_counter import run_with_power_cycle as run_cc_pc
+        res = run_cc_pc(
+            hw=hw,
+            log=log,
+            bench_config=bench_config,
+            module_address=resolved_instance.module_address,
+        )
         failed = [r for r in res if r.get("passed") is False]
         assert not failed, f"Condition counter check failed for connections: {failed}"
 
@@ -201,7 +131,7 @@ def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTes
         res = run_output_toggle(
             hw=hw,
             log=log,
-            pulse_duration_s=resolved_instance.parameters.get("pulse_duration_s", 0.2),
+            bench_config=bench_config,
             module_address=resolved_instance.module_address
         )
         failed = [r for r in res if r.get("passed") is False]
@@ -209,17 +139,22 @@ def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTes
 
     elif test_id == "compare-topology":
         from tests.compare_topology import run as run_compare
-        # Compare topology for the entire bus
         res = run_compare(
-            topology_path=bench_config_path or "bench_config.json",
             hw=hw,
-            log=log
+            log=log,
+            bench_config=bench_config,
+            module_address=resolved_instance.module_address
         )
         assert res.get("passed") or res.get("all_passed"), f"Topology Comparison failed: {res}"
 
     elif test_id == "system-diagnosis":
         from tests.system_diagnosis import run as run_sysdiag
-        res = run_sysdiag(hw=hw, module_address=resolved_instance.module_address)
+        res = run_sysdiag(
+            hw=hw, 
+            log=log,
+            bench_config=bench_config,
+            module_address=resolved_instance.module_address
+        )
         log("info", f"Global System Diagnosis: {res.get('diagnosis')}")
         assert res.get("passed"), "Failed to read system diagnosis"
 

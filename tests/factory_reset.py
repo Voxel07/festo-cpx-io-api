@@ -56,6 +56,7 @@ import time
 from typing import Any
 
 from hal import HardwareInterface
+from config_models import BenchConfig
 from ._base import LogFn, noop_log
 
 # ── Test metadata ──────────────────────────────────────────────────────────────
@@ -453,24 +454,34 @@ def _trigger_reset(
 
 def run(
     hw: HardwareInterface,
-    ip_address: str,
     log: LogFn = noop_log,
+    bench_config: BenchConfig | None = None,
     module_address: int | None = None,
-    **kwargs
 ) -> list[dict]:
 
     """Full factory-reset + normal-reset parameter persistence test."""
     from power_supply import PowerCycleSession, PowerSupplyNotAvailable
 
     params = TEST_DEFINITION["parameters"].copy()
-    params.update(kwargs)
 
-    power_supply_comport = params.get("power_supply_comport")
-    power_supply_channels = params.get("power_supply_channels", [1, 2, 4])
+    power_supply_comport = None
+    if bench_config and bench_config.power_supply:
+        power_supply_comport = bench_config.power_supply.comport
+    
+    ch = []
+    if bench_config and bench_config.power_supply:
+        if bench_config.power_supply.pl_channel is not None:
+            ch.append(bench_config.power_supply.pl_channel)
+        if bench_config.power_supply.ps_channel is not None:
+            ch.append(bench_config.power_supply.ps_channel)
+    power_supply_channels = ch if ch else params.get("power_supply_channels", [1, 2, 4])
+    
     power_supply_voltage = params.get("power_supply_voltage", 24.0)
     reconnect_wait = params.get("reconnect_wait", 8.0)
     device_reset_param_id = params.get("device_reset_param_id", 20001)
     reset_reconnect_wait = params.get("reset_reconnect_wait", 10.0)
+    
+    ip_address = bench_config.test_bench.ip_address if bench_config else ""
 
     if not power_supply_comport:
         msg = "Power supply is required for factory-reset but not configured in bench_config.json"
@@ -649,12 +660,11 @@ def run(
 def verify_persistence_after_reset(
     hw: HardwareInterface,
     log: LogFn = noop_log,
+    bench_config: BenchConfig | None = None,
     module_address: int | None = None,
-    **kwargs
 ) -> list[dict]:
     """Phase 2: verify parameters persisted after a manual reset."""
     params = TEST_DEFINITION["parameters"].copy()
-    params.update(kwargs)
 
     topology = hw.read_topology()
 
@@ -703,12 +713,11 @@ def verify_persistence_after_reset(
 def verify_factory_defaults(
     hw: HardwareInterface,
     log: LogFn = noop_log,
+    bench_config: BenchConfig | None = None,
     module_address: int | None = None,
-    **kwargs
 ) -> list[dict]:
     """Phase 3: verify parameters cleared after a manual factory reset."""
     params = TEST_DEFINITION["parameters"].copy()
-    params.update(kwargs)
 
     topology = hw.read_topology()
 

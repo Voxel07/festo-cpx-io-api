@@ -10,6 +10,7 @@ from __future__ import annotations
 import time
 
 from hal import HardwareInterface, SafeSession, CpxApHardware, ModuleInfo
+from config_models import BenchConfig
 from ._base import LogFn, load_connections, channel_index_from_port, noop_log
 
 TEST_DEFINITION = {
@@ -125,21 +126,41 @@ def validate_single(
 
 def run(
     hw_or_ip: HardwareInterface | str,
-    connections_path: str = "connections.jsonc",
-    timeout: float = 0,
-    pulse_duration_s: float = 0.3,
     log: LogFn = noop_log,
-    connections: list[dict] | None = None,
+    bench_config: BenchConfig | None = None,
+    module_address: int | None = None,
 ) -> dict:
     """Validate all I/O connections listed in *connections_path*.
 
     Accepts either a pre-connected :class:`HardwareInterface` or an IP address
     string (creates a temporary :class:`SafeSession`).
     """
-    if connections is None:
-        connections = load_connections(connections_path)
+    pulse_duration_s = TEST_DEFINITION["parameters"]["pulse_duration_s"]
+    timeout = 0
+    connections = []
+    if bench_config:
+        # Find module_instance_id for the given module_address
+        target_instance_id = None
+        if module_address is not None:
+            for m in bench_config.module_instances:
+                if m.address == module_address:
+                    target_instance_id = m.instance_id
+                    break
+
+        for wire in bench_config.wiring:
+            if target_instance_id is None or wire.target_instance_id == target_instance_id or wire.source_instance_id == target_instance_id:
+                src_mod = next((m for m in bench_config.module_instances if m.instance_id == wire.source_instance_id), None)
+                tgt_mod = next((m for m in bench_config.module_instances if m.instance_id == wire.target_instance_id), None)
+                if src_mod and tgt_mod:
+                    connections.append({
+                        "source_module_addr": src_mod.address,
+                        "source_channel": wire.source_channel,
+                        "target_module_addr": tgt_mod.address,
+                        "target_channel": wire.target_channel,
+                    })
+
     if not connections:
-        log("warning", f"No connections found in '{connections_path}'")
+        log("warning", f"No connections found for module {module_address}")
         return {
             "ip_address": "", "total": 0, "passed": 0, "failed": 0,
             "all_passed": True, "results": [],

@@ -4,6 +4,7 @@ import time
 from typing import Any
 
 from hal import HardwareInterface
+from config_models import BenchConfig
 from ._base import LogFn, noop_log
 from .factory_reset import _get_reset_param_specs_for_module, _write_test_values, _verify_persisted
 
@@ -35,10 +36,11 @@ TEST_DEFINITION = {
 def run(
     hw: HardwareInterface,
     log: LogFn = noop_log,
+    bench_config: BenchConfig | None = None,
     module_address: int | None = None,
-    **kwargs
 ) -> list[dict]:
     """Phase 1: write test values to remanent parameters."""
+    kwargs = TEST_DEFINITION["parameters"]
     topology = hw.read_topology()
     if module_address is not None:
         topology = [m for m in topology if m.address == module_address]
@@ -89,11 +91,12 @@ def run(
 def verify(
     hw: HardwareInterface,
     log: LogFn = noop_log,
+    bench_config: BenchConfig | None = None,
     module_address: int | None = None,
     write_results: list[dict] | None = None,
-    **kwargs
 ) -> list[dict]:
     """Phase 2: verify test values survived a power cycle."""
+    kwargs = TEST_DEFINITION["parameters"]
     topology = hw.read_topology()
     if module_address is not None:
         topology = [m for m in topology if m.address == module_address]
@@ -144,23 +147,30 @@ def verify(
 
 def run_with_power_cycle(
     hw: HardwareInterface,
-    ip_address: str,
-    power_supply_comport: str,
-    power_supply_channels: list[int],
     log: LogFn = noop_log,
+    bench_config: BenchConfig | None = None,
     module_address: int | None = None,
-    power_supply_voltage: float = 24.0,
-    reconnect_wait: float = 8.0,
-    off_time: float = 1.0,
-    **kwargs
 ) -> list[dict]:
     """Full end-to-end remanent-params test with bench power cycle."""
     from power_supply import PowerCycleSession, PowerSupplyNotAvailable
 
-    if not power_supply_comport:
+    if not bench_config or not bench_config.power_supply or not bench_config.power_supply.comport:
         msg = "Power supply is required for remanent-params but not configured in bench_config.json"
         log("error", f"  {msg}. Aborting test.")
         return [{"test": "remanent-params", "passed": False, "error": msg}]
+
+    power_supply_comport = bench_config.power_supply.comport
+    ch = []
+    if bench_config.power_supply.pl_channel is not None:
+        ch.append(bench_config.power_supply.pl_channel)
+    if bench_config.power_supply.ps_channel is not None:
+        ch.append(bench_config.power_supply.ps_channel)
+    power_supply_channels = ch if ch else TEST_DEFINITION["parameters"]["power_supply_channels"]
+
+    ip_address = bench_config.test_bench.ip_address
+    power_supply_voltage = TEST_DEFINITION["parameters"]["power_supply_voltage"]
+    reconnect_wait = TEST_DEFINITION["parameters"]["reconnect_wait"]
+    off_time = 1.0
 
     # ── Test power supply connection first ──
     log("info", "  Testing power supply connection ...")
@@ -182,8 +192,8 @@ def run_with_power_cycle(
     write_results = run(
         hw=hw,
         log=log,
+        bench_config=bench_config,
         module_address=module_address,
-        **kwargs
     )
 
     write_failures = [r for r in write_results if r.get("passed") is False]
@@ -218,9 +228,9 @@ def run_with_power_cycle(
     verify_results = verify(
         hw=hw,
         log=log,
+        bench_config=bench_config,
         module_address=module_address,
         write_results=write_results,
-        **kwargs
     )
 
     # Clean up internal specs before returning

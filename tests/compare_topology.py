@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 
 from hal import HardwareInterface
+from config_models import BenchConfig
 from ._base import LogFn, noop_log
 
 TEST_DEFINITION = {
@@ -39,24 +40,22 @@ TEST_DEFINITION = {
 
 
 def run(
-    topology_path: str,
     hw: HardwareInterface,
     log: LogFn = noop_log,
+    bench_config: BenchConfig | None = None,
+    module_address: int | None = None,
 ) -> dict:
     t_start = time.time()
-    from config_models import BenchConfig
-    try:
-        config = BenchConfig.model_validate_json(Path(topology_path).read_text(encoding="utf-8"))
-    except Exception as exc:
-        err = f"Could not load BenchConfig: {exc}"
+    if not bench_config:
+        err = "No bench_config provided for comparison"
         log("error", err)
         return {"passed": False, "has_diff": True, "error": err,
                 "changes": [], "added": [], "removed": [],
                 "duration_ms": round((time.time() - t_start) * 1000, 1)}
 
     stored_modules = []
-    for inst in config.module_instances:
-        type_def = config.module_types.get(inst.module_type_ref)
+    for inst in bench_config.module_instances:
+        type_def = bench_config.module_types.get(inst.module_type_ref)
         num_in = inst.num_inputs
         num_out = inst.num_outputs
         num_io = inst.num_inouts

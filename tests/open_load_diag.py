@@ -59,6 +59,7 @@ import time
 from typing import Any
 
 from hal import HardwareInterface
+from config_models import BenchConfig
 from ._base import LogFn, load_compatibility, noop_log
 
 # ── Test metadata ──────────────────────────────────────────────────────────────
@@ -252,14 +253,14 @@ def _diag_locations_text(
 def run(
     hw: HardwareInterface,
     log: LogFn = noop_log,
-    bench_config: dict | None = None,
+    bench_config: BenchConfig | None = None,
     module_address: int | None = None,
-    valve_defect_diag_enable_param_id: int = 20021,
-    openload_diag_enable_param_id: int = 20027,
-    diag_settle_time: float = 1.5,
-    diag_clear_time: float = 1.0,
 ) -> list[dict]:
     """Run the open-load diagnostic test on all compatible output/valve modules."""
+    valve_defect_diag_enable_param_id = TEST_DEFINITION["parameters"]["valve_defect_diag_enable_param_id"]
+    openload_diag_enable_param_id = TEST_DEFINITION["parameters"]["openload_diag_enable_param_id"]
+    diag_settle_time = TEST_DEFINITION["parameters"]["diag_settle_time"]
+    diag_clear_time = TEST_DEFINITION["parameters"]["diag_clear_time"]
     topology = hw.read_topology()
     if module_address is not None:
         topology = [m for m in topology if m.address == module_address]

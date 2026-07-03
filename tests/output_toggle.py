@@ -9,6 +9,7 @@ import time
 from typing import Any
 
 from hal import HardwareInterface, ModuleInfo
+from config_models import BenchConfig
 from valve_channels import channels_per_valve
 from ._base import LogFn, noop_log
 
@@ -40,7 +41,8 @@ TEST_DEFINITIONS = [
             "CPX-AP-I-*DIO*",
             "CPX-AP-A-*IOL*",
             "CPX-AP-I-*IOL*",
-            "VABX-A-*"
+            "VABX-A-S-BV-V4*",
+            "VMPAL-*"
         ]
     },
     {
@@ -73,10 +75,8 @@ TEST_DEFINITIONS = [
 
 def run(
     hw: HardwareInterface,
-    connections_path: str = "connections.jsonc",  # kept for API symmetry
     log: LogFn = noop_log,
-    pulse_duration_s: float = 0.2,
-    pause_between_modules_s: float = 0.3,
+    bench_config: BenchConfig | None = None,
     on_module: callable = None,  # (address: int) -> None — called before each module
     on_result: callable = None,  # (result: dict) -> None — called after each module (live push)
     module_address: int | None = None,
@@ -95,6 +95,9 @@ def run(
     :param pause_between_modules_s: Pause between modules
     :returns: List of per-module result dicts with per-channel details
     """
+    pulse_duration_s = 0.2
+    pause_between_modules_s = 0.3
+
     topology = hw.read_topology()
     output_mods = [m for m in topology if m.num_outputs > 0 or m.num_inouts > 0]
     if module_address is not None:

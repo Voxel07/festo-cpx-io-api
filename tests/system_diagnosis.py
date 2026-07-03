@@ -1,6 +1,8 @@
 """System Diagnosis validation test."""
 from __future__ import annotations
 from hal import HardwareInterface
+from config_models import BenchConfig
+from ._base import LogFn, noop_log
 
 TEST_DEFINITION = {
     "test_id": "system-diagnosis",
@@ -31,7 +33,14 @@ TEST_DEFINITION = {
 }
 
 
-def run(hw: HardwareInterface, module_address: int) -> dict:
+def run(
+    hw: HardwareInterface,
+    log: LogFn = noop_log,
+    bench_config: BenchConfig | None = None,
+    module_address: int | None = None,
+) -> dict:
+    if module_address is None:
+        return {"passed": False, "diagnosis": "No module address provided", "results": []}
     diag = hw.read_diagnosis(module_address)
     return {
         "passed": diag is not None,

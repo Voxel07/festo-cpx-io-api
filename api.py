@@ -604,13 +604,6 @@ class StartTestRunRequest(BaseModel):
     config_path: str = Field("bench_config.json", description="Path to unified bench configuration file")
     tests: list[str] = Field(..., description="List of test IDs to run")
     source: str = Field("web", description="Initiator: 'web' or 'ci'")
-    test_parameters: dict[str, dict] = Field(
-        default_factory=dict,
-        description=(
-            "Per-test parameter overrides keyed by test_id. "
-            "Example: {\"remanent-params\": {\"power_supply_comport\": \"COM3\"}}"
-        ),
-    )
 
 
 @app.post("/test-run/start")
@@ -655,7 +648,6 @@ async def start_test_run(request: StartTestRunRequest):
         request.tests,
         request.source,
         loop,  # <-- event loop passed explicitly
-        request.test_parameters,
     )
 
     return JSONResponse({"run_id": run_id, "status": "started"})
@@ -1086,16 +1078,11 @@ def _execute_test_run_safe(
     tests: list[str],
     source: str,
     loop=None,  # asyncio event loop from caller (runs in thread)
-    test_parameters: dict[str, dict] | None = None,
 ) -> None:
     """Run tests with SafeSession — guaranteed output reset on scope exit.
 
     Runs in a thread pool — *loop* must be passed from the async caller
     because ``asyncio.get_running_loop()`` doesn't work in threads.
-
-    *test_parameters* is an optional ``{test_id: {param: value, ...}}`` dict
-    that overrides resolved instance parameters.  The web UI uses this to
-    forward the power-supply comport; CI uses env-vars (see below).
     """
     global _current_test_run, _abort_flag
     from pocketbase_logger import pb_log
@@ -1153,55 +1140,22 @@ def _execute_test_run_safe(
 
         # Build execution plan instances
         plan_instances = []
+        planned_tests = set()
         if bench_config:
             try:
                 from resolver import TestResolver, TestFilter
                 resolver = TestResolver()
                 for t_id in tests:
                     p = resolver.resolve(bench_config, TestFilter(test_id=t_id))
-                    plan_instances.extend(p.instances)
+                    if p.instances:
+                        planned_tests.add(t_id)
+                        plan_instances.extend(p.instances)
             except Exception as exc:
                 _log("error", f"Resolver failed to plan execution: {exc}")
 
-        # ── Merge parameter overrides ────────────────────────────────────────────────────
-        # Priority (high → low):
-        #   1. test_parameters dict (from web UI or explicit API call)
-        #   2. Resolved-instance defaults (from bench_config / TEST_DEFINITION)
-
-        _POWER_CYCLE_TEST_IDS = {"remanent-params", "condition-counter", "factory-reset"}
-
-        # Get defaults from bench_config.power_supply
-        cfg_ps_comport = None
-        cfg_ps_channels = None
-        if bench_config and getattr(bench_config, "power_supply", None) and bench_config.power_supply:
-            ps = bench_config.power_supply
-            cfg_ps_comport = ps.comport or ps.ip_address
-            ch = []
-            if ps.pl_channel is not None:
-                ch.append(ps.pl_channel)
-            if ps.ps_channel is not None:
-                ch.append(ps.ps_channel)
-            if ch:
-                cfg_ps_channels = ch
-
-        effective_params: dict[str, dict] = {}
-        if test_parameters:
-            effective_params.update(test_parameters)
-
-        for inst in plan_instances:
-            overrides = {}
-            if inst.test_id in _POWER_CYCLE_TEST_IDS:
-                if cfg_ps_comport:
-                    overrides["power_supply_comport"] = cfg_ps_comport
-                if cfg_ps_channels:
-                    overrides["power_supply_channels"] = cfg_ps_channels
-
-            # Explicit overrides take precedence
-            web_overrides = effective_params.get(inst.test_id, {})
-            overrides.update(web_overrides)
-
-            if overrides:
-                inst.parameters = {**inst.parameters, **overrides}
+        # ── Merging parameter overrides has been removed ──────────────────
+        # All test parameters should be resolved internally by the tests.
+        # Tests will rely on bench_config for settings like power supply.
 
         # Notify PocketBase
         commit_sha = os.environ.get("CI_COMMIT_SHA", "")
@@ -1221,20 +1175,25 @@ def _execute_test_run_safe(
             "1.0" # schema_version
         )
 
+        skipped_tests = [t for t in tests if t not in planned_tests]
+        for t_id in skipped_tests:
+            _log("warning", f"No modules matched the test: {t_id} (Skipping)")
+            if _current_test_run is not None:
+                _current_test_run["checkpoints"].append({
+                    "test": t_id, "status": "skipped", "timestamp": time.time(),
+                    "error": "No compatible module found",
+                })
+                _current_test_run["results"].append({
+                    "test_id": t_id, "passed": None,
+                    "error": "No compatible module found — skipped",
+                })
+            try:
+                _pb(pb_log.checkpoint, run_id, t_id, "skipped", "No compatible module found")
+            except:
+                pass
+
         if not plan_instances:
-            _log("warning", f"No modules matched the selected test(s): {', '.join(tests)}")
             _log("warning", f"Check configuration ({config_path}) and wiring for compatibility.")
-            # Mark all selected tests as skipped
-            for t_id in tests:
-                if _current_test_run is not None:
-                    _current_test_run["checkpoints"].append({
-                        "test": t_id, "status": "skipped", "timestamp": time.time(),
-                        "error": "No compatible module found",
-                    })
-                    _current_test_run["results"].append({
-                        "test_id": t_id, "passed": None,
-                        "error": "No compatible module found — skipped",
-                    })
             return
 
         # Update progress total to reflect resolved instance count (not raw test-ID count)
@@ -1285,12 +1244,19 @@ def _execute_test_run_safe(
 
                 test_id = inst.test_id
                 _log("info", f"━━━ [{idx + 1}/{len(plan_instances)}] {test_id} (Module #{inst.module_address}) ━━━")
-                if _current_test_run is not None:
-                    _current_test_run["progress"]["current_test"] = test_id
-                    _current_test_run["checkpoints"].append({
-                        "test": test_id, "status": "running", "timestamp": time.time(),
-                    })
-                _pb(pb_log.checkpoint, run_id, test_id, "running")
+                
+                is_new_test = True
+                if _current_test_run and _current_test_run["checkpoints"]:
+                    if _current_test_run["checkpoints"][-1]["test"] == test_id:
+                        is_new_test = False
+
+                if is_new_test:
+                    if _current_test_run is not None:
+                        _current_test_run["progress"]["current_test"] = test_id
+                        _current_test_run["checkpoints"].append({
+                            "test": test_id, "status": "running", "timestamp": time.time(),
+                        })
+                    _pb(pb_log.checkpoint, run_id, test_id, "running")
 
                 try:
                     # Per-test timeout (seconds) — prevents a stuck test
@@ -1354,18 +1320,28 @@ def _execute_test_run_safe(
                         results_list.append(result)
                     if _current_test_run["checkpoints"]:
                         cp = _current_test_run["checkpoints"][-1]
-                        passed = bool(result.get("passed", False))
-                        if passed:
-                            cp["status"] = "passed"
-                            _log("info", f"✓ {test_id} PASSED")
-                            _pb(pb_log.checkpoint, run_id, test_id, "passed")
-                        else:
-                            err = _extract_error_summary(result)
-                            cp["status"] = "failed"
-                            cp["error"] = err[:500]
-                            _log("error", f"✗ {test_id} FAILED — {err}")
-                            _pb(pb_log.checkpoint, run_id, test_id, "failed", err[:500])
-                            _pb(pb_log.error, run_id, f"Test '{test_id}' failed: {err}")
+                        
+                        test_result_entry = None
+                        for r in _current_test_run["results"]:
+                            if isinstance(r, dict) and r.get("test_id") == test_id:
+                                test_result_entry = r
+                                break
+
+                        is_last_instance = (idx == len(plan_instances) - 1 or plan_instances[idx+1].test_id != test_id)
+
+                        if is_last_instance:
+                            passed = bool(test_result_entry.get("passed", False)) if test_result_entry else False
+                            if passed:
+                                cp["status"] = "passed"
+                                _log("info", f"✓ {test_id} PASSED")
+                                _pb(pb_log.checkpoint, run_id, test_id, "passed")
+                            else:
+                                err = _extract_error_summary(test_result_entry) if test_result_entry else "Failed"
+                                cp["status"] = "failed"
+                                cp["error"] = err[:500]
+                                _log("error", f"✗ {test_id} FAILED — {err}")
+                                _pb(pb_log.checkpoint, run_id, test_id, "failed", err[:500])
+                                _pb(pb_log.error, run_id, f"Test '{test_id}' failed: {err}")
 
             _log("info", f"All {len(plan_instances)} test(s) completed")
     except Exception as exc:
@@ -1515,105 +1491,43 @@ def _run_single_test_hw(
     from tests.valve_condition_counter import run as run_vcc
     from tests.remanent_params import run as run_rem
     from tests.output_toggle import run as run_output_toggle
+    from tests.system_diagnosis import run as run_sysdiag
 
     raw = None
 
     if test_id == "connection-validation":
-        wire = next((w for w in bench_config.wiring if w.id == resolved_instance.wiring_id), None)
-        if wire:
-            src_mod = next((m for m in bench_config.module_instances if m.instance_id == wire.source_instance_id), None)
-            tgt_mod = next((m for m in bench_config.module_instances if m.instance_id == wire.target_instance_id), None)
-            if src_mod and tgt_mod:
-                conn = {
-                    "source_module_addr": src_mod.address,
-                    "source_channel": wire.source_channel,
-                    "target_module_addr": tgt_mod.address,
-                    "target_channel": wire.target_channel,
-                }
-                raw = run_validate(
-                    hw_or_ip=hw,
-                    log=log,
-                    connections=[conn],
-                    pulse_duration_s=resolved_instance.parameters.get("pulse_duration_s", 0.3)
-                )
+        raw = run_validate(
+            hw_or_ip=hw,
+            log=log,
+            bench_config=bench_config,
+            module_address=resolved_instance.module_address
+        )
 
     elif test_id == "condition-counter":
         from tests.condition_counter import run_with_power_cycle as run_cc_pc
-        conns = []
-        if bench_config:
-            for wire in bench_config.wiring:
-                if wire.target_instance_id == resolved_instance.module_instance_id:
-                    src_mod = next((m for m in bench_config.module_instances if m.instance_id == wire.source_instance_id), None)
-                    tgt_mod = next((m for m in bench_config.module_instances if m.instance_id == wire.target_instance_id), None)
-                    if src_mod and tgt_mod:
-                        conns.append({
-                            "source_module_addr": src_mod.address,
-                            "source_channel": wire.source_channel,
-                            "target_module_addr": tgt_mod.address,
-                            "target_channel": wire.target_channel,
-                        })
-        if conns:
-            comport = resolved_instance.parameters.get("power_supply_comport")
-            if comport or resolved_instance.parameters.get("power_cycle"):
-                raw = run_cc_pc(
-                    hw=hw,
-                    ip_address=bench_config.test_bench.ip_address if bench_config else "",
-                    power_supply_comport=comport or "",
-                    power_supply_channels=resolved_instance.parameters.get("power_supply_channels", [1, 2, 4]),
-                    log=log,
-                    cc_param_id=resolved_instance.parameters.get("cc_param_id", 20094),
-                    cc_readback_param_id=resolved_instance.parameters.get("cc_readback_param_id", 20095),
-                    toggle_cycles=resolved_instance.parameters.get("toggle_cycles", 3),
-                    connections=conns,
-                    power_supply_voltage=resolved_instance.parameters.get("power_supply_voltage", 24.0),
-                    reconnect_wait=resolved_instance.parameters.get("reconnect_wait", 8.0),
-                )
-            else:
-                raw = run_cc(
-                    hw=hw,
-                    log=log,
-                    cc_param_id=resolved_instance.parameters.get("cc_param_id", 20094),
-                    cc_readback_param_id=resolved_instance.parameters.get("cc_readback_param_id", 20095),
-                    toggle_cycles=resolved_instance.parameters.get("toggle_cycles", 3),
-                    connections=conns,
-                )
-        else:
-            raw = {"test_id": test_id, "passed": None,
-                   "error": f"No wiring targets module #{resolved_instance.module_address} — skipped"}
+        raw = run_cc_pc(
+            hw=hw,
+            log=log,
+            bench_config=bench_config,
+            module_address=resolved_instance.module_address,
+        )
 
     elif test_id == "remanent-params":
         from tests.remanent_params import run_with_power_cycle as run_rem_pc
-        comport = resolved_instance.parameters.get("power_supply_comport")
-        if comport and bench_config:
-            raw = run_rem_pc(
-                hw=hw,
-                ip_address=bench_config.test_bench.ip_address,
-                power_supply_comport=comport,
-                power_supply_channels=resolved_instance.parameters.get("power_supply_channels", [1, 2, 4]),
-                log=log,
-                param_id_1=resolved_instance.parameters.get("param_id_1", 20118),
-                param_id_2=resolved_instance.parameters.get("param_id_2", 20119),
-                module_address=resolved_instance.module_address,
-                power_supply_voltage=resolved_instance.parameters.get("power_supply_voltage", 24.0),
-                reconnect_wait=resolved_instance.parameters.get("reconnect_wait", 8.0),
-            )
-        else:
-            raw = run_rem(
-                hw=hw,
-                log=log,
-                param_id_1=resolved_instance.parameters.get("param_id_1", 20118),
-                param_id_2=resolved_instance.parameters.get("param_id_2", 20119),
-                module_address=resolved_instance.module_address,
-            )
+        raw = run_rem_pc(
+            hw=hw,
+            log=log,
+            bench_config=bench_config,
+            module_address=resolved_instance.module_address,
+        )
 
     elif test_id == "factory-reset":
         from tests.factory_reset import run as run_fr
         raw = run_fr(
             hw=hw,
-            ip_address=bench_config.test_bench.ip_address if bench_config else "",
             log=log,
+            bench_config=bench_config,
             module_address=resolved_instance.module_address,
-            **resolved_instance.parameters
         )
 
     elif test_id == "open-load-diag":
@@ -1623,19 +1537,13 @@ def _run_single_test_hw(
             log=log,
             bench_config=bench_config,
             module_address=resolved_instance.module_address,
-            valve_defect_diag_enable_param_id=resolved_instance.parameters.get("valve_defect_diag_enable_param_id", 20021),
-            openload_diag_enable_param_id=resolved_instance.parameters.get("openload_diag_enable_param_id", 20027),
-            diag_settle_time=resolved_instance.parameters.get("diag_settle_time", 1.5),
-            diag_clear_time=resolved_instance.parameters.get("diag_clear_time", 1.0),
         )
 
     elif test_id == "valve-condition-counter":
         raw = run_vcc(
             hw=hw,
             log=log,
-            toggle_cycles=resolved_instance.parameters.get("toggle_cycles", 5),
-            cc_param_id=resolved_instance.parameters.get("cc_param_id", 20094),
-            cc_readback_param_id=resolved_instance.parameters.get("cc_readback_param_id", 20095),
+            bench_config=bench_config,
             module_address=resolved_instance.module_address
         )
 
@@ -1645,24 +1553,29 @@ def _run_single_test_hw(
         raw = run_output_toggle(
             hw=hw,
             log=log,
-            pulse_duration_s=resolved_instance.parameters.get("pulse_duration_s", 0.2),
+            bench_config=bench_config,
             module_address=resolved_instance.module_address,
             on_result=lambda r: _push_live_module_result(r)
         )
 
     elif test_id == "compare-topology":
         raw = run_compare(
-            topology_path=config_path,
             hw=hw,
-            log=log
+            log=log,
+            bench_config=bench_config,
+            module_address=resolved_instance.module_address
         )
 
     elif test_id == "system-diagnosis":
         try:
-            diag = hw.read_diagnosis(addr)
-            raw = {"passed": diag is not None, "diagnosis": str(diag), "results": [{"module": str(addr), "passed": diag is not None}]}
+            raw = run_sysdiag(
+                hw=hw,
+                log=log,
+                bench_config=bench_config,
+                module_address=resolved_instance.module_address
+            )
         except Exception as exc:
-            raw = {"passed": False, "error": str(exc), "results": [{"module": str(addr), "passed": False, "error": str(exc)}]}
+            raw = {"passed": False, "error": str(exc), "results": [{"module": str(resolved_instance.module_address), "passed": False, "error": str(exc)}]}
 
     if raw is None:
         raw = {"test_id": test_id, "passed": None, "error": f"Test '{test_id}' not implemented or skipped"}

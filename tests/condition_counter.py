@@ -25,9 +25,10 @@ import time
 from typing import Any
 
 from hal import HardwareInterface, ModuleInfo
+from config_models import BenchConfig
 from ._base import (
     LogFn, channel_index_from_port, is_module_compatible,
-    load_compatibility, load_connections, noop_log,
+    load_compatibility, noop_log,
 )
 
 TEST_DEFINITION = {
@@ -68,12 +69,9 @@ DEFAULT_TOGGLE_CYCLES = 3
 
 def run(
     hw: HardwareInterface,
-    connections_path: str = "connections.jsonc",
     log: LogFn = noop_log,
-    cc_param_id: int = 20094,
-    cc_readback_param_id: int = 20095,
-    toggle_cycles: int = DEFAULT_TOGGLE_CYCLES,
-    connections: list[dict] | None = None,
+    bench_config: BenchConfig | None = None,
+    module_address: int | None = None,
 ) -> list[dict]:
     """Validate Condition Counter wiring for every defined connection.
 
@@ -83,10 +81,34 @@ def run(
       3. Read final CC actual on target module
       4. Verify CC incremented ≥ *toggle_cycles*
     """
-    if connections is None:
-        connections = load_connections(connections_path)
+    cc_param_id = TEST_DEFINITION["parameters"]["cc_param_id"]
+    cc_readback_param_id = TEST_DEFINITION["parameters"]["cc_readback_param_id"]
+    toggle_cycles = DEFAULT_TOGGLE_CYCLES
+
+    connections = []
+    if bench_config:
+        # Find module_instance_id for the given module_address
+        target_instance_id = None
+        if module_address is not None:
+            for m in bench_config.module_instances:
+                if m.address == module_address:
+                    target_instance_id = m.instance_id
+                    break
+
+        for wire in bench_config.wiring:
+            if target_instance_id is None or wire.target_instance_id == target_instance_id:
+                src_mod = next((m for m in bench_config.module_instances if m.instance_id == wire.source_instance_id), None)
+                tgt_mod = next((m for m in bench_config.module_instances if m.instance_id == wire.target_instance_id), None)
+                if src_mod and tgt_mod:
+                    connections.append({
+                        "source_module_addr": src_mod.address,
+                        "source_channel": wire.source_channel,
+                        "target_module_addr": tgt_mod.address,
+                        "target_channel": wire.target_channel,
+                    })
+
     if not connections:
-        log("warning", f"No connections found in '{connections_path}'")
+        log("warning", f"No connections found for module {module_address}")
         return [{"test": "condition-counter", "passed": None,
                  "error": "No connections defined"}]
 
@@ -285,18 +307,9 @@ def run(
 
 def run_with_power_cycle(
     hw: HardwareInterface,
-    ip_address: str,
-    power_supply_comport: str,
-    power_supply_channels: list[int],
-    connections_path: str = "connections.jsonc",
     log: LogFn = noop_log,
-    cc_param_id: int = 20094,
-    cc_readback_param_id: int = 20095,
-    toggle_cycles: int = DEFAULT_TOGGLE_CYCLES,
-    connections: list[dict] | None = None,
-    power_supply_voltage: float = 24.0,
-    reconnect_wait: float = 8.0,
-    off_time: float = 1.0,
+    bench_config: BenchConfig | None = None,
+    module_address: int | None = None,
 ) -> list[dict]:
     """Condition Counter test with bench power-cycle persistence check.
 
@@ -331,10 +344,27 @@ def run_with_power_cycle(
     """
     from power_supply import PowerCycleSession, PowerSupplyNotAvailable
 
-    if not power_supply_comport:
+    if not bench_config or not bench_config.power_supply or not bench_config.power_supply.comport:
         msg = "Power supply is required for condition-counter but not configured in bench_config.json"
         log("error", f"  {msg}. Aborting test.")
         return [{"test": "condition-counter", "passed": False, "error": msg}]
+
+    power_supply_comport = bench_config.power_supply.comport
+    ch = []
+    if bench_config.power_supply.pl_channel is not None:
+        ch.append(bench_config.power_supply.pl_channel)
+    if bench_config.power_supply.ps_channel is not None:
+        ch.append(bench_config.power_supply.ps_channel)
+    power_supply_channels = ch if ch else TEST_DEFINITION["parameters"]["power_supply_channels"]
+
+    ip_address = bench_config.test_bench.ip_address
+    power_supply_voltage = TEST_DEFINITION["parameters"]["power_supply_voltage"]
+    reconnect_wait = TEST_DEFINITION["parameters"]["reconnect_wait"]
+    off_time = 1.0
+
+    cc_param_id = TEST_DEFINITION["parameters"]["cc_param_id"]
+    cc_readback_param_id = TEST_DEFINITION["parameters"]["cc_readback_param_id"]
+    toggle_cycles = DEFAULT_TOGGLE_CYCLES
 
     # ── Test power supply connection first ──
     log("info", "  Testing power supply connection ...")
@@ -355,12 +385,9 @@ def run_with_power_cycle(
     # ── Phase 1: increment + verify CC ───────────────────────────────────────
     increment_results = run(
         hw=hw,
-        connections_path=connections_path,
         log=log,
-        cc_param_id=cc_param_id,
-        cc_readback_param_id=cc_readback_param_id,
-        toggle_cycles=toggle_cycles,
-        connections=connections,
+        bench_config=bench_config,
+        module_address=module_address,
     )
 
     # Build a map of {(src_addr, tgt_addr): final_cc} for persistence check
@@ -401,11 +428,6 @@ def run_with_power_cycle(
         return increment_results
 
     # ── Phase 3: verify CC values persisted ───────────────────────────────────
-    if connections is None:
-        from ._base import load_connections
-        connections_list = load_connections(connections_path)
-    else:
-        connections_list = connections
 
     topology = hw.read_topology()
     mod_by_addr: dict[int, ModuleInfo] = {m.address: m for m in topology}
