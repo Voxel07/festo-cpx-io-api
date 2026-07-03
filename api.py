@@ -832,10 +832,15 @@ async def get_module_parameters(
             mod = hw._get_module(address)
             params = []
             for p in mod.module_dicts.parameters.values():
+                pid = int(p.parameter_id)
+                # Skip parameters with IDs > 16-bit: the Modbus transport
+                # truncates to param_id & 0xFFFF so they can't be accessed.
+                if pid > 0xFFFF:
+                    continue
                 first_index = p.parameter_instances.get("FirstIndex", 0) if p.parameter_instances else 0
                 num_instances = p.parameter_instances.get("NumberOfInstances", 1) if p.parameter_instances else 1
                 params.append({
-                    "parameter_id": int(p.parameter_id),
+                    "parameter_id": pid,
                     "name": str(p.name),
                     "is_writable": bool(p.is_writable),
                     "data_type": str(p.data_type),
@@ -881,9 +886,30 @@ async def read_module_parameter(
         try:
             hw.connect(ip_address, timeout)
             mod = hw._get_module(address)
-            val = mod.read_module_parameter_enum_str(param_id, instances=instance)
-            
+
             param_info = mod.module_dicts.parameters.get(param_id)
+            if param_info is None:
+                raise ValueError(f"Parameter {param_id} not found on this module.")
+            # The Modbus transport truncates parameter IDs to 16 bits
+            # (see param_id & 0xFFFF in cpx_ap._read_parameter_raw).
+            # Parameters with IDs > 65535 cannot be accessed directly.
+            if param_id > 0xFFFF:
+                raise ValueError(
+                    f"Parameter {param_id} ({param_info.name}) has an ID > 16-bit "
+                    f"and cannot be accessed via the Modbus parameter transport. "
+                    f"Only parameters with IDs 0–65535 are supported."
+                )
+            # For BOOL parameters, read the raw value and normalize
+            # Python True/False to 1/0 so the frontend checkbox
+            # (which checks for "true" or "1") reflects the state.
+            if param_info and param_info.data_type == "BOOL":
+                val = mod.read_module_parameter(param_id, instances=instance)
+                if isinstance(val, list):
+                    val = [1 if v else 0 for v in val]
+                elif val is not None:
+                    val = 1 if val else 0
+            else:
+                val = mod.read_module_parameter_enum_str(param_id, instances=instance)
 
             if isinstance(val, list):
                 return {"value": [str(x) if x is not None else "" for x in val]}
@@ -925,17 +951,43 @@ async def write_module_parameter(
             val = request.value
             
             param_info = mod.module_dicts.parameters.get(param_id)
+            if param_info is None:
+                raise ValueError(f"Parameter {param_id} not found on this module.")
+            # The Modbus transport truncates parameter IDs to 16 bits.
+            if param_id > 0xFFFF:
+                raise ValueError(
+                    f"Parameter {param_id} ({param_info.name}) has an ID > 16-bit "
+                    f"and cannot be accessed via the Modbus parameter transport. "
+                    f"Only parameters with IDs 0–65535 are supported."
+                )
             try:
                     if "." in val:
                         val = float(val)
                     else:
                         val = int(val)
             except ValueError:
-                    pass  # keep as string (for enums etc)
+                    # Handle "true"/"false" strings sent by the frontend
+                    # checkbox for BOOL parameters.
+                    if param_info and param_info.data_type == "BOOL":
+                        val_lower = val.strip().lower()
+                        if val_lower == "true":
+                            val = True
+                        elif val_lower == "false":
+                            val = False
+                    # else: keep as string (for enums etc)
 
             mod.write_module_parameter(param_id, val, instances=request.instance)
             time.sleep(0.05)
-            new_val = mod.read_module_parameter_enum_str(param_id, instances=request.instance)
+            # For BOOL parameters, read back and normalize to 1/0 so the
+            # frontend checkbox shows the correct state (matches "1"/"0").
+            if param_info and param_info.data_type == "BOOL":
+                new_val = mod.read_module_parameter(param_id, instances=request.instance)
+                if isinstance(new_val, list):
+                    new_val = [1 if v else 0 for v in new_val]
+                elif new_val is not None:
+                    new_val = 1 if new_val else 0
+            else:
+                new_val = mod.read_module_parameter_enum_str(param_id, instances=request.instance)
             return {"value": str(new_val) if new_val is not None else ""}
         finally:
             try:
@@ -970,14 +1022,44 @@ async def get_system_diagnoses(
         try:
             hw.connect(ip_address, timeout)
             active_diags = []
+            
+            # Read diagnostic status for all modules to get severity
+            try:
+                diag_status_list = hw._cpx_ap.read_diagnostic_status()
+            except Exception:
+                diag_status_list = None
+
             for mod in hw._modules:
                 try:
                     diag = mod.read_diagnosis_information()
                     if diag is not None:
+                        # Attempt to read the channel number from the first 2 bytes of the diagnosis block
+                        channel = None
+                        try:
+                            channel_reg = mod.base.read_reg_data(mod.system_entry_registers.diagnosis, length=1)
+                            channel = int.from_bytes(channel_reg, byteorder="little")
+                        except Exception:
+                            pass
+
+                        # Determine severity
+                        severity = "unknown"
+                        if diag_status_list and (mod.position + 1) < len(diag_status_list):
+                            mod_diag_status = diag_status_list[mod.position + 1]
+                            if mod_diag_status.degree_of_severity_error:
+                                severity = "error"
+                            elif mod_diag_status.degree_of_severity_warning:
+                                severity = "warning"
+                            elif mod_diag_status.degree_of_severity_maintenance:
+                                severity = "maintenance"
+                            elif mod_diag_status.degree_of_severity_information:
+                                severity = "info"
+
                         active_diags.append({
                             "address": int(mod.position),
                             "module_name": getattr(mod.apdd_information, "order_text", "") or mod.name or f"Module {mod.position}",
                             "diagnosis_id": str(diag.diagnosis_id),
+                            "channel": channel,
+                            "severity": severity,
                             "name": str(diag.name),
                             "description": str(diag.description),
                             "guideline": str(diag.guideline),
