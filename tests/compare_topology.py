@@ -121,27 +121,41 @@ def run(
     ]
     log("info", f"Live topology has {len(live_modules)} module(s)")
 
-    stored_by_addr = {e["Adress"]: e for e in stored_modules}
-    live_by_addr = {e["Adress"]: e for e in live_modules}
+    from difflib import SequenceMatcher
 
+    # Sequence of tuples for matching: (Name, Modulecode)
+    # Using these instead of Address allows us to track modules that were shifted.
+    stored_seq = [(m.get("Name"), m.get("Modulecode")) for m in stored_modules]
+    live_seq = [(m.get("Name"), m.get("Modulecode")) for m in live_modules]
+
+    sm = SequenceMatcher(None, stored_seq, live_seq)
     changes, added, removed = [], [], []
 
-    for addr, live_entry in live_by_addr.items():
-        if addr in stored_by_addr:
-            stored_entry = stored_by_addr[addr]
-            for field in set(stored_entry) | set(live_entry):
-                sv, lv = stored_entry.get(field), live_entry.get(field)
-                if sv != lv:
-                    changes.append({
-                        "address": addr, "field": field,
-                        "stored_value": sv, "live_value": lv,
-                    })
-        else:
-            added.append(live_entry)
-
-    for addr, entry in stored_by_addr.items():
-        if addr not in live_by_addr:
-            removed.append(entry)
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == 'equal':
+            for i, j in zip(range(i1, i2), range(j1, j2)):
+                stored_entry = stored_modules[i]
+                live_entry = live_modules[j]
+                for field in set(stored_entry) | set(live_entry):
+                    sv, lv = stored_entry.get(field), live_entry.get(field)
+                    if sv != lv:
+                        changes.append({
+                            "address": live_entry["Adress"],
+                            "field": field,
+                            "stored_value": sv,
+                            "live_value": lv,
+                        })
+        elif tag == 'replace':
+            for i in range(i1, i2):
+                removed.append(stored_modules[i])
+            for j in range(j1, j2):
+                added.append(live_modules[j])
+        elif tag == 'delete':
+            for i in range(i1, i2):
+                removed.append(stored_modules[i])
+        elif tag == 'insert':
+            for j in range(j1, j2):
+                added.append(live_modules[j])
 
     has_diff = bool(changes or added or removed)
 
