@@ -698,12 +698,25 @@ def _extract_error_summary(result: dict) -> str:
     for r in sub_results:
         if not isinstance(r, dict):
             continue
-        if r.get("passed") is False and r.get("error"):
-            src = r.get("source_addr") or r.get("address")
-            tgt = r.get("target_addr")
-            loc = f"#{src}→#{tgt}" if tgt else (f"#{src}" if src else "")
-            msg = r.get("error", "")
-            sub_errors.append(f"{loc}: {msg}" if loc else msg)
+        if r.get("passed") is False:
+            if r.get("error"):
+                src = r.get("source_addr") or r.get("address")
+                tgt = r.get("target_addr")
+                loc = f"#{src}→#{tgt}" if tgt else (f"#{src}" if src else "")
+                msg = r.get("error", "")
+                sub_errors.append(f"{loc}: {msg}" if loc else msg)
+            else:
+                # Channel-level failure without explicit error — describe what we know
+                ch = r.get("channel")
+                readback = r.get("readback")
+                loc = r.get("address") or r.get("module")
+                if ch is not None:
+                    detail = f"ch {ch}: readback={readback}"
+                else:
+                    detail = f"readback={readback}"
+                if loc:
+                    detail = f"#{loc} {detail}"
+                sub_errors.append(detail)
 
     if sub_errors:
         return " | ".join(sub_errors[:5])
@@ -1462,6 +1475,8 @@ def _execute_test_run_safe(
                     if p.instances:
                         planned_tests.add(t_id)
                         plan_instances.extend(p.instances)
+                # Sort by (test_id, module_address) so modules run low→high address within each test
+                plan_instances.sort(key=lambda inst: (inst.test_id, inst.module_address))
             except Exception as exc:
                 _log("error", f"Resolver failed to plan execution: {exc}")
 

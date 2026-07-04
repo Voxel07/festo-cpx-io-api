@@ -94,6 +94,12 @@ def run(
         t_start = time.time()
         channels: list[dict[str, Any]] = []
 
+        # For mixed DI/DO modules, read_channel indexes ALL channels
+        # (inputs first, then outputs), while write_channel indexes
+        # outputs only.  Offset readback by num_inputs so we read the
+        # output channel we just wrote, not an input channel.
+        read_offset = mod.num_inputs
+
         for ch in range(total_channels):
             ch_start = time.time()
 
@@ -104,7 +110,7 @@ def run(
 
                 # Read back 
                 try:
-                    actual = hw.read_input(mod.address, ch)
+                    actual = hw.read_input(mod.address, read_offset + ch)
                 except Exception:
                     actual = None
 
