@@ -474,11 +474,14 @@ class BenchConfig(BaseModel):
                 if type_def and type_def.channels:
                     ch_names = {c.name for c in type_def.channels}
                     ch_indices = {str(c.index) for c in type_def.channels}
-                    valid_names = ch_names | ch_indices
+                    fallback_names = {f"out{c.index}" for c in type_def.channels} | \
+                                     {f"in{c.index}" for c in type_def.channels} | \
+                                     {f"vabxin{c.index}" for c in type_def.channels}
+                    valid_names = ch_names | ch_indices | fallback_names
                     if w.source_channel not in valid_names:
                         raise ValueError(
                             f"Wiring '{w.id}': source channel '{w.source_channel}' "
-                            f"not found on module '{src_mod.instance_id}'"
+                            f"not found on module '{src_mod.instance_id}'. Valid: {valid_names}"
                         )
             # Target checks
             tgt_mod = next((m for m in self.module_instances if m.instance_id == w.target_instance_id), None)
@@ -487,11 +490,15 @@ class BenchConfig(BaseModel):
                 if type_def and type_def.channels:
                     ch_names = {c.name for c in type_def.channels}
                     ch_indices = {str(c.index) for c in type_def.channels}
-                    valid_names = ch_names | ch_indices
+                    # Also accept UI's fallback handle formats: 'out0', 'in0', 'vabxin0'
+                    fallback_names = {f"out{c.index}" for c in type_def.channels} | \
+                                     {f"in{c.index}" for c in type_def.channels} | \
+                                     {f"vabxin{c.index}" for c in type_def.channels}
+                    valid_names = ch_names | ch_indices | fallback_names
                     if w.target_channel not in valid_names:
                         raise ValueError(
                             f"Wiring '{w.id}': target channel '{w.target_channel}' "
-                            f"not found on module '{tgt_mod.instance_id}'"
+                            f"not found on module '{tgt_mod.instance_id}'. Valid: {valid_names}"
                         )
         return self
 
