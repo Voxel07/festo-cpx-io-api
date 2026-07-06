@@ -161,6 +161,10 @@ class ModuleInstance(BaseModel):
     num_inputs: int = Field(0, ge=0, description="Number of digital/analog input channels")
     num_outputs: int = Field(0, ge=0, description="Number of digital/analog output channels")
     num_inouts: int = Field(0, ge=0, description="Number of bidirectional/configurable channels")
+    port_directions: dict[str, bool] = Field(
+        default_factory=dict,
+        description="Direction of configurable ports. True = output, False = input. Key is channel string index.",
+    )
 
 
 # ─── Wiring / Connection ──────────────────────────────────────────────────────
@@ -185,6 +189,7 @@ class WiringConnection(BaseModel):
     source_handle: str | None = Field(None, description="ReactFlow source handle ID, e.g. 'src-inout-X0'")
     target_handle: str | None = Field(None, description="ReactFlow target handle ID, e.g. 'tgt-inout-X1'")
     straight: bool = Field(False, description="Use straight-line wire routing instead of stepped routing")
+    label_offset: dict[str, float] | None = Field(None, description="UI label offset {x, y}")
 
 
 # ─── Test Definition ──────────────────────────────────────────────────────────

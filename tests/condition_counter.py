@@ -157,8 +157,8 @@ def run(
                            "duration_ms": round((time.time() - ch_start) * 1000, 1)})
             continue
 
-        has_outputs = src_mod.num_outputs > 0
-        has_inputs = tgt_mod.num_inputs > 0
+        has_outputs = src_mod.num_outputs > 0 or src_mod.num_inouts > 0
+        has_inputs = tgt_mod.num_inputs > 0 or tgt_mod.num_inouts > 0
 
         result: dict[str, Any] = {
             "test": "condition-counter", "connection": label,
@@ -179,6 +179,22 @@ def run(
             results.append(result)
             result["duration_ms"] = round((time.time() - ch_start) * 1000, 1)
             continue
+
+        # Configure port directions for DIO/NDIO modules (param 20145)
+        # Source must be output (True), Target must be input (False)
+        tgt_channel_idx = conn.get("target_channel")
+        if isinstance(tgt_channel_idx, str):
+            tgt_channel_idx = channel_index_from_port(tgt_channel_idx)
+            
+        try:
+            hw.write_parameter(src_addr, 20145, 1, instances=src_ch_idx)
+        except Exception:
+            pass
+            
+        try:
+            hw.write_parameter(tgt_addr, 20145, 0, instances=tgt_channel_idx)
+        except Exception:
+            pass
 
         # ── Step 0: Check CC support on target module ──────────────────
         # Some modules (e.g. CPX-AP-A-16DI-D) don't have CC parameters.
