@@ -16,7 +16,10 @@ Usage::
 from __future__ import annotations
 
 import fnmatch
+import importlib.util
 import json
+import os
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -34,10 +37,6 @@ from config_models import (
 
 
 def load_all_test_definitions() -> list[dict]:
-    import importlib.util
-    import os
-    from pathlib import Path
-    
     test_defs = []
     tests_dir = Path(__file__).parent / "tests"
     if not tests_dir.exists():
@@ -186,8 +185,6 @@ class TestResolver:
         4. Wiring requirements (for connection-based tests)
         5. Negative-test module handling
         """
-        import time as _time
-
         instances: list[ResolvedTestInstance] = []
 
         test_defs = config.test_definitions
@@ -274,7 +271,7 @@ class TestResolver:
         return ExecutionPlan(
             test_bench_id=config.test_bench.id,
             test_bench_ip=config.test_bench.ip_address,
-            created_at=_time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime()),
+            created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             instances=deduped,
         )
 

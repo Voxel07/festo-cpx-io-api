@@ -13,6 +13,7 @@ Usage::
 from __future__ import annotations
 
 import re
+import warnings
 
 from enum import Enum
 from typing import Annotated, Any
@@ -130,7 +131,7 @@ class ModuleInstance(BaseModel):
     instance_id: str = Field(..., description="Unique instance ID, e.g. 'mod-003'")
     display_name: str = Field("", description="Human-readable label")
     module_code: int = Field(..., description="Numeric module code")
-    product_key: str = Field(..., description="Unique product key (serial-like)")
+    product_key: str | None = Field(None, description="Unique product key (serial-like)")
     address: int = Field(..., ge=0, description="Bus address (0-based position)")
     category: ModuleCategory = Field(..., description="Input / Output / InOut / Bus / Valve")
     module_type_ref: str = Field(
@@ -459,7 +460,6 @@ class BenchConfig(BaseModel):
         seen: set[str] = set()
         dupes = {k for k in keys if k in seen or seen.add(k)}
         if dupes:
-            import warnings
             warnings.warn(f"Duplicate product keys found: {sorted(dupes)}", UserWarning)
         return self
 

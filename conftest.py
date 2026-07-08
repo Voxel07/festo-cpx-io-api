@@ -1,12 +1,16 @@
-import pytest
-import os
 import json
+import os
+import re
+import subprocess
 import time
 from pathlib import Path
-from hal import CpxApHardware, SafeSession
+
+import pytest
+
 from config_models import BenchConfig, SafetyClass
-from resolver import TestResolver, TestFilter
+from hal import CpxApHardware, SafeSession
 from repository import PocketBaseRepository, TestRunRecord, TestResultRecord
+from resolver import TestResolver, TestFilter
 
 # Global state for pytest session
 _session_run_id = ""
@@ -36,7 +40,6 @@ def bench_config(bench_config_path):
     if bench_config_path and Path(bench_config_path).exists():
         with open(bench_config_path, "r", encoding="utf-8") as f:
             content = f.read()
-        import re
         content_clean = re.sub(r'//.*?\n|/\*.*?\*/', '', content, flags=re.DOTALL)
         _bench_config_inst = BenchConfig.model_validate_json(content_clean)
         return _bench_config_inst
@@ -109,7 +112,6 @@ def pytest_sessionstart(session):
         commit_sha = os.environ.get("CI_COMMIT_SHA", "")
         if not commit_sha:
             try:
-                import subprocess
                 commit_sha = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("utf-8").strip()
             except Exception:
                 pass
@@ -118,7 +120,6 @@ def pytest_sessionstart(session):
         config_commit = os.environ.get("CONFIG_COMMIT", "")
         if not config_commit and Path("/tmp/config").exists():
             try:
-                import subprocess
                 config_commit = subprocess.check_output(
                     ["git", "rev-parse", "HEAD"], cwd="/tmp/config"
                 ).decode("utf-8").strip()

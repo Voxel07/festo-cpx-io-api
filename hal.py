@@ -9,10 +9,13 @@ even if an exception occurs.
 
 from __future__ import annotations
 
+import os
+import tempfile
 import time
 from abc import ABC, abstractmethod
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
+from pathlib import Path
 from types import TracebackType
 from typing import Any
 
@@ -309,15 +312,11 @@ class CrossProcessLock:
     """A cross-process file-based lock to prevent concurrent hardware access."""
 
     def __init__(self, ip_address: str) -> None:
-        import tempfile
-        from pathlib import Path
         safe_ip = ip_address.replace(".", "_").replace(":", "_")
         self.lock_file = Path(tempfile.gettempdir()) / f"festo_bench_{safe_ip}.lock"
         self.is_locked = False
 
     def acquire(self, timeout: float = 60.0, poll_interval: float = 0.5) -> None:
-        import os
-        import time
         start_time = time.time()
         pid = os.getpid()
         while True:

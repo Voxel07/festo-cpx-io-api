@@ -6,6 +6,7 @@ point that uses :class:`hal.SafeSession` for guaranteed output reset.
 from __future__ import annotations
 
 import json
+import sys
 import time
 from pathlib import Path
 
@@ -39,12 +40,6 @@ def run_all_tests(
     Uses :class:`SafeSession` which guarantees all outputs are reset to LOW
     and the connection is closed, even on exception.
     """
-    from tests.validate_connections import run as _vc
-    from tests.compare_topology import run as _ct
-    from tests.condition_counter import run as _cc
-    from tests.valve_condition_counter import run as _vcc
-    from tests.remanent_params import run as _rem
-
     output: dict = {
         "ip_address": ip_address,
         "timestamp": time.time(),
@@ -60,26 +55,25 @@ def run_all_tests(
     hw = CpxApHardware()
     with SafeSession(hw, ip_address, timeout) as iface:
         output["tests"]["validate-connections"] = _agg(
-            _vc(iface, connections_path)
+            run_validate_connections(iface, connections_path)
         )
         output["tests"]["compare-topology"] = _agg(
-            _ct(topology_path, iface)
+            run_compare_topology(topology_path, iface)
         )
         output["tests"]["condition-counter"] = _agg(
-            _cc(iface, connections_path)
+            test_condition_counter(iface, connections_path)
         )
         output["tests"]["valve-condition-counter"] = _agg(
-            _vcc(iface)
+            test_valve_condition_counter(iface)
         )
         output["tests"]["remanent-params"] = _agg(
-            _rem(iface, connections_path)
+            test_remanent_params(iface, connections_path)
         )
 
     return output
 
 
 if __name__ == "__main__":
-    import sys
     ip = sys.argv[1] if len(sys.argv) > 1 else "192.168.0.11"
     print(json.dumps(run_all_tests(ip), indent=2, default=str))
 

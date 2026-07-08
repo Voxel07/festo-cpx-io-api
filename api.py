@@ -39,9 +39,10 @@ try:
     from resolver import ExecutionPlan as ResolvedPlan
     from config_models import (
         BenchConfig,
-        SafetyClass,
-        ModuleCategory,
+        ChannelDefinition,
         ConnectionType,
+        ModuleCategory,
+        SafetyClass,
         TestDefinition,
     )
     from repository import (
@@ -145,7 +146,6 @@ def _enrich_generated_metadata(config: BenchConfig) -> None:
                 if "valve_slots" in match: tdef.valve_count = match["valve_slots"] or 0
                 
                 # Rebuild channels
-                from config_models import ChannelDefinition
                 max_ch = max(tdef.num_inputs, tdef.num_outputs, tdef.num_configurable, 8)
                 tdef.channels = []
                 for ch_idx in range(max_ch):
@@ -189,7 +189,6 @@ async def svg_map():
 async def generate_config(request: ConfigGenerateRequest):
     """Query live hardware to discover modules and generate a modern BenchConfig structure."""
     try:
-        from hal import CpxApHardware, SafeSession
         hw = CpxApHardware()
         with SafeSession(hw, request.ip_address, timeout=request.timeout) as iface:
             modules = iface.read_topology()
@@ -415,9 +414,17 @@ async def io_set_output(request: SetOutputRequest):
             )
             timer.daemon = True
             timer.start()
-            _io_timers[timer_key] = timer
-
     return JSONResponse(result)
+
+
+@app.get("/metadata/modules")
+async def get_module_metadata():
+    """Return the contents of module_metadata.json"""
+    metadata_path = Path(__file__).parent / "module_metadata.json"
+    if not metadata_path.exists():
+        return JSONResponse({})
+    with open(metadata_path, encoding="utf-8") as f:
+        return JSONResponse(json.load(f))
 
 
 @app.get("/io/read-input")

@@ -113,5 +113,15 @@
     "category": "inout",
     "mounted_valves": [],
     "valve_slots": null
+  },
+  "CPX-AP-L-16DIO-PI": {
+    "category": "inout",
+    "mounted_valves": [],
+    "valve_slots": null
+  },
+  "CPX-AP-L-16NDI-PI": {
+    "category": "input",
+    "mounted_valves": [],
+    "valve_slots": null
   }
 }

@@ -20,6 +20,8 @@ Typical usage::
 from __future__ import annotations
 
 import importlib.util
+import json
+import socket
 import sys
 import time
 import types
@@ -112,8 +114,6 @@ def _is_ip_address(val: str) -> bool:
     return False
 
 
-import socket
-
 class HMP40x0TCP:
     """SCPI communication wrapper for HMP40x0 power supply over TCP/IP socket."""
 
@@ -187,7 +187,6 @@ class PowerCycleSession:
         ip_address: str | None = None,
     ) -> None:
         # Try to load configuration from bench_config.json
-        import json
         ps_config = {}
         for p in (Path("bench_config.json"), Path(__file__).resolve().parent / "bench_config.json"):
             if p.exists():

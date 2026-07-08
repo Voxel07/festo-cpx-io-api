@@ -6,11 +6,13 @@ the wiring is intact.
 """
 
 import json
+import time
 from pathlib import Path
 from typing import Any
 
 from cpx_io.cpx_system.cpx_ap.cpx_ap import CpxAp
 from cpx_io.cpx_system.cpx_ap.ap_module import ApModule
+from hal import CrossProcessLock
 
 
 def _module_series(module: ApModule) -> str:
@@ -61,7 +63,6 @@ def module_to_topology_entry(module: ApModule) -> dict:
 
 def generate_topology(ip_address: str, timeout: float = 0) -> dict:
     """Connect to a CPX-AP system and return its topology as a dict."""
-    from hal import CrossProcessLock
     lock = CrossProcessLock(ip_address)
     lock.acquire(timeout=30.0)
     try:
@@ -164,8 +165,6 @@ def validate_single_connection(
     :return: Validation result dict with ``passed``, ``expected``, ``actual``,
              ``source_addr``, ``target_addr``, ``source_channel``, ``target_channel``
     """
-    import time
-
     src_addr = conn["source_module_addr"]
     tgt_addr = conn["target_module_addr"]
     src_ch = conn["source_channel"]  # e.g. 'X0'
@@ -265,8 +264,6 @@ def validate_connections(
               ``error``, ``results`` (list of per-connection dicts),
               ``all_passed`` (bool)
     """
-    import time
-
     path = Path(connections_path)
     if not path.exists():
         return {
@@ -297,7 +294,6 @@ def validate_connections(
     results: list[dict] = []
     passed_count = 0
 
-    from hal import CrossProcessLock
     lock = CrossProcessLock(ip_address)
     lock.acquire(timeout=30.0)
     try:
