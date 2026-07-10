@@ -9,16 +9,19 @@ slots.  Unmounted slots may increment the CC in RAM but never commit it.
 """
 from __future__ import annotations
 
-import json
 import time
-from pathlib import Path
 from typing import Any
 
-from hal import HardwareInterface
 from config_models import BenchConfig
-from valve_channels import expand_valve_indices, channels_per_valve
+from hal import HardwareInterface
+from valve_channels import channels_per_valve, expand_valve_indices
+
 from ._base import (
-    LogFn, is_module_compatible, is_valve_terminal, load_compatibility, noop_log,
+    LogFn,
+    is_module_compatible,
+    is_valve_terminal,
+    load_compatibility,
+    noop_log,
 )
 
 TEST_DEFINITION = {
@@ -205,7 +208,7 @@ def run(
             cycles = toggle_cycles + 2
             log("info", f"  [2] Toggling {len(mounted)} valve(s) × {cycles} cycles "
                  f"(valves: {mounted}, channels: {all_channels}, {cpv}c/valve) …")
-            for cycle in range(cycles):
+            for _cycle in range(cycles):
                 for ch in all_channels:
                     hw.write_output(addr, ch, True)
                 time.sleep(0.05)
@@ -280,7 +283,7 @@ def run(
             # Restore CC setpoint
             try:
                 hw.write_parameter(addr, cc_param_id, 0)
-                log("info", f"  CC setpoint restored to 0")
+                log("info", "  CC setpoint restored to 0")
             except Exception as exc:
                 log("warning", f"  Could not restore CC setpoint: {exc}")
 

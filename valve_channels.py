@@ -9,7 +9,6 @@ Shared by backend API endpoints and test modules.
 from __future__ import annotations
 
 import fnmatch
-from typing import ClassVar
 
 # ── Valve channel config per product-family pattern ───────────────────────────
 

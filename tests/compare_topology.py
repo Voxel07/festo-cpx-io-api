@@ -4,12 +4,11 @@ Uses :class:`hal.HardwareInterface` — never imports ``CpxAp`` directly.
 """
 from __future__ import annotations
 
-import json
 import time
-from pathlib import Path
 
-from hal import HardwareInterface
 from config_models import BenchConfig
+from hal import HardwareInterface
+
 from ._base import LogFn, noop_log
 
 TEST_DEFINITION = {
@@ -55,7 +54,7 @@ def run(
 
     stored_modules = []
     for inst in bench_config.module_instances:
-        type_def = bench_config.module_types.get(inst.module_type_ref)
+        bench_config.module_types.get(inst.module_type_ref)
         num_in = inst.num_inputs
         num_out = inst.num_outputs
         num_io = inst.num_inouts
@@ -133,7 +132,7 @@ def run(
 
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
         if tag == 'equal':
-            for i, j in zip(range(i1, i2), range(j1, j2)):
+            for i, j in zip(range(i1, i2), range(j1, j2), strict=False):
                 stored_entry = stored_modules[i]
                 live_entry = live_modules[j]
                 for field in set(stored_entry) | set(live_entry):

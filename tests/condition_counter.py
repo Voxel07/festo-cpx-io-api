@@ -21,14 +21,19 @@ Two entry points are provided:
 """
 from __future__ import annotations
 
+import contextlib
 import time
 from typing import Any
 
-from hal import HardwareInterface, ModuleInfo
 from config_models import BenchConfig
+from hal import HardwareInterface, ModuleInfo
+
 from ._base import (
-    LogFn, channel_index_from_port, is_module_compatible,
-    load_compatibility, noop_log,
+    LogFn,
+    channel_index_from_port,
+    is_module_compatible,
+    load_compatibility,
+    noop_log,
 )
 
 TEST_DEFINITION = {
@@ -81,7 +86,7 @@ def run(
       3. Read final CC actual on target module
       4. Verify CC incremented ≥ *toggle_cycles*
     """
-    cc_param_id = TEST_DEFINITION["parameters"]["cc_param_id"]
+    TEST_DEFINITION["parameters"]["cc_param_id"]
     cc_readback_param_id = TEST_DEFINITION["parameters"]["cc_readback_param_id"]
     toggle_cycles = DEFAULT_TOGGLE_CYCLES
 
@@ -186,15 +191,11 @@ def run(
         if isinstance(tgt_channel_idx, str):
             tgt_channel_idx = channel_index_from_port(tgt_channel_idx)
             
-        try:
+        with contextlib.suppress(Exception):
             hw.write_parameter(src_addr, 20145, 1, instances=src_ch_idx)
-        except Exception:
-            pass
             
-        try:
+        with contextlib.suppress(Exception):
             hw.write_parameter(tgt_addr, 20145, 0, instances=tgt_channel_idx)
-        except Exception:
-            pass
 
         # ── Step 0: Check CC support on target module ──────────────────
         # Some modules (e.g. CPX-AP-A-16DI-D) don't have CC parameters.
@@ -378,7 +379,7 @@ def run_with_power_cycle(
     reconnect_wait = TEST_DEFINITION["parameters"]["reconnect_wait"]
     off_time = 1.0
 
-    cc_param_id = TEST_DEFINITION["parameters"]["cc_param_id"]
+    TEST_DEFINITION["parameters"]["cc_param_id"]
     cc_readback_param_id = TEST_DEFINITION["parameters"]["cc_readback_param_id"]
     toggle_cycles = DEFAULT_TOGGLE_CYCLES
 
@@ -410,9 +411,9 @@ def run_with_power_cycle(
     cc_snapshot: dict[tuple[int, int], int] = {}
     for r in increment_results:
         if r.get("passed") is True and "final_cc" in r:
-            tgt = r.get("target_module")
-            src = r.get("source_module")
-            key = (r.get("source_module"), r.get("target_module"))
+            r.get("target_module")
+            r.get("source_module")
+            (r.get("source_module"), r.get("target_module"))
             cc_snapshot[(r.get("connection", ""), )] = r["final_cc"]
 
     failed_increment = [r for r in increment_results if r.get("passed") is False]
@@ -447,7 +448,7 @@ def run_with_power_cycle(
 
     topology = hw.read_topology()
     mod_by_addr: dict[int, ModuleInfo] = {m.address: m for m in topology}
-    compat = load_compatibility()
+    load_compatibility()
 
     persist_results: list[dict] = []
     # We check each successful increment result

@@ -8,18 +8,16 @@ from __future__ import annotations
 import json
 import sys
 import time
-from pathlib import Path
 
-from hal import CpxApHardware, HardwareInterface, SafeSession
-from generate_system_config import validate_connections, compare_topology
+from hal import CpxApHardware, SafeSession
+from tests.compare_topology import run as run_compare_topology  # noqa: F401
 
 # Re-export individual test runners under their original names
-from tests.condition_counter import run as test_condition_counter          # noqa: F401
+from tests.condition_counter import run as test_condition_counter  # noqa: F401
+from tests.remanent_params import run as test_remanent_params  # noqa: F401
+from tests.remanent_params import verify as test_remanent_params_verify  # noqa: F401
+from tests.validate_connections import run as run_validate_connections  # noqa: F401
 from tests.valve_condition_counter import run as test_valve_condition_counter  # noqa: F401
-from tests.remanent_params import run as test_remanent_params              # noqa: F401
-from tests.remanent_params import verify as test_remanent_params_verify   # noqa: F401
-from tests.validate_connections import run as run_validate_connections     # noqa: F401
-from tests.compare_topology import run as run_compare_topology             # noqa: F401
 
 
 def psu_power_cycle(delay_s: float = 10.0) -> None:

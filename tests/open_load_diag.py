@@ -54,14 +54,16 @@ AP_DIAG_SWITCH_OPEN_CHANNEL    0x07060125    VABA
 """
 from __future__ import annotations
 
+import contextlib
 import fnmatch
 import time
 from typing import Any
 
-from hal import HardwareInterface
-from config_models import BenchConfig
-from ._base import LogFn, load_compatibility, noop_log
 import valve_channels
+from config_models import BenchConfig
+from hal import HardwareInterface
+
+from ._base import LogFn, load_compatibility, noop_log
 
 # ── Test metadata ──────────────────────────────────────────────────────────────
 
@@ -253,7 +255,7 @@ def run(
     if module_address is not None:
         topology = [m for m in topology if m.address == module_address]
 
-    compat = load_compatibility()
+    load_compatibility()
     results: list[dict] = []
 
     for mod_info in topology:
@@ -523,10 +525,8 @@ def run(
 
         # ── Step 5: deactivate outputs and check clear ────────────────────
         _safe_deactivate(hw, addr, num_channels, log)
-        try:
+        with contextlib.suppress(Exception):
             hw.write_parameter(addr, enable_param, 0)
-        except Exception:
-            pass
 
         time.sleep(diag_clear_time)
 
@@ -578,14 +578,13 @@ def run(
         else:
             log("error", f"  ✗ #{addr} {name}: FAIL")
 
-        actual_channels = [
+        [
             loc["channel"]
             for loc in result.get("actual_diag_locations", [])
         ]
 
-        actual_diag_id = None
         if result.get("diag_id"):
-            actual_diag_id = int(result["diag_id"], 16)
+            int(result["diag_id"], 16)
 
         log("info", f"  Result #{addr} {name}: {'PASS' if result['passed'] else 'FAIL'}")
 

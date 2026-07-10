@@ -123,5 +123,15 @@
     "category": "input",
     "mounted_valves": [],
     "valve_slots": null
+  },
+  "VAEM-L1-S-12-AP": {
+    "category": "valve",
+    "mounted_valves": [],
+    "valve_slots": 12
+  },
+  "VAEM-L1-S-24-AP": {
+    "category": "valve",
+    "mounted_valves": [],
+    "valve_slots": 24
   }
 }

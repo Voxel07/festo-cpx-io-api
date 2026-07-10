@@ -52,11 +52,13 @@ CC Actual (in)              20295       UINT32, input condition counter actual v
 """
 from __future__ import annotations
 
+import contextlib
 import time
 from typing import Any
 
-from hal import HardwareInterface
 from config_models import BenchConfig
+from hal import HardwareInterface
+
 from ._base import LogFn, noop_log
 
 # ── Test metadata ──────────────────────────────────────────────────────────────
@@ -434,10 +436,8 @@ def _trigger_reset(
 
     log("info", f"  Waiting {reset_wait} s for system to restart …")
 
-    try:
+    with contextlib.suppress(Exception):
         hw.disconnect()
-    except Exception:
-        pass
 
     time.sleep(reset_wait)
 
@@ -460,7 +460,7 @@ def run(
 ) -> list[dict]:
 
     """Full factory-reset + normal-reset parameter persistence test."""
-    from power_supply import PowerCycleSession, PowerSupplyNotAvailable
+    from power_supply import PowerCycleSession
 
     params = TEST_DEFINITION["parameters"].copy()
 
@@ -496,7 +496,7 @@ def run(
             voltage=power_supply_voltage,
             off_time=1.0,
             reconnect_wait=reconnect_wait,
-        ) as ps:
+        ):
             pass
         log("info", "  Power supply connection test successful ✓")
     except Exception as exc:

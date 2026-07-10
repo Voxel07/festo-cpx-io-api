@@ -19,8 +19,8 @@ services:
 
     # Uncomment below for local builds (and comment out 'image' above):
     build:
-      context: ..
-      dockerfile: festo-cpx-io-api/Dockerfile
+      context: .
+      dockerfile: Dockerfile
 
     # Host networking for direct access to CPX-AP hardware (Modbus TCP)
     ports:

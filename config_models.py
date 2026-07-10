@@ -14,18 +14,15 @@ from __future__ import annotations
 
 import re
 import warnings
-
 from enum import Enum
-from typing import Annotated, Any
+from typing import Any
 
 from pydantic import (
     BaseModel,
+    ConfigDict,
     Field,
     model_validator,
-    StringConstraints,
-    ConfigDict,
 )
-
 
 # ─── Enums ────────────────────────────────────────────────────────────────────
 
@@ -460,7 +457,7 @@ class BenchConfig(BaseModel):
         seen: set[str] = set()
         dupes = {k for k in keys if k in seen or seen.add(k)}
         if dupes:
-            warnings.warn(f"Duplicate product keys found: {sorted(dupes)}", UserWarning)
+            warnings.warn(f"Duplicate product keys found: {sorted(dupes)}", UserWarning, stacklevel=2)
         return self
 
     @model_validator(mode="after")

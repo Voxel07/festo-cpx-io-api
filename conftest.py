@@ -1,3 +1,4 @@
+import contextlib
 import json
 import os
 import re
@@ -9,8 +10,8 @@ import pytest
 
 from config_models import BenchConfig, SafetyClass
 from hal import CpxApHardware, SafeSession
-from repository import PocketBaseRepository, TestRunRecord, TestResultRecord
-from resolver import TestResolver, TestFilter
+from repository import PocketBaseRepository, TestResultRecord, TestRunRecord
+from resolver import TestFilter, TestResolver
 
 # Global state for pytest session
 _session_run_id = ""
@@ -38,7 +39,7 @@ def bench_config(bench_config_path):
 
     # If path provided and exists, load it
     if bench_config_path and Path(bench_config_path).exists():
-        with open(bench_config_path, "r", encoding="utf-8") as f:
+        with open(bench_config_path, encoding="utf-8") as f:
             content = f.read()
         content_clean = re.sub(r'//.*?\n|/\*.*?\*/', '', content, flags=re.DOTALL)
         _bench_config_inst = BenchConfig.model_validate_json(content_clean)
@@ -80,10 +81,8 @@ def resolved_plan(bench_config, request):
         
     safety_filter = request.config.getoption("--safety-class") or os.environ.get("SAFETY_CLASS_FILTER")
     if safety_filter:
-        try:
+        with contextlib.suppress(ValueError):
             filters.safety_class = SafetyClass(safety_filter)
-        except ValueError:
-            pass
 
     resolver = TestResolver()
     return resolver.resolve(bench_config, filters)
@@ -111,20 +110,16 @@ def pytest_sessionstart(session):
         # Determine git commit details if running in Git
         commit_sha = os.environ.get("CI_COMMIT_SHA", "")
         if not commit_sha:
-            try:
+            with contextlib.suppress(Exception):
                 commit_sha = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("utf-8").strip()
-            except Exception:
-                pass
                 
         # Determine config commit details
         config_commit = os.environ.get("CONFIG_COMMIT", "")
         if not config_commit and Path("/tmp/config").exists():
-            try:
+            with contextlib.suppress(Exception):
                 config_commit = subprocess.check_output(
                     ["git", "rev-parse", "HEAD"], cwd="/tmp/config"
                 ).decode("utf-8").strip()
-            except Exception:
-                pass
 
         # Create record in DB
         record = TestRunRecord(

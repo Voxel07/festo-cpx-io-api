@@ -1,8 +1,9 @@
 """Example code for CPX-AP digital output"""
 
 # import the library
-from cpx_io.cpx_system.cpx_ap.cpx_ap import CpxAp
 import time
+
+from cpx_io.cpx_system.cpx_ap.cpx_ap import CpxAp
 
 NUMBER_OF_CHANNELS = 8
 TIME_ON = 5

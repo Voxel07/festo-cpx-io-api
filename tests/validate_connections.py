@@ -7,11 +7,13 @@ Uses :class:`hal.HardwareInterface` — never imports ``CpxAp`` directly.
 """
 from __future__ import annotations
 
+import contextlib
 import time
 
-from hal import HardwareInterface, SafeSession, CpxApHardware, ModuleInfo
 from config_models import BenchConfig
-from ._base import LogFn, load_connections, channel_index_from_port, noop_log
+from hal import CpxApHardware, HardwareInterface, ModuleInfo, SafeSession
+
+from ._base import LogFn, noop_log
 
 TEST_DEFINITION = {
     "test_id": "connection-validation",
@@ -84,18 +86,14 @@ def validate_single(
     # Configure target direction if it has inouts (False = input)
     if tgt_mod.num_inouts > 0:
         for i in tgt_offsets:
-            try:
+            with contextlib.suppress(Exception):
                 hw.write_parameter(tgt_addr, direction_param_id, False, instance=base_idx_tgt + i + 1)
-            except Exception:
-                pass
 
     # Configure source direction if it has inouts (True = output)
     if src_mod.num_inouts > 0:
         for i in src_offsets:
-            try:
+            with contextlib.suppress(Exception):
                 hw.write_parameter(src_addr, direction_param_id, True, instance=out_base + i + 1)
-            except Exception:
-                pass
             
     time.sleep(0.05)
 
@@ -135,10 +133,8 @@ def validate_single(
             hw.write_output(src_addr, out_base + i, False)
             if src_mod.num_inouts > 0:
                 # Restore to input (default)
-                try:
+                with contextlib.suppress(Exception):
                     hw.write_parameter(src_addr, direction_param_id, False, instance=out_base + i + 1)
-                except Exception:
-                    pass
     except Exception:
         pass
 
@@ -267,10 +263,8 @@ def run(
         }
     finally:
         if own_session:
-            try:
+            with contextlib.suppress(Exception):
                 session.__exit__(None, None, None)
-            except Exception:
-                pass
 
     failed_count = len(results) - passed_count
     if failed_count == 0:

@@ -3,11 +3,11 @@
 import time
 from typing import Any
 
-from hal import HardwareInterface
 from config_models import BenchConfig
-from ._base import LogFn, noop_log
-from .factory_reset import _get_reset_param_specs_for_module, _write_test_values, _verify_persisted
+from hal import HardwareInterface
 
+from ._base import LogFn, noop_log
+from .factory_reset import _get_reset_param_specs_for_module, _verify_persisted, _write_test_values
 
 TEST_DEFINITION = {
     "test_id": "remanent-params",

@@ -1,5 +1,13 @@
 Traceback (most recent call last):
-  File "D:\Code\festo\festo-cpx-io-api\api.py", line 189, in generate_config
-    config = BenchConfig.from_hardware(modules, request.ip_address)
-             ^^^^^^^^^^^
-NameError: name 'BenchConfig' is not defined
+  File "/home/matze/repos/btf/baisc-testing-api/api.py", line 194, in generate_config
+    with SafeSession(hw, request.ip_address, timeout=request.timeout) as iface:
+  File "/home/matze/repos/btf/baisc-testing-api/hal.py", line 400, in __enter__
+    self._hw.connect(self._ip, self._timeout)
+  File "/home/matze/repos/btf/baisc-testing-api/hal.py", line 157, in connect
+    self._cpx_ap = CpxAp(ip_address=ip_address, timeout=timeout)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/matze/repos/btf/baisc-testing-api/venv/lib/python3.12/site-packages/cpx_io/cpx_system/cpx_ap/cpx_ap.py", line 104, in __init__
+    super().__init__(**kwargs)
+  File "/home/matze/repos/btf/baisc-testing-api/venv/lib/python3.12/site-packages/cpx_io/cpx_system/cpx_base.py", line 76, in __init__
+    raise CpxConnectionError(message)
+cpx_io.cpx_system.cpx_base.CpxConnectionError: Modbus connection to the CPX system failed.Check your connection and network configuration.

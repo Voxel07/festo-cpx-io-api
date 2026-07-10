@@ -8,10 +8,10 @@ the wiring is intact.
 import json
 import time
 from pathlib import Path
-from typing import Any
 
-from cpx_io.cpx_system.cpx_ap.cpx_ap import CpxAp
 from cpx_io.cpx_system.cpx_ap.ap_module import ApModule
+from cpx_io.cpx_system.cpx_ap.cpx_ap import CpxAp
+
 from hal import CrossProcessLock
 
 
@@ -97,7 +97,7 @@ def compare_topology(stored_path: str, ip_address: str, timeout: float = 0) -> d
     * ``removed`` – modules present in stored but not in live (by address)
     * ``has_diff`` – bool, True when any difference was found
     """
-    with open(stored_path, "r", encoding="utf-8") as f:
+    with open(stored_path, encoding="utf-8") as f:
         stored = json.load(f)
 
     live = generate_topology(ip_address, timeout)

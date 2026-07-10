@@ -19,6 +19,7 @@ Typical usage::
 """
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import json
 import socket
@@ -109,9 +110,7 @@ def _is_ip_address(val: str) -> bool:
     if not val:
         return False
     parts = val.split(".")
-    if len(parts) == 4 and all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
-        return True
-    return False
+    return bool(len(parts) == 4 and all(p.isdigit() and 0 <= int(p) <= 255 for p in parts))
 
 
 class HMP40x0TCP:
@@ -130,10 +129,8 @@ class HMP40x0TCP:
 
     def disconnect(self) -> None:
         if self.sock is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self.sock.close()
-            except Exception:
-                pass
             self.sock = None
 
     def set_voltage_list(self, channels: list[int], voltage: float) -> None:
@@ -142,8 +139,8 @@ class HMP40x0TCP:
         for ch in channels:
             # SCPI protocol for Rohde & Schwarz HMP40x0 series:
             # Select channel, set voltage, and enable/disable that channel
-            self.sock.sendall(f"INST:NSEL {ch}\n".encode("utf-8"))
-            self.sock.sendall(f"VOLT {voltage}\n".encode("utf-8"))
+            self.sock.sendall(f"INST:NSEL {ch}\n".encode())
+            self.sock.sendall(f"VOLT {voltage}\n".encode())
             if voltage > 0:
                 self.sock.sendall(b"OUTP:SEL ON\n")
             else:
@@ -191,7 +188,7 @@ class PowerCycleSession:
         for p in (Path("bench_config.json"), Path(__file__).resolve().parent / "bench_config.json"):
             if p.exists():
                 try:
-                    with open(p, "r", encoding="utf-8") as f:
+                    with open(p, encoding="utf-8") as f:
                         data = json.load(f)
                         ps_config = data.get("power_supply", {})
                         if ps_config:
@@ -239,7 +236,7 @@ class PowerCycleSession:
         self._reconnect_wait = reconnect_wait
         self._ps: object | None = None
 
-    def __enter__(self) -> "PowerCycleSession":
+    def __enter__(self) -> PowerCycleSession:
         if self._comport:
             if _hmp40x0_class is None:
                 raise PowerSupplyNotAvailable(
@@ -269,7 +266,7 @@ class PowerCycleSession:
 
     def cycle(
         self,
-        hw: "HardwareInterface",
+        hw: HardwareInterface,
         ip_address: str,
         timeout: float = 0,
     ) -> None:
@@ -288,10 +285,8 @@ class PowerCycleSession:
 
         # Disconnect the HAL before cutting power so no pending Modbus frames
         # are left on the wire.
-        try:
+        with contextlib.suppress(Exception):
             hw.disconnect()
-        except Exception:
-            pass
 
         # Cut power
         self._ps.set_voltage_list(self._channels, 0)  # type: ignore[union-attr]

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 # Load .env before any other imports that read os.environ
 from dotenv import load_dotenv
+
 load_dotenv()
 
 import asyncio
@@ -34,23 +35,12 @@ from pydantic import BaseModel, Field
 
 # ── New architecture components ───────────────────────────────────────────────
 try:
-    from hal import CpxApHardware, SafeSession
-    from resolver import TestResolver, TestFilter, create_basic_test_definitions
-    from resolver import ExecutionPlan as ResolvedPlan
     from config_models import (
         BenchConfig,
         ChannelDefinition,
-        ConnectionType,
         ModuleCategory,
-        SafetyClass,
-        TestDefinition,
     )
-    from repository import (
-        PocketBaseRepository,
-        TestRunRecord,
-        TestResultRecord,
-        ResultRepository,
-    )
+    from hal import CpxApHardware, SafeSession
     _NEW_COMPONENTS = True
 except ImportError as e:
     print(f"FAILED TO IMPORT NEW COMPONENTS: {e}")
@@ -288,6 +278,7 @@ async def compare_config(request: ConfigCompareRequest):
 # When an output is set HIGH via /io/set-output, a timer automatically resets
 # it to LOW after _IO_AUTO_RESET_S seconds.  This prevents forgotten HIGH
 # outputs during manual wire-test sessions.
+import contextlib
 import threading as _thr
 
 _IO_AUTO_RESET_S = int(os.environ.get("IO_AUTO_RESET_S", "60"))
@@ -323,10 +314,8 @@ def _auto_reset_output(
     except Exception:
         pass  # best-effort
     finally:
-        try:
+        with contextlib.suppress(Exception):
             hw.disconnect()
-        except Exception:
-            pass
         lock.release()
 
 
@@ -377,10 +366,8 @@ async def io_set_output(request: SetOutputRequest):
             for i in range(cpp):
                 hw.write_output(request.module_addr, out_base + i, request.value)
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 hw.disconnect()
-            except Exception:
-                pass
             lock.release()
         return {
             "ok": True,
@@ -520,10 +507,8 @@ async def io_set_all_outputs(request: SetAllOutputsRequest):
                 hw.write_output(request.module_addr, idx, request.value)
 
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 hw.disconnect()
-            except Exception:
-                pass
             lock.release()
         return {
             "ok": True,
@@ -663,7 +648,6 @@ async def start_test_run(request: StartTestRunRequest):
     # Use SafeSession-based executor in background (output reset guaranteed).
     # Pass the event loop explicitly — the function runs in a thread pool
     # where asyncio.get_running_loop() would fail.
-    import concurrent.futures
     loop = asyncio.get_running_loop()
     loop.run_in_executor(
         None,
@@ -839,8 +823,8 @@ async def get_module_parameters(
     timeout: float = Query(0.0),
 ):
     """Retrieve metadata for all parameters available on the module at the given address."""
-    import concurrent.futures
     import asyncio
+    import concurrent.futures
 
     def _do():
         from hal import CpxApHardware, CrossProcessLock
@@ -871,10 +855,8 @@ async def get_module_parameters(
                 })
             return params
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 hw.disconnect()
-            except Exception:
-                pass
             lock.release()
 
     loop = asyncio.get_running_loop()
@@ -895,8 +877,8 @@ async def read_module_parameter(
     instance: int | None = Query(None, description="Optional parameter instance index"),
 ):
     """Read the current value of a module parameter."""
-    import concurrent.futures
     import asyncio
+    import concurrent.futures
 
     def _do():
         from hal import CpxApHardware, CrossProcessLock
@@ -935,10 +917,8 @@ async def read_module_parameter(
                 return {"value": [str(x) if x is not None else "" for x in val]}
             return {"value": str(val) if val is not None else ""}
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 hw.disconnect()
-            except Exception:
-                pass
             lock.release()
 
     loop = asyncio.get_running_loop()
@@ -957,8 +937,8 @@ async def write_module_parameter(
     request: WriteParameterRequest,
 ):
     """Write a new value to a module parameter and read it back."""
-    import concurrent.futures
     import asyncio
+    import concurrent.futures
 
     def _do():
         from hal import CpxApHardware, CrossProcessLock
@@ -981,10 +961,7 @@ async def write_module_parameter(
                     f"Only parameters with IDs 0–65535 are supported."
                 )
             try:
-                    if "." in val:
-                        val = float(val)
-                    else:
-                        val = int(val)
+                    val = float(val) if "." in val else int(val)
             except ValueError:
                     # Handle "true"/"false" strings sent by the frontend
                     # checkbox for BOOL parameters.
@@ -1010,10 +987,8 @@ async def write_module_parameter(
                 new_val = mod.read_module_parameter_enum_str(param_id, instances=request.instance)
             return {"value": str(new_val) if new_val is not None else ""}
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 hw.disconnect()
-            except Exception:
-                pass
             lock.release()
 
     loop = asyncio.get_running_loop()
@@ -1031,8 +1006,8 @@ async def get_system_diagnoses(
     timeout: float = Query(0.0),
 ):
     """Retrieve all active diagnoses raised in the system across all modules."""
-    import concurrent.futures
     import asyncio
+    import concurrent.futures
 
     def _do():
         from hal import CpxApHardware, CrossProcessLock
@@ -1088,10 +1063,8 @@ async def get_system_diagnoses(
                     pass  # skip if module doesn't support diagnosis or fails
             return active_diags
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 hw.disconnect()
-            except Exception:
-                pass
             lock.release()
 
     loop = asyncio.get_running_loop()
@@ -1107,6 +1080,7 @@ async def get_system_diagnoses(
 async def pocketbase_health():
     """Check whether the PocketBase logging service is reachable."""
     import os as _os
+
     import requests as _req
     pb_url = _os.environ.get("PB_URL") or _os.environ.get("POCKETBASE_URL", "http://localhost:8090")
     try:
@@ -1149,8 +1123,8 @@ async def dashboard_data():
     Returns summary statistics, per-source breakdown, success rate over time,
     module test statistics, and recent run details.
     """
-    from datetime import datetime, timezone
     from collections import defaultdict
+    from datetime import datetime
 
     # ── Gather runs from PocketBase + in-memory ──
     all_runs: list[dict] = []
@@ -1350,33 +1324,6 @@ async def dashboard_data():
         "recent_runs": recent_runs,
     })
 
-    try:
-        # Build a minimal bench config from live topology
-        hw = CpxApHardware()
-        with SafeSession(hw, request.ip_address, timeout=10.0) as iface:
-            topology = iface.read_topology()
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-    bench_config = BenchConfig.from_hardware(topology, request.ip_address, request.bench_id)
-
-    # Build filters
-    filters = TestFilter(test_id=request.test_filter)
-    if request.safety_class_filter:
-        try:
-            filters.safety_class = SafetyClass(request.safety_class_filter)
-        except ValueError:
-            pass
-
-    resolver = TestResolver()
-    plan = resolver.dry_run(bench_config, filters)
-
-    if request.export_path:
-        resolver.export_plan(plan, request.export_path)
-
-    return JSONResponse(plan.to_dict())
-
-
 @app.get("/test-run/env")
 async def ci_environment():
     """Return the CI environment variables recognized by this service.
@@ -1417,9 +1364,10 @@ def _execute_test_run_safe(
     because ``asyncio.get_running_loop()`` doesn't work in threads.
     """
     global _current_test_run, _abort_flag
-    from pocketbase_logger import pb_log
-    from hal import CpxApHardware, SafeSession
     import traceback
+
+    from hal import CpxApHardware, SafeSession
+    from pocketbase_logger import pb_log
 
     if loop is None:
         loop = asyncio.get_event_loop()
@@ -1475,7 +1423,7 @@ def _execute_test_run_safe(
         planned_tests = set()
         if bench_config:
             try:
-                from resolver import TestResolver, TestFilter
+                from resolver import TestFilter, TestResolver
                 resolver = TestResolver()
                 for t_id in tests:
                     p = resolver.resolve(bench_config, TestFilter(test_id=t_id))
@@ -1521,10 +1469,8 @@ def _execute_test_run_safe(
                     "test_id": t_id, "passed": None,
                     "error": "No compatible module found — skipped",
                 })
-            try:
+            with contextlib.suppress(BaseException):
                 _pb(pb_log.checkpoint, run_id, t_id, "skipped", "No compatible module found")
-            except:
-                pass
 
         if not plan_instances:
             _log("warning", f"Check configuration ({config_path}) and wiring for compatibility.")
@@ -1727,7 +1673,6 @@ def _run_single_test_hw(
 ) -> dict:
     """Dispatch a single test using a pre-connected HardwareInterface."""
     test_id = resolved_instance.test_id
-    addr = resolved_instance.module_address
 
     def _init_live_results(modules: list):
         """Update pre-populated pending entries with real topology module names.
@@ -1827,15 +1772,14 @@ def _run_single_test_hw(
             )
             entry["duration_ms"] = round(total_ms, 1)
 
-    from tests.validate_connections import run as run_validate
     from tests.compare_topology import run as run_compare
-    from tests.condition_counter import run as run_cc
-    from tests.valve_condition_counter import run as run_vcc
-    from tests.remanent_params import run as run_rem
-    from tests.output_toggle import run as run_output_toggle
-    from tests.valve_toggle import run as run_valve_toggle
     from tests.dio_toggle import run as run_dio_toggle
+    from tests.output_toggle import run as run_output_toggle
     from tests.system_diagnosis import run as run_sysdiag
+    from tests.test_api import run as run_test_api
+    from tests.validate_connections import run as run_validate
+    from tests.valve_condition_counter import run as run_vcc
+    from tests.valve_toggle import run as run_valve_toggle
 
     raw = None
 
@@ -1942,6 +1886,14 @@ def _run_single_test_hw(
             )
         except Exception as exc:
             raw = {"passed": False, "error": str(exc), "results": [{"module": str(resolved_instance.module_address), "passed": False, "error": str(exc)}]}
+    
+    elif test_id == "test-api":
+        raw = run_test_api(
+            hw=hw,
+            log=log,
+            bench_config=bench_config,
+            module_address=resolved_instance.module_address,
+        )
 
     if raw is None:
         raw = {"test_id": test_id, "passed": None, "error": f"Test '{test_id}' not implemented or skipped"}
@@ -1995,7 +1947,15 @@ def _run_single_test_hw(
 
 # Mount the Vite-built static assets (JS bundles, CSS, etc.) LAST so that all
 # API routes take precedence.  Only activated when dist/ exists.
-if _DIST.is_dir():
-    app.mount("/assets", StaticFiles(directory=str(_DIST / "assets")), name="assets")
-    if (_DIST / "svg").is_dir():
-        app.mount("/svg", StaticFiles(directory=str(_DIST / "svg")), name="svg")
+_ASSETS_DIR = _DIST / "assets"
+_SVG_DIR = _DIST / "svg"
+
+if _ASSETS_DIR.is_dir():
+    app.mount("/assets", StaticFiles(directory=str(_ASSETS_DIR)), name="assets")
+else:
+    print(f"WARNING: Skipping /assets mount because directory does not exist: {_ASSETS_DIR}")
+
+if _SVG_DIR.is_dir():
+    app.mount("/svg", StaticFiles(directory=str(_SVG_DIR)), name="svg")
+else:
+    print(f"WARNING: Skipping /svg mount because directory does not exist: {_SVG_DIR}")

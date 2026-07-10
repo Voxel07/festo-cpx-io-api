@@ -5,12 +5,13 @@ Uses :class:`hal.HardwareInterface` — never imports ``CpxAp`` directly.
 """
 from __future__ import annotations
 
+import contextlib
 import time
 from typing import Any
 
-from hal import HardwareInterface, ModuleInfo
 from config_models import BenchConfig
-from valve_channels import channels_per_valve
+from hal import HardwareInterface
+
 from ._base import LogFn, noop_log
 
 TEST_DEFINITIONS = [
@@ -86,10 +87,8 @@ def run(
     for mod in output_mods:
         total_channels = mod.num_outputs
         if on_module:
-            try:
+            with contextlib.suppress(Exception):
                 on_module(mod.address)
-            except Exception:
-                pass
         log("info", f"  ── #{mod.address} {mod.name} ({total_channels} channel(s)) ──")
         t_start = time.time()
         channels: list[dict[str, Any]] = []
@@ -140,10 +139,8 @@ def run(
                 })
                 log("error", f"    ch {ch}: ✗ {exc}  ({ch_dur}ms)")
                 # Try to reset
-                try:
+                with contextlib.suppress(Exception):
                     hw.write_output(mod.address, ch, False)
-                except Exception:
-                    pass
 
         t_total = round((time.time() - t_start) * 1000, 1)
         all_ok = all(c.get("passed", False) for c in channels)
@@ -166,10 +163,8 @@ def run(
 
         # Live push: notify caller of this module's result immediately
         if on_result:
-            try:
+            with contextlib.suppress(Exception):
                 on_result(result)
-            except Exception:
-                pass
 
         status_icon = "✓" if all_ok else "✗"
         log("info",

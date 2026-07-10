@@ -23,10 +23,10 @@ Import ``pocketbase_schema.json`` via the PocketBase Admin UI
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import time
-from typing import Any
 
 import requests
 
@@ -179,15 +179,13 @@ def _ensure_collections() -> None:
         except Exception:
             pass
 
-        try:
+        with contextlib.suppress(Exception):
             requests.post(
                 f"{PB_URL}/api/collections",
                 json={"name": coll_name, "type": "base", "schema": fields},
                 headers=_headers(),
                 timeout=(1.0, 2.0),
             )
-        except Exception:
-            pass
 
 
 # ─── Public API ────────────────────────────────────────────────────────────────
@@ -449,7 +447,7 @@ pb_log = PocketBaseLogger()
 
 # ─── Bridge to repository pattern ─────────────────────────────────────────────
 
-def get_repository() -> "PocketBaseRepository | None":
+def get_repository() -> PocketBaseRepository | None:
     """Return a repository instance or None if the new module is unavailable.
 
     Usage::

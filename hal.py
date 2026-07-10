@@ -13,12 +13,11 @@ import os
 import tempfile
 import time
 from abc import ABC, abstractmethod
-from contextlib import AbstractContextManager
-from dataclasses import dataclass, field
+from contextlib import AbstractContextManager, suppress
+from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
 from typing import Any
-
 
 # ─── Data transfer objects ────────────────────────────────────────────────────
 
@@ -161,10 +160,8 @@ class CpxApHardware(HardwareInterface):
 
     def disconnect(self) -> None:
         if self._cpx_ap is not None:
-            try:
+            with suppress(Exception):
                 self._cpx_ap.__exit__(None, None, None)
-            except Exception:
-                pass
             self._cpx_ap = None
             self._modules = []
 
@@ -330,7 +327,7 @@ class CrossProcessLock:
             except FileExistsError:
                 # File exists, check if process is alive or lock is stale
                 try:
-                    with open(self.lock_file, "r") as f:
+                    with open(self.lock_file) as f:
                         lines = f.readlines()
                     lock_pid = int(lines[0].strip())
                     lock_time = float(lines[1].strip())
@@ -423,9 +420,7 @@ class SafeSession(AbstractContextManager["HardwareInterface"]):
         except Exception:
             pass
         finally:
-            try:
+            with suppress(Exception):
                 self._hw.disconnect()
-            except Exception:
-                pass
             self._lock.release()
         return False  # don't suppress exceptions

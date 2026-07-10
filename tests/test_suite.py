@@ -1,16 +1,20 @@
+import contextlib
+
 import pytest
-from resolver import ResolvedTestInstance
-from hal import HardwareInterface
+
 from config_models import BenchConfig
+from hal import HardwareInterface
+from resolver import ResolvedTestInstance
+
 
 def pytest_generate_tests(metafunc):
     if "resolved_instance" in metafunc.fixturenames:
-        import os
         import json
+        import os
         from pathlib import Path
+
         from config_models import BenchConfig, SafetyClass
-        from resolver import TestFilter
-        from resolver import TestResolver
+        from resolver import TestFilter, TestResolver
 
         # Get config path option
         config_path = metafunc.config.getoption("--bench-config") or os.environ.get("BENCH_CONFIG_PATH")
@@ -18,7 +22,7 @@ def pytest_generate_tests(metafunc):
         # Load config
         bench_config_inst = None
         if config_path and Path(config_path).exists():
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(config_path, encoding="utf-8") as f:
                 content = f.read()
             import re
             content_clean = re.sub(r'//.*?\n|/\*.*?\*/', '', content, flags=re.DOTALL)
@@ -46,10 +50,8 @@ def pytest_generate_tests(metafunc):
                 
             safety_filter = metafunc.config.getoption("--safety-class") or os.environ.get("SAFETY_CLASS_FILTER")
             if safety_filter:
-                try:
+                with contextlib.suppress(ValueError):
                     filters.safety_class = SafetyClass(safety_filter)
-                except ValueError:
-                    pass
             
             resolver = TestResolver()
             plan = resolver.resolve(bench_config_inst, filters)
@@ -67,7 +69,6 @@ def pytest_generate_tests(metafunc):
 @pytest.mark.hardware
 def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTestInstance, bench_config: BenchConfig, bench_config_path: str):
     test_id = resolved_instance.test_id
-    addr = resolved_instance.module_address
     
     def log(level: str, msg: str):
         print(f"[{level.upper()}] {msg}")
@@ -190,6 +191,17 @@ def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTes
         )
         log("info", f"Global System Diagnosis: {res.get('diagnosis')}")
         assert res.get("passed"), "Failed to read system diagnosis"
+
+    elif test_id == "test-api":
+        from tests.test_api import run as run_test_api
+        res = run_test_api(
+            hw=hw,
+            log=log,
+            bench_config=bench_config,
+            module_address=resolved_instance.module_address,
+        )
+        failed = [r for r in res.get("results", []) if r.get("passed") is False]
+        assert not failed, f"Test API failed: {failed}"
 
     else:
         pytest.skip(f"Test type '{test_id}' has no runner defined in test_suite.py")

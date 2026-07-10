@@ -1,7 +1,9 @@
 """System Diagnosis validation test."""
 from __future__ import annotations
-from hal import HardwareInterface
+
 from config_models import BenchConfig
+from hal import HardwareInterface
+
 from ._base import LogFn, noop_log
 
 TEST_DEFINITION = {

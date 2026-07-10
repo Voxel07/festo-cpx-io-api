@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import fnmatch
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from cpx_io.cpx_system.cpx_ap.ap_parameter import Parameter  # type: ignore[import-untyped]
 

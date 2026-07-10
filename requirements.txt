@@ -1,3 +1,4 @@
+--index-url https://adeartifactory1.de.festo.net/artifactory/api/pypi/pypi-prod/simple
 # festo-cpx-io is installed separately:
 #   - Local dev:  pip install -e ../festo-cpx-io
 #   - Docker:     installed during image build (see Dockerfile)
@@ -16,3 +17,6 @@ pyserial>=3.5
 # HTTP client for PocketBase logger
 requests>=2.32.0
 
+#Festo stuff
+ap-testing-lib==0.3.8 # includes ENGT
+festo-cpx-io==0.11.2

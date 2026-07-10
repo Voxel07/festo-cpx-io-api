@@ -18,7 +18,6 @@ from __future__ import annotations
 import fnmatch
 import importlib.util
 import json
-import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -26,12 +25,9 @@ from typing import Any
 
 from config_models import (
     BenchConfig,
-    ConnectionType,
     ModuleInstance,
     SafetyClass,
     TestDefinition,
-    WiringConnection,
-    create_basic_test_definitions,
     get_module_capabilities,
 )
 
@@ -55,9 +51,9 @@ def load_all_test_definitions() -> list[dict]:
                 mod = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(mod)
                 if hasattr(mod, "TEST_DEFINITIONS"):
-                    test_defs.extend(getattr(mod, "TEST_DEFINITIONS"))
+                    test_defs.extend(mod.TEST_DEFINITIONS)
                 elif hasattr(mod, "TEST_DEFINITION"):
-                    test_defs.append(getattr(mod, "TEST_DEFINITION"))
+                    test_defs.append(mod.TEST_DEFINITION)
         except Exception as exc:
             print(f"Error loading test definition from {file}: {exc}")
             

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,14 +8,66 @@ version = "0.1.0"
 description = "FastAPI backend and utilities for the CPX-AP Topology Manager"
 requires-python = ">=3.10"
 dependencies = [
-    # Install festo-cpx-io from PyPI once published, e.g.:
-    #   "festo-cpx-io>=<version>",
-    # For local development install from the sibling repo:
-    #   pip install -e ../festo-cpx-io
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
     "python-multipart>=0.0.9",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "build>=1.2.0",
+    "ruff>=0.6.0",
+    "vulture>=2.11",
+    "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
+    "mypy>=1.10.0",
+    "bandit>=1.7.8",
+    "radon>=6.0.1",
+]
+
 [tool.setuptools.packages.find]
 where = ["."]
+include = ["cpx_ap_topology_manager*"]
+exclude = ["tests*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.coverage.run]
+source = ["cpx_ap_topology_manager"]
+omit = [
+    "tests/*",
+    ".venv/*",
+    "build/*",
+    "dist/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_configs = true
+ignore_missing_imports = true
+check_untyped_defs = true
+no_implicit_optional = true
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", "build", "dist"]

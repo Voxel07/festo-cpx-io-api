@@ -4,11 +4,13 @@ Uses :class:`hal.HardwareInterface`.
 """
 from __future__ import annotations
 
+import contextlib
 import time
 from typing import Any
 
-from hal import HardwareInterface
 from config_models import BenchConfig
+from hal import HardwareInterface
+
 from ._base import LogFn, noop_log
 
 TEST_DEFINITION = {
@@ -70,10 +72,8 @@ def run(
         # Actually for DIO toggle we should toggle the inout channels.
         total_channels = mod.num_outputs + mod.num_inouts
         if on_module:
-            try:
+            with contextlib.suppress(Exception):
                 on_module(mod.address)
-            except Exception:
-                pass
         log("info", f"  ── #{mod.address} {mod.name} ({total_channels} channel(s)) ──")
         t_start = time.time()
         channels: list[dict[str, Any]] = []
@@ -155,10 +155,8 @@ def run(
         results.append(result)
 
         if on_result:
-            try:
+            with contextlib.suppress(Exception):
                 on_result(result)
-            except Exception:
-                pass
 
         status_icon = "✓" if all_ok else "✗"
         log("info",
