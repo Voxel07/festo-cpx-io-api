@@ -42,7 +42,7 @@ def load_all_test_definitions() -> list[dict]:
         return []
         
     for file in tests_dir.glob("*.py"):
-        if file.name in ("__init__.py", "_base.py", "test_suite.py"):
+        if file.name in ("__init__.py", "_base.py"):
             continue
         try:
             module_name = f"tests.{file.stem}"
