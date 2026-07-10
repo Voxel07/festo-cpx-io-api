@@ -74,7 +74,7 @@ def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTes
         print(f"[{level.upper()}] {msg}")
         
     if test_id == "connection-validation":
-        from tests.validate_connections import run as run_validate
+        from tests.test_validate_connections import run as run_validate
         res = run_validate(
             hw_or_ip=hw,
             log=log,
@@ -84,7 +84,7 @@ def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTes
         assert res.get("all_passed"), f"Wiring validation failed: {res.get('error') or res.get('results')}"
 
     elif test_id == "remanent-params":
-        from tests.remanent_params import run_with_power_cycle as run_rem_pc
+        from tests.test_remanent_params import run_with_power_cycle as run_rem_pc
         res = run_rem_pc(
             hw=hw,
             log=log,
@@ -95,7 +95,7 @@ def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTes
         assert not failed, f"Remanent parameters test failed: {failed}"
 
     elif test_id == "factory-reset":
-        from tests.factory_reset import run as run_fr
+        from tests.test_factory_reset import run as run_fr
         res = run_fr(
             hw=hw,
             log=log,
@@ -106,7 +106,7 @@ def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTes
         assert not failed, f"Factory reset test failed: {failed}"
 
     elif test_id == "open-load-diag":
-        from tests.open_load_diag import run as run_old
+        from tests.test_open_load_diag import run as run_old
         res = run_old(
             hw=hw,
             log=log,
@@ -117,7 +117,7 @@ def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTes
         assert not failed, f"Open-load diagnostic test failed: {failed}"
 
     elif test_id == "condition-counter":
-        from tests.condition_counter import run_with_power_cycle as run_cc_pc
+        from tests.test_condition_counter import run_with_power_cycle as run_cc_pc
         res = run_cc_pc(
             hw=hw,
             log=log,
@@ -128,7 +128,7 @@ def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTes
         assert not failed, f"Condition counter check failed for connections: {failed}"
 
     elif test_id == "valve-condition-counter":
-        from tests.valve_condition_counter import run as run_vcc
+        from tests.test_valve_condition_counter import run as run_vcc
         res = run_vcc(
             hw=hw,
             log=log,
@@ -139,7 +139,7 @@ def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTes
         assert not failed, f"Valve condition counter failed: {failed}"
 
     elif test_id == "output-toggle":
-        from tests.output_toggle import run as run_output_toggle
+        from tests.test_output_toggle import run as run_output_toggle
         res = run_output_toggle(
             hw=hw,
             log=log,
@@ -150,7 +150,7 @@ def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTes
         assert not failed, f"Output toggle failed: {failed}"
 
     elif test_id == "valve-toggle":
-        from tests.valve_toggle import run as run_valve_toggle
+        from tests.test_valve_toggle import run as run_valve_toggle
         res = run_valve_toggle(
             hw=hw,
             log=log,
@@ -161,7 +161,7 @@ def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTes
         assert not failed, f"Valve toggle failed: {failed}"
 
     elif test_id == "dio-toggle":
-        from tests.dio_toggle import run as run_dio_toggle
+        from tests.test_dio_toggle import run as run_dio_toggle
         res = run_dio_toggle(
             hw=hw,
             log=log,
@@ -172,7 +172,7 @@ def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTes
         assert not failed, f"DIO toggle failed: {failed}"
 
     elif test_id == "compare-topology":
-        from tests.compare_topology import run as run_compare
+        from tests.test_compare_topology import run as run_compare
         res = run_compare(
             hw=hw,
             log=log,
@@ -182,7 +182,7 @@ def test_resolved_instance(hw: HardwareInterface, resolved_instance: ResolvedTes
         assert res.get("passed") or res.get("all_passed"), f"Topology Comparison failed: {res}"
 
     elif test_id == "system-diagnosis":
-        from tests.system_diagnosis import run as run_sysdiag
+        from tests.test_system_diagnosis import run as run_sysdiag
         res = run_sysdiag(
             hw=hw, 
             log=log,

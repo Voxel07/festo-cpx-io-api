@@ -13,7 +13,7 @@ import time
 from config_models import BenchConfig
 from hal import CpxApHardware, HardwareInterface, ModuleInfo, SafeSession
 
-from ._base import LogFn, noop_log
+from ._base import LogFn, load_bench_config, noop_log
 
 TEST_DEFINITION = {
     "test_id": "connection-validation",
@@ -150,6 +150,7 @@ def run(
     hw_or_ip: HardwareInterface | str,
     log: LogFn = noop_log,
     bench_config: BenchConfig | None = None,
+    config_path: str = "data/bench_config.json",
     module_address: int | None = None,
 ) -> dict:
     """Validate all I/O connections listed in *connections_path*.
@@ -157,6 +158,8 @@ def run(
     Accepts either a pre-connected :class:`HardwareInterface` or an IP address
     string (creates a temporary :class:`SafeSession`).
     """
+    if bench_config is None:
+        bench_config = load_bench_config(config_path)
     pulse_duration_s = TEST_DEFINITION["parameters"]["pulse_duration_s"]
     timeout = 0
     connections = []

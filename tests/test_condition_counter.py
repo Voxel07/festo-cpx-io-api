@@ -32,6 +32,7 @@ from ._base import (
     LogFn,
     channel_index_from_port,
     is_module_compatible,
+    load_bench_config,
     load_compatibility,
     noop_log,
 )
@@ -76,6 +77,7 @@ def run(
     hw: HardwareInterface,
     log: LogFn = noop_log,
     bench_config: BenchConfig | None = None,
+    config_path: str = "data/bench_config.json",
     module_address: int | None = None,
 ) -> list[dict]:
     """Validate Condition Counter wiring for every defined connection.
@@ -89,6 +91,9 @@ def run(
     TEST_DEFINITION["parameters"]["cc_param_id"]
     cc_readback_param_id = TEST_DEFINITION["parameters"]["cc_readback_param_id"]
     toggle_cycles = DEFAULT_TOGGLE_CYCLES
+
+    if bench_config is None:
+        bench_config = load_bench_config(config_path)
 
     connections = []
     if bench_config:
@@ -326,6 +331,7 @@ def run_with_power_cycle(
     hw: HardwareInterface,
     log: LogFn = noop_log,
     bench_config: BenchConfig | None = None,
+    config_path: str = "data/bench_config.json",
     module_address: int | None = None,
 ) -> list[dict]:
     """Condition Counter test with bench power-cycle persistence check.
@@ -360,6 +366,9 @@ def run_with_power_cycle(
         contains ``phase: "power_cycle_verify"``.
     """
     from power_supply import PowerCycleSession, PowerSupplyNotAvailable
+
+    if bench_config is None:
+        bench_config = load_bench_config(config_path)
 
     if not bench_config or not bench_config.power_supply or not bench_config.power_supply.comport:
         msg = "Power supply is required for condition-counter but not configured in bench_config.json"

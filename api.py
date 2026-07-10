@@ -40,7 +40,8 @@ try:
         ChannelDefinition,
         ModuleCategory,
     )
-    from hal import CpxApHardware, SafeSession
+    from hal import CpxApHardware, SafeSession, CrossProcessLock
+    from connection_manager import get_connection_manager
     _NEW_COMPONENTS = True
 except ImportError as e:
     print(f"FAILED TO IMPORT NEW COMPONENTS: {e}")
@@ -57,6 +58,56 @@ app = FastAPI(
 # Serve the compiled Vite app (dist/) in production.
 # Must be mounted AFTER the API routes so it only catches remaining paths.
 _DIST = Path("dist")
+
+
+# ─── Hardware Connection Management ────────────────────────────────────────
+# The API does NOT auto-connect.  The user must manually connect via the UI
+# (or the /hw/connect endpoint).  Once connected, all endpoints share the
+# same Modbus session.
+
+class HwConnectRequest(BaseModel):
+    ip_address: str = Field(..., examples=["192.168.0.11"], description="IP address of the CPX-AP gateway")
+    timeout: float = Field(0.0, ge=0, description="Modbus timeout in seconds")
+
+
+@app.post("/hw/connect")
+async def hw_connect(request: HwConnectRequest):
+    """Manually establish the shared Modbus connection to the CPX-AP gateway.
+
+    Disconnects any existing session first.  All subsequent I/O and test
+    operations use this shared connection.
+    """
+    try:
+        mgr = get_connection_manager()
+        mgr.connect(request.ip_address, request.timeout)
+        return JSONResponse({
+            "status": "connected",
+            "ip_address": request.ip_address,
+        })
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post("/hw/disconnect")
+async def hw_disconnect():
+    """Manually close the shared Modbus connection.
+
+    All outputs are reset to LOW before disconnecting.
+    """
+    mgr = get_connection_manager()
+    mgr.disconnect()
+    return JSONResponse({"status": "disconnected"})
+
+
+@app.get("/hw/status")
+async def hw_status():
+    """Return the current hardware connection state."""
+    mgr = get_connection_manager()
+    return JSONResponse({
+        "connected": mgr.is_connected,
+        "ip_address": mgr.ip_address if mgr.is_connected else None,
+        "timeout": mgr.timeout if mgr.is_connected else None,
+    })
 
 
 class ConfigGenerateRequest(BaseModel):
@@ -179,10 +230,11 @@ async def svg_map():
 async def generate_config(request: ConfigGenerateRequest):
     """Query live hardware to discover modules and generate a modern BenchConfig structure."""
     try:
-        hw = CpxApHardware()
-        with SafeSession(hw, request.ip_address, timeout=request.timeout) as iface:
-            modules = iface.read_topology()
-        config = BenchConfig.from_hardware(modules, request.ip_address)
+        mgr = get_connection_manager()
+        if not mgr.is_connected:
+            raise HTTPException(status_code=400, detail="Not connected. Call /hw/connect first.")
+        modules = mgr.get_hw().read_topology()
+        config = BenchConfig.from_hardware(modules, mgr.ip_address)
         _enrich_generated_metadata(config)
 
         # Preserve existing wiring and mounted_valves from the current file (if explicitly provided).
@@ -261,13 +313,13 @@ async def compare_config(request: ConfigCompareRequest):
             detail=f"Stored configuration file not found: {stored_path.resolve()}",
         )
     try:
-        from hal import CpxApHardware, SafeSession
-        from tests.compare_topology import run as run_compare
-        
+        from tests.test_compare_topology import run as run_compare
+
         bench_config = BenchConfig.model_validate_json(stored_path.read_text(encoding="utf-8"))
-        hw = CpxApHardware()
-        with SafeSession(hw, request.ip_address, timeout=request.timeout) as iface:
-            result = run_compare(hw=iface, bench_config=bench_config)
+        mgr = get_connection_manager()
+        if not mgr.is_connected:
+            raise HTTPException(status_code=400, detail="Not connected. Call /hw/connect first.")
+        result = run_compare(hw=mgr.get_hw(), bench_config=bench_config)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -290,17 +342,14 @@ def _auto_reset_output(
     ip: str, module_addr: int, channel: str, cpp: int, timeout: float,
 ) -> None:
     """Background callback that resets an output to LOW."""
-    from hal import CpxApHardware, CrossProcessLock
-
-    port_num = int(channel.lstrip("X"))
-    hw = CpxApHardware()
-    lock = CrossProcessLock(ip)
+    mgr = get_connection_manager()
+    if not mgr.is_connected:
+        return
     try:
-        lock.acquire(timeout=5.0)
-    except Exception:
-        return  # best-effort reset, skip if locked to avoid hangs
-    try:
-        hw.connect(ip, timeout)
+        hw = mgr.get_hw()
+        if not isinstance(hw, CpxApHardware):
+            return
+        port_num = int(channel.lstrip("X"))
         # On mixed DI+DO modules the SVG port IDs are sequential starting at X0
         # with input connectors first; write_output expects a 0-based index
         # within outputs only, so subtract the total number of input channels.
@@ -313,10 +362,6 @@ def _auto_reset_output(
             hw.write_output(module_addr, out_base + i, False)
     except Exception:
         pass  # best-effort
-    finally:
-        with contextlib.suppress(Exception):
-            hw.disconnect()
-        lock.release()
 
 
 class SetOutputRequest(BaseModel):
@@ -332,8 +377,7 @@ class SetOutputRequest(BaseModel):
 async def io_set_output(request: SetOutputRequest):
     """Set a single output channel on a module HIGH or LOW.
 
-    Connects, sets the output, and disconnects.  Does NOT use SafeSession
-    because outputs should persist for manual testing from the frontend.
+    Uses the shared hardware connection (connect via /hw/connect first).
 
     When setting HIGH, a safety timer automatically resets the output to LOW
     after IO_AUTO_RESET_S seconds (default 60).  Setting LOW cancels any
@@ -341,34 +385,31 @@ async def io_set_output(request: SetOutputRequest):
     """
     import concurrent.futures
 
-    timer_key = f"{request.ip_address}:{request.module_addr}:{request.channel}"
+    mgr = get_connection_manager()
+    if not mgr.is_connected:
+        raise HTTPException(status_code=400, detail="Not connected. Call /hw/connect first.")
+
+    timer_key = f"{mgr.ip_address}:{request.module_addr}:{request.channel}"
 
     def _do():
-        from hal import CpxApHardware, CrossProcessLock
         cpp = request.channels_per_port
         port_num = int(request.channel.lstrip("X"))
-        hw = CpxApHardware()
-        lock = CrossProcessLock(request.ip_address)
-        lock.acquire(timeout=5.0)
-        try:
-            hw.connect(request.ip_address, request.timeout)
-            # On mixed DI+DO modules the SVG port IDs are sequential starting at X0
-            # with input connectors first; write_output expects a 0-based index
-            # within outputs only, so subtract the total number of input channels.
-            mod = hw._get_module(request.module_addr)
-            num_in = len([c for c in mod.channels.inputs if c.direction == "in"])
-            out_base = port_num * cpp - num_in
-            if out_base < 0:
-                raise ValueError(
-                    f"Port X{port_num} maps to an input channel on module "
-                    f"#{request.module_addr} (num_inputs={num_in})"
-                )
-            for i in range(cpp):
-                hw.write_output(request.module_addr, out_base + i, request.value)
-        finally:
-            with contextlib.suppress(Exception):
-                hw.disconnect()
-            lock.release()
+        hw = mgr.get_hw()
+        if not isinstance(hw, CpxApHardware):
+            raise RuntimeError("Shared connection is not a CpxApHardware instance")
+        # On mixed DI+DO modules the SVG port IDs are sequential starting at X0
+        # with input connectors first; write_output expects a 0-based index
+        # within outputs only, so subtract the total number of input channels.
+        mod = hw._get_module(request.module_addr)
+        num_in = len([c for c in mod.channels.inputs if c.direction == "in"])
+        out_base = port_num * cpp - num_in
+        if out_base < 0:
+            raise ValueError(
+                f"Port X{port_num} maps to an input channel on module "
+                f"#{request.module_addr} (num_inputs={num_in})"
+            )
+        for i in range(cpp):
+            hw.write_output(request.module_addr, out_base + i, request.value)
         return {
             "ok": True,
             "module_addr": request.module_addr,
@@ -429,16 +470,15 @@ async def io_read_input(
     """
     import concurrent.futures
 
+    mgr = get_connection_manager()
+    if not mgr.is_connected:
+        raise HTTPException(status_code=400, detail="Not connected. Call /hw/connect first.")
+
     def _do():
-        from hal import CpxApHardware
+        hw = mgr.get_hw()
         port_num = int(channel.lstrip("X"))
         base_idx = port_num * channels_per_port
-        hw = CpxApHardware()
-        try:
-            hw.connect(ip_address, timeout)
-            values = [hw.read_input(module_addr, base_idx + i) for i in range(channels_per_port)]
-        finally:
-            hw.disconnect()
+        values = [hw.read_input(module_addr, base_idx + i) for i in range(channels_per_port)]
         return {"values": values, "value": all(values), "module_addr": module_addr, "channel": channel}
 
     loop = asyncio.get_running_loop()
@@ -475,6 +515,10 @@ async def io_set_all_outputs(request: SetAllOutputsRequest):
     """
     import concurrent.futures
 
+    mgr = get_connection_manager()
+    if not mgr.is_connected:
+        raise HTTPException(status_code=400, detail="Not connected. Call /hw/connect first.")
+
     # ── Expand valve_indices → hardware channels ──
     if request.valve_indices is not None and request.module_name:
         from valve_channels import expand_valve_indices
@@ -485,31 +529,24 @@ async def io_set_all_outputs(request: SetAllOutputsRequest):
             request.channels = expanded
 
     def _do():
-        from hal import CpxApHardware, CrossProcessLock
-        hw = CpxApHardware()
-        lock = CrossProcessLock(request.ip_address)
-        lock.acquire(timeout=5.0)
-        try:
-            hw.connect(request.ip_address, request.timeout)
-            mod = hw._get_module(request.module_addr)
+        hw = mgr.get_hw()
+        if not isinstance(hw, CpxApHardware):
+            raise RuntimeError("Shared connection is not a CpxApHardware instance")
+        mod = hw._get_module(request.module_addr)
 
-            if request.channels is not None:
-                indices = list(request.channels)
-            else:
-                out_indices = [c.index for c in mod.channels.outputs if c.direction == "out"]
-                inout_indices = [c.index for c in mod.channels.inouts]
-                indices = sorted(set(out_indices + inout_indices))
+        if request.channels is not None:
+            indices = list(request.channels)
+        else:
+            out_indices = [c.index for c in mod.channels.outputs if c.direction == "out"]
+            inout_indices = [c.index for c in mod.channels.inouts]
+            indices = sorted(set(out_indices + inout_indices))
 
-            if not indices:
-                raise ValueError(f"No writable channels found on module at #{request.module_addr}")
+        if not indices:
+            raise ValueError(f"No writable channels found on module at #{request.module_addr}")
 
-            for idx in indices:
-                hw.write_output(request.module_addr, idx, request.value)
+        for idx in indices:
+            hw.write_output(request.module_addr, idx, request.value)
 
-        finally:
-            with contextlib.suppress(Exception):
-                hw.disconnect()
-            lock.release()
         return {
             "ok": True,
             "module_addr": request.module_addr,
@@ -826,38 +863,32 @@ async def get_module_parameters(
     import asyncio
     import concurrent.futures
 
+    mgr = get_connection_manager()
+    if not mgr.is_connected:
+        raise HTTPException(status_code=400, detail="Not connected. Call /hw/connect first.")
+
     def _do():
-        from hal import CpxApHardware, CrossProcessLock
-        hw = CpxApHardware()
-        lock = CrossProcessLock(ip_address)
-        lock.acquire(timeout=5.0)
-        try:
-            hw.connect(ip_address, timeout)
-            mod = hw._get_module(address)
-            params = []
-            for p in mod.module_dicts.parameters.values():
-                pid = int(p.parameter_id)
-                # Skip parameters with IDs > 16-bit: the Modbus transport
-                # truncates to param_id & 0xFFFF so they can't be accessed.
-                if pid > 0xFFFF:
-                    continue
-                first_index = p.parameter_instances.get("FirstIndex", 0) if p.parameter_instances else 0
-                num_instances = p.parameter_instances.get("NumberOfInstances", 1) if p.parameter_instances else 1
-                params.append({
-                    "parameter_id": pid,
-                    "name": str(p.name),
-                    "is_writable": bool(p.is_writable),
-                    "data_type": str(p.data_type),
-                    "enums": list(p.enums.enum_values.keys()) if p.enums else None,
-                    "unit": str(p.unit) if p.unit else "",
-                    "first_index": int(first_index),
-                    "num_instances": int(num_instances),
-                })
-            return params
-        finally:
-            with contextlib.suppress(Exception):
-                hw.disconnect()
-            lock.release()
+        mod = mgr.get_module(address)
+        params = []
+        for p in mod.module_dicts.parameters.values():
+            pid = int(p.parameter_id)
+            # Skip parameters with IDs > 16-bit: the Modbus transport
+            # truncates to param_id & 0xFFFF so they can't be accessed.
+            if pid > 0xFFFF:
+                continue
+            first_index = p.parameter_instances.get("FirstIndex", 0) if p.parameter_instances else 0
+            num_instances = p.parameter_instances.get("NumberOfInstances", 1) if p.parameter_instances else 1
+            params.append({
+                "parameter_id": pid,
+                "name": str(p.name),
+                "is_writable": bool(p.is_writable),
+                "data_type": str(p.data_type),
+                "enums": list(p.enums.enum_values.keys()) if p.enums else None,
+                "unit": str(p.unit) if p.unit else "",
+                "first_index": int(first_index),
+                "num_instances": int(num_instances),
+            })
+        return params
 
     loop = asyncio.get_running_loop()
     try:
@@ -880,46 +911,40 @@ async def read_module_parameter(
     import asyncio
     import concurrent.futures
 
+    mgr = get_connection_manager()
+    if not mgr.is_connected:
+        raise HTTPException(status_code=400, detail="Not connected. Call /hw/connect first.")
+
     def _do():
-        from hal import CpxApHardware, CrossProcessLock
-        hw = CpxApHardware()
-        lock = CrossProcessLock(ip_address)
-        lock.acquire(timeout=15.0)
-        try:
-            hw.connect(ip_address, timeout)
-            mod = hw._get_module(address)
+        mod = mgr.get_module(address)
 
-            param_info = mod.module_dicts.parameters.get(param_id)
-            if param_info is None:
-                raise ValueError(f"Parameter {param_id} not found on this module.")
-            # The Modbus transport truncates parameter IDs to 16 bits
-            # (see param_id & 0xFFFF in cpx_ap._read_parameter_raw).
-            # Parameters with IDs > 65535 cannot be accessed directly.
-            if param_id > 0xFFFF:
-                raise ValueError(
-                    f"Parameter {param_id} ({param_info.name}) has an ID > 16-bit "
-                    f"and cannot be accessed via the Modbus parameter transport. "
-                    f"Only parameters with IDs 0–65535 are supported."
-                )
-            # For BOOL parameters, read the raw value and normalize
-            # Python True/False to 1/0 so the frontend checkbox
-            # (which checks for "true" or "1") reflects the state.
-            if param_info and param_info.data_type == "BOOL":
-                val = mod.read_module_parameter(param_id, instances=instance)
-                if isinstance(val, list):
-                    val = [1 if v else 0 for v in val]
-                elif val is not None:
-                    val = 1 if val else 0
-            else:
-                val = mod.read_module_parameter_enum_str(param_id, instances=instance)
-
+        param_info = mod.module_dicts.parameters.get(param_id)
+        if param_info is None:
+            raise ValueError(f"Parameter {param_id} not found on this module.")
+        # The Modbus transport truncates parameter IDs to 16 bits
+        # (see param_id & 0xFFFF in cpx_ap._read_parameter_raw).
+        # Parameters with IDs > 65535 cannot be accessed directly.
+        if param_id > 0xFFFF:
+            raise ValueError(
+                f"Parameter {param_id} ({param_info.name}) has an ID > 16-bit "
+                f"and cannot be accessed via the Modbus parameter transport. "
+                f"Only parameters with IDs 0–65535 are supported."
+            )
+        # For BOOL parameters, read the raw value and normalize
+        # Python True/False to 1/0 so the frontend checkbox
+        # (which checks for "true" or "1") reflects the state.
+        if param_info and param_info.data_type == "BOOL":
+            val = mod.read_module_parameter(param_id, instances=instance)
             if isinstance(val, list):
-                return {"value": [str(x) if x is not None else "" for x in val]}
-            return {"value": str(val) if val is not None else ""}
-        finally:
-            with contextlib.suppress(Exception):
-                hw.disconnect()
-            lock.release()
+                val = [1 if v else 0 for v in val]
+            elif val is not None:
+                val = 1 if val else 0
+        else:
+            val = mod.read_module_parameter_enum_str(param_id, instances=instance)
+
+        if isinstance(val, list):
+            return {"value": [str(x) if x is not None else "" for x in val]}
+        return {"value": str(val) if val is not None else ""}
 
     loop = asyncio.get_running_loop()
     try:
@@ -940,56 +965,50 @@ async def write_module_parameter(
     import asyncio
     import concurrent.futures
 
-    def _do():
-        from hal import CpxApHardware, CrossProcessLock
-        hw = CpxApHardware()
-        lock = CrossProcessLock(request.ip_address)
-        lock.acquire(timeout=5.0)
-        try:
-            hw.connect(request.ip_address, request.timeout)
-            mod = hw._get_module(address)
-            val = request.value
-            
-            param_info = mod.module_dicts.parameters.get(param_id)
-            if param_info is None:
-                raise ValueError(f"Parameter {param_id} not found on this module.")
-            # The Modbus transport truncates parameter IDs to 16 bits.
-            if param_id > 0xFFFF:
-                raise ValueError(
-                    f"Parameter {param_id} ({param_info.name}) has an ID > 16-bit "
-                    f"and cannot be accessed via the Modbus parameter transport. "
-                    f"Only parameters with IDs 0–65535 are supported."
-                )
-            try:
-                    val = float(val) if "." in val else int(val)
-            except ValueError:
-                    # Handle "true"/"false" strings sent by the frontend
-                    # checkbox for BOOL parameters.
-                    if param_info and param_info.data_type == "BOOL":
-                        val_lower = val.strip().lower()
-                        if val_lower == "true":
-                            val = True
-                        elif val_lower == "false":
-                            val = False
-                    # else: keep as string (for enums etc)
+    mgr = get_connection_manager()
+    if not mgr.is_connected:
+        raise HTTPException(status_code=400, detail="Not connected. Call /hw/connect first.")
 
-            mod.write_module_parameter(param_id, val, instances=request.instance)
-            time.sleep(0.05)
-            # For BOOL parameters, read back and normalize to 1/0 so the
-            # frontend checkbox shows the correct state (matches "1"/"0").
-            if param_info and param_info.data_type == "BOOL":
-                new_val = mod.read_module_parameter(param_id, instances=request.instance)
-                if isinstance(new_val, list):
-                    new_val = [1 if v else 0 for v in new_val]
-                elif new_val is not None:
-                    new_val = 1 if new_val else 0
-            else:
-                new_val = mod.read_module_parameter_enum_str(param_id, instances=request.instance)
-            return {"value": str(new_val) if new_val is not None else ""}
-        finally:
-            with contextlib.suppress(Exception):
-                hw.disconnect()
-            lock.release()
+    def _do():
+        mod = mgr.get_module(address)
+        val = request.value
+
+        param_info = mod.module_dicts.parameters.get(param_id)
+        if param_info is None:
+            raise ValueError(f"Parameter {param_id} not found on this module.")
+        # The Modbus transport truncates parameter IDs to 16 bits.
+        if param_id > 0xFFFF:
+            raise ValueError(
+                f"Parameter {param_id} ({param_info.name}) has an ID > 16-bit "
+                f"and cannot be accessed via the Modbus parameter transport. "
+                f"Only parameters with IDs 0–65535 are supported."
+            )
+        try:
+                val = float(val) if "." in val else int(val)
+        except ValueError:
+                # Handle "true"/"false" strings sent by the frontend
+                # checkbox for BOOL parameters.
+                if param_info and param_info.data_type == "BOOL":
+                    val_lower = val.strip().lower()
+                    if val_lower == "true":
+                        val = True
+                    elif val_lower == "false":
+                        val = False
+                # else: keep as string (for enums etc)
+
+        mod.write_module_parameter(param_id, val, instances=request.instance)
+        time.sleep(0.05)
+        # For BOOL parameters, read back and normalize to 1/0 so the
+        # frontend checkbox shows the correct state (matches "1"/"0").
+        if param_info and param_info.data_type == "BOOL":
+            new_val = mod.read_module_parameter(param_id, instances=request.instance)
+            if isinstance(new_val, list):
+                new_val = [1 if v else 0 for v in new_val]
+            elif new_val is not None:
+                new_val = 1 if new_val else 0
+        else:
+            new_val = mod.read_module_parameter_enum_str(param_id, instances=request.instance)
+        return {"value": str(new_val) if new_val is not None else ""}
 
     loop = asyncio.get_running_loop()
     try:
@@ -1009,63 +1028,60 @@ async def get_system_diagnoses(
     import asyncio
     import concurrent.futures
 
+    mgr = get_connection_manager()
+    if not mgr.is_connected:
+        raise HTTPException(status_code=400, detail="Not connected. Call /hw/connect first.")
+
     def _do():
-        from hal import CpxApHardware, CrossProcessLock
-        hw = CpxApHardware()
-        lock = CrossProcessLock(ip_address)
-        lock.acquire(timeout=5.0)
+        hw = mgr.get_hw()
+        if not isinstance(hw, CpxApHardware):
+            raise RuntimeError("Shared connection is not a CpxApHardware instance")
+        active_diags = []
+
+        # Read diagnostic status for all modules to get severity
         try:
-            hw.connect(ip_address, timeout)
-            active_diags = []
-            
-            # Read diagnostic status for all modules to get severity
+            diag_status_list = hw._cpx_ap.read_diagnostic_status()
+        except Exception:
+            diag_status_list = None
+
+        for mod in hw._modules:
             try:
-                diag_status_list = hw._cpx_ap.read_diagnostic_status()
+                diag = mod.read_diagnosis_information()
+                if diag is not None:
+                    # Attempt to read the channel number from the first 2 bytes of the diagnosis block
+                    channel = None
+                    try:
+                        channel_reg = mod.base.read_reg_data(mod.system_entry_registers.diagnosis, length=1)
+                        channel = int.from_bytes(channel_reg, byteorder="little")
+                    except Exception:
+                        pass
+
+                    # Determine severity
+                    severity = "unknown"
+                    if diag_status_list and (mod.position + 1) < len(diag_status_list):
+                        mod_diag_status = diag_status_list[mod.position + 1]
+                        if mod_diag_status.degree_of_severity_error:
+                            severity = "error"
+                        elif mod_diag_status.degree_of_severity_warning:
+                            severity = "warning"
+                        elif mod_diag_status.degree_of_severity_maintenance:
+                            severity = "maintenance"
+                        elif mod_diag_status.degree_of_severity_information:
+                            severity = "info"
+
+                    active_diags.append({
+                        "address": int(mod.position),
+                        "module_name": getattr(mod.apdd_information, "order_text", "") or mod.name or f"Module {mod.position}",
+                        "diagnosis_id": str(diag.diagnosis_id),
+                        "channel": channel,
+                        "severity": severity,
+                        "name": str(diag.name),
+                        "description": str(diag.description),
+                        "guideline": str(diag.guideline),
+                    })
             except Exception:
-                diag_status_list = None
-
-            for mod in hw._modules:
-                try:
-                    diag = mod.read_diagnosis_information()
-                    if diag is not None:
-                        # Attempt to read the channel number from the first 2 bytes of the diagnosis block
-                        channel = None
-                        try:
-                            channel_reg = mod.base.read_reg_data(mod.system_entry_registers.diagnosis, length=1)
-                            channel = int.from_bytes(channel_reg, byteorder="little")
-                        except Exception:
-                            pass
-
-                        # Determine severity
-                        severity = "unknown"
-                        if diag_status_list and (mod.position + 1) < len(diag_status_list):
-                            mod_diag_status = diag_status_list[mod.position + 1]
-                            if mod_diag_status.degree_of_severity_error:
-                                severity = "error"
-                            elif mod_diag_status.degree_of_severity_warning:
-                                severity = "warning"
-                            elif mod_diag_status.degree_of_severity_maintenance:
-                                severity = "maintenance"
-                            elif mod_diag_status.degree_of_severity_information:
-                                severity = "info"
-
-                        active_diags.append({
-                            "address": int(mod.position),
-                            "module_name": getattr(mod.apdd_information, "order_text", "") or mod.name or f"Module {mod.position}",
-                            "diagnosis_id": str(diag.diagnosis_id),
-                            "channel": channel,
-                            "severity": severity,
-                            "name": str(diag.name),
-                            "description": str(diag.description),
-                            "guideline": str(diag.guideline),
-                        })
-                except Exception:
-                    pass  # skip if module doesn't support diagnosis or fails
-            return active_diags
-        finally:
-            with contextlib.suppress(Exception):
-                hw.disconnect()
-            lock.release()
+                pass  # skip if module doesn't support diagnosis or fails
+        return active_diags
 
     loop = asyncio.get_running_loop()
     try:
@@ -1511,127 +1527,130 @@ def _execute_test_run_safe(
                     "duration_ms": 0,
                 })
 
-        _log("info", "Acquiring hardware lock...")
-        hw = CpxApHardware()
-        with SafeSession(hw, ip_address, timeout=10.0) as iface:
-            for idx, inst in enumerate(plan_instances):
-                if _abort_flag:
-                    _log("warning", "Test run aborted by user.")
-                    if _current_test_run is not None:
-                        _current_test_run["status"] = "error"
-                        _current_test_run["error"] = "Aborted by user"
-                    break
+        _log("info", "Running tests on shared hardware connection...")
+        mgr = get_connection_manager()
+        if not mgr.is_connected:
+            _log("error", "Not connected to hardware. Connect via /hw/connect first.")
+            return
+        iface = mgr.get_hw()
+        for idx, inst in enumerate(plan_instances):
+            if _abort_flag:
+                _log("warning", "Test run aborted by user.")
+                if _current_test_run is not None:
+                    _current_test_run["status"] = "error"
+                    _current_test_run["error"] = "Aborted by user"
+                break
 
-                test_id = inst.test_id
-                _log("info", f"━━━ [{idx + 1}/{len(plan_instances)}] {test_id} (Module #{inst.module_address}) ━━━")
-                
-                is_new_test = True
-                if _current_test_run and _current_test_run["checkpoints"]:
-                    if _current_test_run["checkpoints"][-1]["test"] == test_id:
-                        is_new_test = False
+            test_id = inst.test_id
+            _log("info", f"━━━ [{idx + 1}/{len(plan_instances)}] {test_id} (Module #{inst.module_address}) ━━━")
+            
+            is_new_test = True
+            if _current_test_run and _current_test_run["checkpoints"]:
+                if _current_test_run["checkpoints"][-1]["test"] == test_id:
+                    is_new_test = False
 
-                if is_new_test:
-                    if _current_test_run is not None:
-                        _current_test_run["progress"]["current_test"] = test_id
-                        _current_test_run["checkpoints"].append({
-                            "test": test_id, "status": "running", "timestamp": time.time(),
-                        })
+            if is_new_test:
+                if _current_test_run is not None:
+                    _current_test_run["progress"]["current_test"] = test_id
+                    _current_test_run["checkpoints"].append({
+                        "test": test_id, "status": "running", "timestamp": time.time(),
+                    })
                     _pb(pb_log.checkpoint, run_id, test_id, "running")
 
-                try:
-                    # Per-test timeout (seconds) — prevents a stuck test
-                    # from holding hardware indefinitely.
-                    _TEST_TIMEOUT_S = int(os.environ.get("TEST_TIMEOUT_S", "300"))
-                    import threading
-                    _test_result_box: list[dict] = []
-                    _test_exc_box: list[Exception] = []
+            try:
+                # Per-test timeout (seconds) — prevents a stuck test
+                # from holding hardware indefinitely.
+                _TEST_TIMEOUT_S = int(os.environ.get("TEST_TIMEOUT_S", "300"))
+                import threading
+                _test_result_box: list[dict] = []
+                _test_exc_box: list[Exception] = []
 
-                    def _run_test_target():
-                        try:
-                            r = _run_single_test_hw(
-                                iface, inst, bench_config, config_path, _log,
-                            )
-                            _test_result_box.append(r)
-                        except Exception as e:
-                            _test_exc_box.append(e)
+                def _run_test_target():
+                    try:
+                        r = _run_single_test_hw(
+                            iface, inst, config_path, _log,
+                        )
+                        _test_result_box.append(r)
+                    except Exception as e:
+                        _test_exc_box.append(e)
 
-                    t = threading.Thread(target=_run_test_target, daemon=True)
-                    t.start()
-                    t.join(timeout=_TEST_TIMEOUT_S)
+                t = threading.Thread(target=_run_test_target, daemon=True)
+                t.start()
+                t.join(timeout=_TEST_TIMEOUT_S)
 
-                    if t.is_alive():
-                        _log("error", f"Test '{test_id}' timed out after {_TEST_TIMEOUT_S}s")
-                        result = {"test_id": test_id, "passed": False,
-                                  "error": f"Test timed out after {_TEST_TIMEOUT_S}s"}
-                    elif _test_exc_box:
-                        raise _test_exc_box[0]
-                    elif _test_result_box:
-                        result = _test_result_box[0]
-                    else:
-                        result = {"test_id": test_id, "passed": False,
-                                  "error": "Test returned no result"}
-                except Exception as exc:
-                    tb = traceback.format_exc()
-                    _log("error", f"Test '{test_id}' raised unhandled exception: {exc}")
-                    _log("error", tb)
-                    result = {"test_id": test_id, "passed": False, "error": str(exc),
-                              "traceback": tb}
+                if t.is_alive():
+                    _log("error", f"Test '{test_id}' timed out after {_TEST_TIMEOUT_S}s")
+                    result = {"test_id": test_id, "passed": False,
+                              "error": f"Test timed out after {_TEST_TIMEOUT_S}s"}
+                elif _test_exc_box:
+                    raise _test_exc_box[0]
+                elif _test_result_box:
+                    result = _test_result_box[0]
+                else:
+                    result = {"test_id": test_id, "passed": False,
+                              "error": "Test returned no result"}
+            except Exception as exc:
+                tb = traceback.format_exc()
+                _log("error", f"Test '{test_id}' raised unhandled exception: {exc}")
+                _log("error", tb)
+                result = {"test_id": test_id, "passed": False, "error": str(exc),
+                          "traceback": tb}
 
-                if _current_test_run is not None:
-                    _current_test_run["progress"]["completed"] = idx + 1
-                    # Merge into existing live-results entry (e.g. from _push_live_module_result),
-                    # deduplicating by module address instead of blindly extending.
-                    results_list = _current_test_run["results"]
-                    replaced_existing = False
-                    for i, existing in enumerate(results_list):
-                        if isinstance(existing, dict) and existing.get("test_id") == test_id:
-                            if isinstance(existing, dict) and "results" in existing and "results" in result:
-                                # Merge sub-results by address to avoid duplicates from live pushes
-                                _merge_sub_results(existing["results"], result["results"])
+            if _current_test_run is not None:
+                _current_test_run["progress"]["completed"] = idx + 1
+                # Merge into existing live-results entry (e.g. from _push_live_module_result),
+                # deduplicating by module address instead of blindly extending.
+                results_list = _current_test_run["results"]
+                replaced_existing = False
+                for i, existing in enumerate(results_list):
+                    if isinstance(existing, dict) and existing.get("test_id") == test_id:
+                        if isinstance(existing, dict) and "results" in existing and "results" in result:
+                            # Merge sub-results by address to avoid duplicates from live pushes
+                            _merge_sub_results(existing["results"], result["results"])
+                            
+                            prev_passed = existing.get("passed")
+                            if prev_passed is None:
+                                prev_passed = True
+                            res_passed = result.get("passed")
+                            if res_passed is None:
+                                res_passed = True
                                 
-                                prev_passed = existing.get("passed")
-                                if prev_passed is None:
-                                    prev_passed = True
-                                res_passed = result.get("passed")
-                                if res_passed is None:
-                                    res_passed = True
-                                    
-                                existing["passed"] = prev_passed and res_passed
-                                existing["all_passed"] = existing["passed"]
-                                if "duration_ms" in existing and "duration_ms" in result and result["duration_ms"] is not None:
-                                    existing["duration_ms"] = round((existing["duration_ms"] or 0) + result["duration_ms"], 1)
-                            else:
-                                results_list[i] = result
-                            replaced_existing = True
+                            existing["passed"] = prev_passed and res_passed
+                            existing["all_passed"] = existing["passed"]
+                            if "duration_ms" in existing and "duration_ms" in result and result["duration_ms"] is not None:
+                                existing["duration_ms"] = round((existing["duration_ms"] or 0) + result["duration_ms"], 1)
+                        else:
+                            results_list[i] = result
+                        replaced_existing = True
+                        break
+                if not replaced_existing:
+                    results_list.append(result)
+                if _current_test_run["checkpoints"]:
+                    cp = _current_test_run["checkpoints"][-1]
+                    
+                    test_result_entry = None
+                    for r in _current_test_run["results"]:
+                        if isinstance(r, dict) and r.get("test_id") == test_id:
+                            test_result_entry = r
                             break
-                    if not replaced_existing:
-                        results_list.append(result)
-                    if _current_test_run["checkpoints"]:
-                        cp = _current_test_run["checkpoints"][-1]
-                        
-                        test_result_entry = None
-                        for r in _current_test_run["results"]:
-                            if isinstance(r, dict) and r.get("test_id") == test_id:
-                                test_result_entry = r
-                                break
 
-                        is_last_instance = (idx == len(plan_instances) - 1 or plan_instances[idx+1].test_id != test_id)
+                    is_last_instance = (idx == len(plan_instances) - 1 or plan_instances[idx+1].test_id != test_id)
 
-                        if is_last_instance:
-                            passed = bool(test_result_entry.get("passed", False)) if test_result_entry else False
-                            if passed:
-                                cp["status"] = "passed"
-                                _log("info", f"✓ {test_id} PASSED")
-                                _pb(pb_log.checkpoint, run_id, test_id, "passed")
-                            else:
-                                err = _extract_error_summary(test_result_entry) if test_result_entry else "Failed"
-                                cp["status"] = "failed"
-                                cp["error"] = err[:500]
-                                _log("error", f"✗ {test_id} FAILED — {err}")
-                                _pb(pb_log.checkpoint, run_id, test_id, "failed", err[:500])
-                                _pb(pb_log.error, run_id, f"Test '{test_id}' failed: {err}")
+                    if is_last_instance:
+                        passed = bool(test_result_entry.get("passed", False)) if test_result_entry else False
+                        if passed:
+                            cp["status"] = "passed"
+                            _log("info", f"✓ {test_id} PASSED")
+                            _pb(pb_log.checkpoint, run_id, test_id, "passed")
+                        else:
+                            err = _extract_error_summary(test_result_entry) if test_result_entry else "Failed"
+                            cp["status"] = "failed"
+                            cp["error"] = err[:500]
+                            _log("error", f"✗ {test_id} FAILED — {err}")
+                            _pb(pb_log.checkpoint, run_id, test_id, "failed", err[:500])
+                            _pb(pb_log.error, run_id, f"Test '{test_id}' failed: {err}")
 
-            _log("info", f"All {len(plan_instances)} test(s) completed")
+        _log("info", f"All {len(plan_instances)} test(s) completed")
     except Exception as exc:
         if _current_test_run is not None:
             _current_test_run["status"] = "error"
@@ -1667,11 +1686,14 @@ def _execute_test_run_safe(
 def _run_single_test_hw(
     hw,
     resolved_instance,
-    bench_config,
     config_path: str,
     log,
 ) -> dict:
-    """Dispatch a single test using a pre-connected HardwareInterface."""
+    """Dispatch a single test using a pre-connected HardwareInterface.
+
+    Each test is responsible for loading its own ``bench_config`` from
+    *config_path*.  The API does not pass pre-loaded config or IP address.
+    """
     test_id = resolved_instance.test_id
 
     def _init_live_results(modules: list):
@@ -1772,14 +1794,14 @@ def _run_single_test_hw(
             )
             entry["duration_ms"] = round(total_ms, 1)
 
-    from tests.compare_topology import run as run_compare
-    from tests.dio_toggle import run as run_dio_toggle
-    from tests.output_toggle import run as run_output_toggle
-    from tests.system_diagnosis import run as run_sysdiag
+    from tests.test_compare_topology import run as run_compare
+    from tests.test_dio_toggle import run as run_dio_toggle
+    from tests.test_output_toggle import run as run_output_toggle
+    from tests.test_system_diagnosis import run as run_sysdiag
     from tests.test_api import run as run_test_api
-    from tests.validate_connections import run as run_validate
-    from tests.valve_condition_counter import run as run_vcc
-    from tests.valve_toggle import run as run_valve_toggle
+    from tests.test_validate_connections import run as run_validate
+    from tests.test_valve_condition_counter import run as run_vcc
+    from tests.test_valve_toggle import run as run_valve_toggle
 
     raw = None
 
@@ -1787,43 +1809,43 @@ def _run_single_test_hw(
         raw = run_validate(
             hw_or_ip=hw,
             log=log,
-            bench_config=bench_config,
+            config_path=config_path,
             module_address=resolved_instance.module_address
         )
 
     elif test_id == "condition-counter":
-        from tests.condition_counter import run_with_power_cycle as run_cc_pc
+        from tests.test_condition_counter import run_with_power_cycle as run_cc_pc
         raw = run_cc_pc(
             hw=hw,
             log=log,
-            bench_config=bench_config,
+            config_path=config_path,
             module_address=resolved_instance.module_address,
         )
 
     elif test_id == "remanent-params":
-        from tests.remanent_params import run_with_power_cycle as run_rem_pc
+        from tests.test_remanent_params import run_with_power_cycle as run_rem_pc
         raw = run_rem_pc(
             hw=hw,
             log=log,
-            bench_config=bench_config,
+            config_path=config_path,
             module_address=resolved_instance.module_address,
         )
 
     elif test_id == "factory-reset":
-        from tests.factory_reset import run as run_fr
+        from tests.test_factory_reset import run as run_fr
         raw = run_fr(
             hw=hw,
             log=log,
-            bench_config=bench_config,
+            config_path=config_path,
             module_address=resolved_instance.module_address,
         )
 
     elif test_id == "open-load-diag":
-        from tests.open_load_diag import run as run_old
+        from tests.test_open_load_diag import run as run_old
         raw = run_old(
             hw=hw,
             log=log,
-            bench_config=bench_config,
+            config_path=config_path,
             module_address=resolved_instance.module_address,
         )
 
@@ -1831,7 +1853,7 @@ def _run_single_test_hw(
         raw = run_vcc(
             hw=hw,
             log=log,
-            bench_config=bench_config,
+            config_path=config_path,
             module_address=resolved_instance.module_address
         )
 
@@ -1841,7 +1863,7 @@ def _run_single_test_hw(
         raw = run_output_toggle(
             hw=hw,
             log=log,
-            bench_config=bench_config,
+            config_path=config_path,
             module_address=resolved_instance.module_address,
             on_result=lambda r: _push_live_module_result(r)
         )
@@ -1852,7 +1874,7 @@ def _run_single_test_hw(
         raw = run_valve_toggle(
             hw=hw,
             log=log,
-            bench_config=bench_config,
+            config_path=config_path,
             module_address=resolved_instance.module_address,
             on_result=lambda r: _push_live_module_result(r)
         )
@@ -1863,7 +1885,7 @@ def _run_single_test_hw(
         raw = run_dio_toggle(
             hw=hw,
             log=log,
-            bench_config=bench_config,
+            config_path=config_path,
             module_address=resolved_instance.module_address,
             on_result=lambda r: _push_live_module_result(r)
         )
@@ -1872,7 +1894,7 @@ def _run_single_test_hw(
         raw = run_compare(
             hw=hw,
             log=log,
-            bench_config=bench_config,
+            config_path=config_path,
             module_address=resolved_instance.module_address
         )
 
@@ -1881,7 +1903,7 @@ def _run_single_test_hw(
             raw = run_sysdiag(
                 hw=hw,
                 log=log,
-                bench_config=bench_config,
+                config_path=config_path,
                 module_address=resolved_instance.module_address
             )
         except Exception as exc:
@@ -1891,7 +1913,7 @@ def _run_single_test_hw(
         raw = run_test_api(
             hw=hw,
             log=log,
-            bench_config=bench_config,
+            config_path=config_path,
             module_address=resolved_instance.module_address,
         )
 
@@ -1954,6 +1976,51 @@ if _ASSETS_DIR.is_dir():
     app.mount("/assets", StaticFiles(directory=str(_ASSETS_DIR)), name="assets")
 else:
     print(f"WARNING: Skipping /assets mount because directory does not exist: {_ASSETS_DIR}")
+
+@app.get("/io/read-all")
+async def io_read_all():
+    """Read all input, output, and inout channels for all modules."""
+    import concurrent.futures
+    mgr = get_connection_manager()
+    if not mgr.is_connected:
+        raise HTTPException(status_code=400, detail="Not connected.")
+
+    def _do():
+        hw = mgr.get_hw()
+        from hal import CpxApHardware
+        if not isinstance(hw, CpxApHardware):
+            return {}
+        result = {}
+        for mod in hw._modules:
+            addr = mod.position
+            inputs = []
+            for c in mod.channels.inputs:
+                try:
+                    inputs.append(bool(mod.read_channel(c.index)))
+                except Exception:
+                    inputs.append(False)
+            outputs = []
+            for c in mod.channels.outputs:
+                try:
+                    outputs.append(bool(mod.read_channel(c.index)))
+                except Exception:
+                    outputs.append(False)
+            inouts = []
+            for c in mod.channels.inouts:
+                try:
+                    inouts.append(bool(mod.read_channel(c.index)))
+                except Exception:
+                    inouts.append(False)
+            result[addr] = {"inputs": inputs, "outputs": outputs, "inouts": inouts}
+        return result
+
+    loop = asyncio.get_running_loop()
+    try:
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            result = await loop.run_in_executor(pool, _do)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return JSONResponse(result)
 
 if _SVG_DIR.is_dir():
     app.mount("/svg", StaticFiles(directory=str(_SVG_DIR)), name="svg")

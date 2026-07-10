@@ -20,6 +20,7 @@ from ._base import (
     LogFn,
     is_module_compatible,
     is_valve_terminal,
+    load_bench_config,
     load_compatibility,
     noop_log,
 )
@@ -80,6 +81,7 @@ def run(
     hw: HardwareInterface,
     log: LogFn = noop_log,
     bench_config: BenchConfig | None = None,
+    config_path: str = "data/bench_config.json",
     module_address: int | None = None,
 ) -> list[dict]:
     """Test CC behaviour on VABX valve terminals.
@@ -93,6 +95,9 @@ def run(
     cc_param_id = TEST_DEFINITION["parameters"]["cc_param_id"]
     cc_readback_param_id = TEST_DEFINITION["parameters"]["cc_readback_param_id"]
     toggle_cycles = TEST_DEFINITION["parameters"]["toggle_cycles"]
+
+    if bench_config is None:
+        bench_config = load_bench_config(config_path)
 
     topology = hw.read_topology()
     if module_address is not None:

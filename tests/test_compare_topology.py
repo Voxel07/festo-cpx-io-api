@@ -9,7 +9,7 @@ import time
 from config_models import BenchConfig
 from hal import HardwareInterface
 
-from ._base import LogFn, noop_log
+from ._base import LogFn, load_bench_config, noop_log
 
 TEST_DEFINITION = {
     "test_id": "compare-topology",
@@ -42,8 +42,11 @@ def run(
     hw: HardwareInterface,
     log: LogFn = noop_log,
     bench_config: BenchConfig | None = None,
+    config_path: str = "data/bench_config.json",
     module_address: int | None = None,
 ) -> dict:
+    if bench_config is None:
+        bench_config = load_bench_config(config_path)
     t_start = time.time()
     if not bench_config:
         err = "No bench_config provided for comparison"

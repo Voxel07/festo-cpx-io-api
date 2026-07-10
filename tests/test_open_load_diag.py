@@ -63,7 +63,7 @@ import valve_channels
 from config_models import BenchConfig
 from hal import HardwareInterface
 
-from ._base import LogFn, load_compatibility, noop_log
+from ._base import LogFn, load_bench_config, load_compatibility, noop_log
 
 # ── Test metadata ──────────────────────────────────────────────────────────────
 
@@ -244,9 +244,12 @@ def run(
     hw: HardwareInterface,
     log: LogFn = noop_log,
     bench_config: BenchConfig | None = None,
+    config_path: str = "data/bench_config.json",
     module_address: int | None = None,
 ) -> list[dict]:
     """Run the open-load diagnostic test on all compatible output/valve modules."""
+    if bench_config is None:
+        bench_config = load_bench_config(config_path)
     valve_defect_diag_enable_param_id = TEST_DEFINITION["parameters"]["valve_defect_diag_enable_param_id"]
     openload_diag_enable_param_id = TEST_DEFINITION["parameters"]["openload_diag_enable_param_id"]
     diag_settle_time = TEST_DEFINITION["parameters"]["diag_settle_time"]

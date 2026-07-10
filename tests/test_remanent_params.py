@@ -6,8 +6,8 @@ from typing import Any
 from config_models import BenchConfig
 from hal import HardwareInterface
 
-from ._base import LogFn, noop_log
-from .factory_reset import _get_reset_param_specs_for_module, _verify_persisted, _write_test_values
+from ._base import LogFn, load_bench_config, noop_log
+from .test_factory_reset import _get_reset_param_specs_for_module, _verify_persisted, _write_test_values
 
 TEST_DEFINITION = {
     "test_id": "remanent-params",
@@ -37,9 +37,12 @@ def run(
     hw: HardwareInterface,
     log: LogFn = noop_log,
     bench_config: BenchConfig | None = None,
+    config_path: str = "data/bench_config.json",
     module_address: int | None = None,
 ) -> list[dict]:
     """Phase 1: write test values to remanent parameters."""
+    if bench_config is None:
+        bench_config = load_bench_config(config_path)
     kwargs = TEST_DEFINITION["parameters"]
     topology = hw.read_topology()
     if module_address is not None:
@@ -149,9 +152,12 @@ def run_with_power_cycle(
     hw: HardwareInterface,
     log: LogFn = noop_log,
     bench_config: BenchConfig | None = None,
+    config_path: str = "data/bench_config.json",
     module_address: int | None = None,
 ) -> list[dict]:
     """Full end-to-end remanent-params test with bench power cycle."""
+    if bench_config is None:
+        bench_config = load_bench_config(config_path)
     from power_supply import PowerCycleSession, PowerSupplyNotAvailable
 
     if not bench_config or not bench_config.power_supply or not bench_config.power_supply.comport:

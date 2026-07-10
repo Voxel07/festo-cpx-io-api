@@ -11,7 +11,7 @@ from typing import Any
 from config_models import BenchConfig
 from hal import HardwareInterface
 
-from ._base import LogFn, noop_log
+from ._base import LogFn, load_bench_config, noop_log
 
 TEST_DEFINITION = {
     # Unique kebab-case identifier referenced in api.py dispatch
@@ -49,6 +49,7 @@ def run(
     hw: HardwareInterface,
     log: LogFn = noop_log,
     bench_config: BenchConfig | None = None,
+    config_path: str = "data/bench_config.json",
     module_address: int | None = None,
 ) -> dict:
     """Execute the test against a single module.
@@ -56,9 +57,12 @@ def run(
     :param hw: Pre-connected HardwareInterface (do NOT call hw.connect here).
     :param log: Logging callback ``(level: str, message: str) -> None``.
     :param bench_config: Full bench configuration (connections, parameters, …).
+    :param config_path: Path to bench_config.json.
     :param module_address: Bus address of the module under test.
     :returns: Result dict with at minimum ``{'passed': bool, 'results': list}``.
     """
+    if bench_config is None:
+        bench_config = load_bench_config(config_path)
     t0 = time.monotonic()
 
     log("info", f"[test-api] Running on module {module_address}")

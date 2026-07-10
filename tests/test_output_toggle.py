@@ -12,7 +12,7 @@ from typing import Any
 from config_models import BenchConfig
 from hal import HardwareInterface
 
-from ._base import LogFn, noop_log
+from ._base import LogFn, load_bench_config, noop_log
 
 TEST_DEFINITIONS = [
     {
@@ -45,10 +45,13 @@ def run(
     hw: HardwareInterface,
     log: LogFn = noop_log,
     bench_config: BenchConfig | None = None,
+    config_path: str = "data/bench_config.json",
     on_module: callable = None,  # (address: int) -> None — called before each module
     on_result: callable = None,  # (result: dict) -> None — called after each module (live push)
     module_address: int | None = None,
 ) -> list[dict]:
+    if bench_config is None:
+        bench_config = load_bench_config(config_path)
     """Toggle each output channel on every output-capable module.
 
     For each module with outputs:

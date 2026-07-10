@@ -59,6 +59,8 @@ from typing import Any
 from config_models import BenchConfig
 from hal import HardwareInterface
 
+from ._base import LogFn, load_bench_config, noop_log
+
 from ._base import LogFn, noop_log
 
 # ── Test metadata ──────────────────────────────────────────────────────────────
@@ -456,10 +458,13 @@ def run(
     hw: HardwareInterface,
     log: LogFn = noop_log,
     bench_config: BenchConfig | None = None,
+    config_path: str = "data/bench_config.json",
     module_address: int | None = None,
 ) -> list[dict]:
 
     """Full factory-reset + normal-reset parameter persistence test."""
+    if bench_config is None:
+        bench_config = load_bench_config(config_path)
     from power_supply import PowerCycleSession
 
     params = TEST_DEFINITION["parameters"].copy()

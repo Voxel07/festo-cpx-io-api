@@ -1,6 +1,7 @@
-"""DIO toggle test — changes port direction to output, turns on, reads back, turns off, restores to input.
+"""Valve toggle test — turns on all outputs one by one for all valve modules.
 
-Uses :class:`hal.HardwareInterface`.
+Per-channel validation with timing and structured logging.
+Uses :class:`hal.HardwareInterface` — never imports ``CpxAp`` directly.
 """
 from __future__ import annotations
 
@@ -10,17 +11,20 @@ from typing import Any
 
 from config_models import BenchConfig
 from hal import HardwareInterface
+from valve_channels import channels_per_valve
 
-from ._base import LogFn, noop_log
+from ._base import LogFn, load_bench_config, noop_log
 
 TEST_DEFINITION = {
-    "test_id": "dio-toggle",
-    "name": "DIO Toggle",
+    "test_id": "valve-toggle",
+    "name": "Valve Toggle",
     "version": "1.0.0",
-    "description": "Configure DIO channels to output mode, toggle ON/OFF, and restore to input mode",
-    "required_capabilities": [],
+    "description": "Toggle all valve channels ON/OFF and verify state changes",
+    "required_capabilities": [
+        "valve_output"
+    ],
     "supported_categories": [
-        "inout"
+        "valve"
     ],
     "safety_class": "caution",
     "allowed_in_ci": True,
@@ -28,12 +32,13 @@ TEST_DEFINITION = {
     "singleton": False,
     "parameters": {},
     "compatible_modules": [
-        "CPX-AP-A-*DIO*",
-        "CPX-AP-A-*DIDO*",
-        "CPX-AP-A-*DI*DO*",
-        "CPX-AP-I-*DIO*",
-        "CPX-AP-A-*IOL*",
-        "CPX-AP-I-*IOL*"
+        "VABX-A-S-BV-V4A",
+        "VABX-A-S-BV-V4B",
+        "VABX-A-S-BV-V4C",
+        "VABX-A-BV-S-*",
+        "VABX-A-VE-S",
+        "VABX-A-VP-*",
+        "VMPAL-*"
     ]
 }
 
@@ -42,82 +47,88 @@ def run(
     hw: HardwareInterface,
     log: LogFn = noop_log,
     bench_config: BenchConfig | None = None,
-    on_module: callable = None,
-    on_result: callable = None,
+    config_path: str = "data/bench_config.json",
+    on_module: callable = None,  # (address: int) -> None — called before each module
+    on_result: callable = None,  # (result: dict) -> None — called after each module (live push)
     module_address: int | None = None,
 ) -> list[dict]:
+    if bench_config is None:
+        bench_config = load_bench_config(config_path)
+    """Toggle each output channel on every valve module.
+
+    For each valve module:
+    1. Turn each channel HIGH → wait → turn LOW (valves do not support read-back)
+    2. Log per-channel progress
+    3. Report duration and pass/fail
+
+    :param hw: Pre-connected HardwareInterface
+    :param log: Logging callback ``(level, message) -> None``
+    :returns: List of per-module result dicts with per-channel details
+    """
     pulse_duration_s = 0.2
     pause_between_modules_s = 0.3
-    direction_param_id = 20145
 
     topology = hw.read_topology()
-    dio_mods = [m for m in topology if m.num_inouts > 0 or "DIO" in m.name.upper() or "IOL" in m.name.upper()]
+    valve_mods = [m for m in topology if m.is_valve]
     if module_address is not None:
-        dio_mods = [m for m in dio_mods if m.address == module_address]
+        valve_mods = [m for m in valve_mods if m.address == module_address]
 
-    if not dio_mods:
-        log("warning", "No DIO modules found on bus")
+    if not valve_mods:
+        log("warning", "No valve modules found on bus")
         return [{
-            "test": "dio-toggle",
+            "test": "valve-toggle",
             "passed": None,
-            "error": "No DIO modules found",
+            "error": "No valve modules found",
         }]
 
-    log("info", f"Found {len(dio_mods)} DIO module(s): {[f'#{m.address} {m.name}' for m in dio_mods]}")
+    log("info", f"Found {len(valve_mods)} valve module(s): "
+        f"{[f'#{m.address} {m.name}' for m in valve_mods]}")
 
     results: list[dict] = []
 
-    for mod in dio_mods:
-        # Some modules mix DO and DIO, but we focus on all outputs + inouts for toggling.
-        # Actually for DIO toggle we should toggle the inout channels.
+    for mod in valve_mods:
         total_channels = mod.num_outputs + mod.num_inouts
+        cpv = channels_per_valve(mod.name) if mod.is_valve else 0
+        extra_info = ""
+        if mod.is_valve and cpv > 0:
+            n_valves = total_channels // cpv
+            extra_info = f"  ({n_valves} valves × {cpv}c/valve)"
         if on_module:
             with contextlib.suppress(Exception):
                 on_module(mod.address)
-        log("info", f"  ── #{mod.address} {mod.name} ({total_channels} channel(s)) ──")
+        log("info", f"  ── #{mod.address} {mod.name} ({total_channels} channel(s){extra_info}) ──")
         t_start = time.time()
         channels: list[dict[str, Any]] = []
 
         for ch in range(total_channels):
             ch_start = time.time()
+
             try:
-                # Configure as output (True)
-                # Note: instances are 1-based, channel is 0-based
-                instance = ch + 1
-                hw.write_parameter(mod.address, direction_param_id, True, instance=instance)
-                
-                # Small delay to let the configuration settle
-                time.sleep(0.05)
-                
                 # Set HIGH
                 hw.write_output(mod.address, ch, True)
                 time.sleep(pulse_duration_s)
 
-                # Read back
-                try:
-                    actual = hw.read_input(mod.address, ch)
-                except Exception:
-                    actual = None
-
                 # Set LOW
                 hw.write_output(mod.address, ch, False)
-                time.sleep(0.05)
-
-                # Restore configuration to input (False)
-                hw.write_parameter(mod.address, direction_param_id, False, instance=instance)
 
                 ch_dur = round((time.time() - ch_start) * 1000, 1)
-                passed = actual is None or bool(actual)
+                # Valve terminals: pass if write succeeded (no read-back possible)
+                passed = True
 
                 channels.append({
                     "channel": ch,
                     "passed": passed,
                     "duration_ms": ch_dur,
-                    "readback": actual,
+                    "readback": None,
                 })
 
-                status = "✓" if passed else "✗ (readback LOW)"
-                log("info", f"    ch {ch} (as output) {status}  ({ch_dur}ms)")
+                status = "✓"
+                valve_note = ""
+                if cpv > 0:
+                    vi = ch // cpv
+                    sub = ch % cpv
+                    valve_note = f"  [V{vi + 1} {'A' if sub == 0 else 'B'}]" if cpv > 1 else f"  [V{vi + 1}]"
+                log("info", f"    ch {ch}:{valve_note} {status}  ({ch_dur}ms)")
 
             except Exception as exc:
                 ch_dur = round((time.time() - ch_start) * 1000, 1)
@@ -129,17 +140,14 @@ def run(
                 })
                 log("error", f"    ch {ch}: ✗ {exc}  ({ch_dur}ms)")
                 # Try to reset
-                try:
+                with contextlib.suppress(Exception):
                     hw.write_output(mod.address, ch, False)
-                    hw.write_parameter(mod.address, direction_param_id, False, instance=ch + 1)
-                except Exception:
-                    pass
 
         t_total = round((time.time() - t_start) * 1000, 1)
         all_ok = all(c.get("passed", False) for c in channels)
 
         result = {
-            "test_id": "dio-toggle",
+            "test_id": "valve-toggle",
             "module": mod.name,
             "address": mod.address,
             "module_code": mod.module_code,
@@ -154,6 +162,7 @@ def run(
 
         results.append(result)
 
+        # Live push: notify caller of this module's result immediately
         if on_result:
             with contextlib.suppress(Exception):
                 on_result(result)
@@ -163,7 +172,7 @@ def run(
             f"  {status_icon} #{mod.address} {mod.name}: "
             f"{result['passed_channels']}/{total_channels} passed  ({t_total}ms)")
 
-        if mod != dio_mods[-1]:
+        if mod != valve_mods[-1]:
             time.sleep(pause_between_modules_s)
 
     return results

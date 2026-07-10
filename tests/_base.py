@@ -5,9 +5,12 @@ import fnmatch
 import json
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from cpx_io.cpx_system.cpx_ap.ap_parameter import Parameter  # type: ignore[import-untyped]
+
+if TYPE_CHECKING:
+    from config_models import BenchConfig
 
 # ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -17,6 +20,34 @@ LogFn = Callable[[str, str], None]
 
 def noop_log(level: str, msg: str) -> None:  # noqa: ARG001
     """Default no-op log — used when no callback is supplied."""
+
+
+# ── Config loading ────────────────────────────────────────────────────────────
+
+# Default path to the bench configuration file — each test knows this path.
+DEFAULT_BENCH_CONFIG_PATH = "data/bench_config.json"
+
+
+def load_bench_config(config_path: str | None = None) -> "BenchConfig | None":
+    """Load the :class:`BenchConfig` from *config_path*.
+
+    Args:
+        config_path: Path to bench_config.json.  Defaults to
+            ``data/bench_config.json``.
+
+    Returns:
+        The parsed BenchConfig, or ``None`` if the file does not exist
+        or cannot be parsed.
+    """
+    from config_models import BenchConfig
+
+    path = Path(config_path or DEFAULT_BENCH_CONFIG_PATH)
+    if not path.exists():
+        return None
+    try:
+        return BenchConfig.model_validate_json(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
 
 
 # ── Compatibility helpers ─────────────────────────────────────────────────────
