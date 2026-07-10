@@ -1993,24 +1993,32 @@ async def io_read_all():
         result = {}
         for mod in hw._modules:
             addr = mod.position
+            
+            # Read all channels at once to avoid N network requests per module
+            try:
+                ch_vals = mod.read_channels()
+            except Exception:
+                ch_vals = []
+                
+            val_idx = 0
             inputs = []
             for c in mod.channels.inputs:
-                try:
-                    inputs.append(bool(mod.read_channel(c.index)))
-                except Exception:
-                    inputs.append(False)
+                val = bool(ch_vals[val_idx]) if val_idx < len(ch_vals) else False
+                inputs.append(val)
+                val_idx += 1
+                
             outputs = []
             for c in mod.channels.outputs:
-                try:
-                    outputs.append(bool(mod.read_channel(c.index)))
-                except Exception:
-                    outputs.append(False)
+                val = bool(ch_vals[val_idx]) if val_idx < len(ch_vals) else False
+                outputs.append(val)
+                val_idx += 1
+                
             inouts = []
-            for c in mod.channels.inouts:
-                try:
-                    inouts.append(bool(mod.read_channel(c.index)))
-                except Exception:
-                    inouts.append(False)
+            # inouts are stored at the end of the inputs list (as per ap_module.py initialization)
+            if len(mod.channels.inouts) > 0:
+                num_pure_inputs = len(mod.channels.inputs) - len(mod.channels.inouts)
+                inouts = inputs[num_pure_inputs:]
+                
             result[addr] = {"inputs": inputs, "outputs": outputs, "inouts": inouts}
         return result
 
