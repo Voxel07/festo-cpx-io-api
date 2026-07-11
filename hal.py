@@ -91,11 +91,11 @@ class HardwareInterface(ABC):
         """Force all output channels on all modules to a safe (LOW) state."""
 
     @abstractmethod
-    def read_parameter(self, address: int, param_id: int, instance: int = 0) -> int:
+    def read_parameter(self, address: int, param_id: int, instance: int | None = None) -> Any:
         """Read a parameter value from a module."""
 
     @abstractmethod
-    def write_parameter(self, address: int, param_id: int, value: int, instance: int = 0) -> None:
+    def write_parameter(self, address: int, param_id: int, value: int, instance: int | None = None) -> None:
         """Write a parameter value to a module."""
 
     @abstractmethod
@@ -111,6 +111,23 @@ class HardwareInterface(ABC):
         :meth:`disconnect` + :meth:`connect`."""
         self.disconnect()
         self.connect(ip_address, timeout)
+
+    def configure_port_direction(self, address: int, channel: int, output: bool) -> None:
+        """Set a configurable channel direction and register it for cleanup."""
+        self.write_parameter(address, 20145, int(output), instance=channel + 1)
+        configured = getattr(self, "_configured_directions", None)
+        if configured is None:
+            configured = set()
+            setattr(self, "_configured_directions", configured)
+        configured.add((address, channel))
+
+    def restore_port_directions(self) -> None:
+        """Restore all configurable channels touched by this session to input."""
+        configured = getattr(self, "_configured_directions", set())
+        for address, channel in list(configured):
+            with suppress(Exception):
+                self.write_parameter(address, 20145, 0, instance=channel + 1)
+        configured.clear()
 
     def reset_device(
         self,
@@ -150,6 +167,7 @@ class CpxApHardware(HardwareInterface):
     def __init__(self) -> None:
         self._cpx_ap: Any = None
         self._modules: list[Any] = []
+        self._configured_directions: set[tuple[int, int]] = set()
 
     def connect(self, ip_address: str, timeout: float = 0) -> None:
         from cpx_io.cpx_system.cpx_ap.cpx_ap import CpxAp  # type: ignore[import-untyped]
@@ -174,19 +192,7 @@ class CpxApHardware(HardwareInterface):
 
     def write_output(self, address: int, channel: int, value: bool) -> None:
         mod = self._get_module(address)
-        try:
-            mod.write_channel(channel, value)
-        except Exception:
-            # Fallback: build a full channel list and write all at once.
-            # Account for both 'outputs' and 'inout' channels (IO-Link etc.).
-            num_out = len(mod.channels.outputs) + len(mod.channels.inouts)
-            if num_out == 0:
-                raise RuntimeError(
-                    f"Module at #{address} has no writable channels"
-                )
-            vals = [False] * max(num_out, channel + 1)
-            vals[channel] = value
-            mod.write_channels(vals)
+        mod.write_channel(channel, value)
 
     def write_channels(self, address: int, values: list[bool]) -> None:
         mod = self._get_module(address)
@@ -197,7 +203,7 @@ class CpxApHardware(HardwareInterface):
             return
         for mod in self._modules:
             try:
-                total_out = len(mod.channels.outputs) + len(mod.channels.inouts)
+                total_out = len(mod.channels.outputs)
                 if total_out > 0:
                     zeros = [False] * total_out
                     mod.write_channels(zeros)
@@ -205,7 +211,7 @@ class CpxApHardware(HardwareInterface):
             except Exception:
                 continue
 
-    def read_parameter(self, address: int, param_id: int, instance: int = 0) -> int:
+    def read_parameter(self, address: int, param_id: int, instance: int | None = None) -> Any:
         """Read a parameter via the module's own parameter dictionary.
 
         Uses ``module.read_module_parameter()`` which resolves the real
@@ -214,14 +220,14 @@ class CpxApHardware(HardwareInterface):
         parameters are per-channel instances.
         """
         mod = self._get_module(address)
-        if instance:
+        if instance is not None:
             return mod.read_module_parameter(param_id, instances=instance)
         return mod.read_module_parameter(param_id)
 
-    def write_parameter(self, address: int, param_id: int, value: int, instance: int = 0) -> None:
+    def write_parameter(self, address: int, param_id: int, value: int, instance: int | None = None) -> None:
         """Write a parameter via the module's own parameter dictionary."""
         mod = self._get_module(address)
-        if instance:
+        if instance is not None:
             mod.write_module_parameter(param_id, value, instances=instance)
         else:
             mod.write_module_parameter(param_id, value)
@@ -232,7 +238,7 @@ class CpxApHardware(HardwareInterface):
 
     def module_supports_channel_write(self, address: int) -> bool:
         mod = self._get_module(address)
-        return (len(mod.channels.outputs) + len(mod.channels.inouts)) > 0
+        return len(mod.channels.outputs) > 0
 
     def reset_device(
         self,
@@ -346,10 +352,9 @@ class CrossProcessLock:
                     except OSError:
                         process_alive = False
 
-                # Stale check: 30 minutes
-                is_stale = (time.time() - lock_time) > 1800
-
-                if not process_alive or is_stale:
+                # Age alone must never invalidate a live hardware owner: long
+                # destructive test plans can legitimately exceed 30 minutes.
+                if not process_alive:
                     self._force_release()
                     continue
 
@@ -420,7 +425,10 @@ class SafeSession(AbstractContextManager["HardwareInterface"]):
         except Exception:
             pass
         finally:
-            with suppress(Exception):
-                self._hw.disconnect()
-            self._lock.release()
+            try:
+                self._hw.restore_port_directions()
+            finally:
+                with suppress(Exception):
+                    self._hw.disconnect()
+                self._lock.release()
         return False  # don't suppress exceptions

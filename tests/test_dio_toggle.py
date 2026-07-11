@@ -51,8 +51,6 @@ def run(
         bench_config = load_bench_config(config_path)
     pulse_duration_s = 0.2
     pause_between_modules_s = 0.3
-    direction_param_id = 20145
-
     topology = hw.read_topology()
     dio_mods = [m for m in topology if m.num_inouts > 0 or "DIO" in m.name.upper() or "IOL" in m.name.upper()]
     if module_address is not None:
@@ -86,8 +84,7 @@ def run(
             try:
                 # Configure as output (True)
                 # Note: instances are 1-based, channel is 0-based
-                instance = ch + 1
-                hw.write_parameter(mod.address, direction_param_id, True, instance=instance)
+                hw.configure_port_direction(mod.address, ch, True)
                 
                 # Small delay to let the configuration settle
                 time.sleep(0.05)
@@ -107,7 +104,7 @@ def run(
                 time.sleep(0.05)
 
                 # Restore configuration to input (False)
-                hw.write_parameter(mod.address, direction_param_id, False, instance=instance)
+                hw.configure_port_direction(mod.address, ch, False)
 
                 ch_dur = round((time.time() - ch_start) * 1000, 1)
                 passed = actual is None or bool(actual)
@@ -134,7 +131,7 @@ def run(
                 # Try to reset
                 try:
                     hw.write_output(mod.address, ch, False)
-                    hw.write_parameter(mod.address, direction_param_id, False, instance=ch + 1)
+                    hw.configure_port_direction(mod.address, ch, False)
                 except Exception:
                     pass
 

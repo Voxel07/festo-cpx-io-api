@@ -26,6 +26,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import json
 import os
+import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -61,7 +62,49 @@ app = FastAPI(
 
 # Serve the compiled Vite app (dist/) in production.
 # Must be mounted AFTER the API routes so it only catches remaining paths.
-_DIST = Path("dist")
+_API_ROOT = Path(__file__).resolve().parent
+_DIST = _API_ROOT / "dist"
+_DEFAULT_CONFIG_ROOT = _API_ROOT / "data"
+_GRAPHIFY_HTML = Path(
+    os.environ.get("GRAPHIFY_HTML_PATH", str(_API_ROOT.parent / "graphify-out" / "graph.html"))
+).expanduser().resolve()
+
+
+def _config_roots() -> tuple[Path, ...]:
+    """Return the configured directories from which bench configs may be accessed."""
+    configured = os.environ.get("FESTO_CONFIG_ROOTS", "")
+    roots = [_DEFAULT_CONFIG_ROOT]
+    roots.extend(Path(item).expanduser() for item in configured.split(os.pathsep) if item.strip())
+    return tuple(dict.fromkeys(root.resolve() for root in roots))
+
+
+def _resolve_config_path(raw_path: str, *, must_exist: bool = False) -> Path:
+    """Resolve a client path inside an allowed configuration root."""
+    supplied = Path(raw_path).expanduser()
+    candidates = [supplied] if supplied.is_absolute() else [root / supplied.name for root in _config_roots()]
+    # Preserve the conventional data/foo.json spelling without trusting arbitrary parents.
+    if not supplied.is_absolute() and supplied.parent not in (Path("."), Path("data")):
+        raise HTTPException(status_code=400, detail="Configuration paths may not contain directories")
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if any(resolved == root or root in resolved.parents for root in _config_roots()):
+            if must_exist and not resolved.is_file():
+                continue
+            return resolved
+    if must_exist:
+        raise HTTPException(status_code=404, detail=f"Configuration not found: {supplied.name}")
+    raise HTTPException(status_code=400, detail="Configuration path is outside the allowed roots")
+
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as handle:
+        handle.write(content)
+        temporary = Path(handle.name)
+    try:
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 # ─── Hardware Connection Management ────────────────────────────────────────
@@ -216,6 +259,21 @@ async def ui():
     return FileResponse(str(index))
 
 
+@app.get("/architecture/graph", response_class=FileResponse, include_in_schema=False)
+async def architecture_graph():
+    """Serve the generated Graphify visualization for the Architecture tab."""
+    if not _GRAPHIFY_HTML.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail="Graphify visualization not found. Run graphify update or set GRAPHIFY_HTML_PATH.",
+        )
+    return FileResponse(
+        str(_GRAPHIFY_HTML),
+        media_type="text/html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @app.get("/svg-map", include_in_schema=False)
 async def svg_map():
     """Return the SVG icon file mapping (OrderCode -> filename)."""
@@ -242,7 +300,8 @@ async def generate_config(request: ConfigGenerateRequest):
         _enrich_generated_metadata(config)
 
         # Preserve existing wiring and mounted_valves from the current file (if explicitly provided).
-        if request.save_path and (save_path := Path(request.save_path)).exists():
+        save_path = _resolve_config_path(request.save_path) if request.save_path else None
+        if save_path and save_path.exists():
             try:
                 existing = BenchConfig.model_validate_json(save_path.read_text(encoding="utf-8"))
                 # Merge wiring
@@ -260,9 +319,11 @@ async def generate_config(request: ConfigGenerateRequest):
                 _enrich_generated_metadata(config)
             except Exception:
                 pass  # existing file is corrupt or missing — proceed with fresh config
+    except HTTPException:
+        raise
     except Exception as exc:
         import traceback
-        with open("crash_log.txt", "w") as f:
+        with open(_API_ROOT / "crash_log.txt", "w", encoding="utf-8") as f:
             f.write(traceback.format_exc())
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -272,9 +333,7 @@ async def generate_config(request: ConfigGenerateRequest):
 @app.get("/config")
 async def load_config(file_path: str = Query("data/bench_config.json", description="Path to the BenchConfig JSON file")):
     """Load a previously saved unified BenchConfig file."""
-    path = Path(file_path)
-    if not path.exists():
-        raise HTTPException(status_code=404, detail=f"File not found: {path.resolve()}")
+    path = _resolve_config_path(file_path, must_exist=True)
     try:
         config = BenchConfig.model_validate_json(path.read_text(encoding="utf-8"))
         return JSONResponse(config.model_dump())
@@ -285,10 +344,9 @@ async def load_config(file_path: str = Query("data/bench_config.json", descripti
 @app.post("/config")
 async def save_config(payload: ConfigSavePayload):
     """Persist a complete BenchConfig structure (topology + connections) to a JSON file."""
-    path = Path(payload.save_path)
+    path = _resolve_config_path(payload.save_path)
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(payload.config.model_dump_json(indent=2, exclude={"module_types", "test_definitions"}), encoding="utf-8")
+        _atomic_write_text(path, payload.config.model_dump_json(indent=2, exclude={"module_types", "test_definitions"}))
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Could not save config: {exc}") from exc
     return JSONResponse({"saved_to": str(path.resolve())})
@@ -297,9 +355,7 @@ async def save_config(payload: ConfigSavePayload):
 @app.delete("/config")
 async def delete_config(file_path: str = Query("data/bench_config.json", description="Path to the BenchConfig JSON file to delete")):
     """Delete a saved BenchConfig file."""
-    path = Path(file_path)
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="Configuration file not found.")
+    path = _resolve_config_path(file_path, must_exist=True)
     try:
         path.unlink()
         return JSONResponse({"detail": f"Deleted {file_path}"})
@@ -310,12 +366,7 @@ async def delete_config(file_path: str = Query("data/bench_config.json", descrip
 @app.post("/config/compare")
 async def compare_config(request: ConfigCompareRequest):
     """Compare a stored BenchConfig module instances against the live CPX-AP system."""
-    stored_path = Path(request.config_path)
-    if not stored_path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"Stored configuration file not found: {stored_path.resolve()}",
-        )
+    stored_path = _resolve_config_path(request.config_path, must_exist=True)
     try:
         from tests.test_compare_topology import run as run_compare
 
@@ -324,6 +375,8 @@ async def compare_config(request: ConfigCompareRequest):
         if not mgr.is_connected:
             raise HTTPException(status_code=400, detail="Not connected. Call /hw/connect first.")
         result = run_compare(hw=mgr.get_hw(), bench_config=bench_config)
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -387,7 +440,6 @@ async def io_set_output(request: SetOutputRequest):
     after IO_AUTO_RESET_S seconds (default 60).  Setting LOW cancels any
     pending timer.
     """
-    import concurrent.futures
 
     mgr = get_connection_manager()
     if not mgr.is_connected:
@@ -423,10 +475,8 @@ async def io_set_output(request: SetOutputRequest):
             "auto_reset_s": _IO_AUTO_RESET_S if request.value else None,
         }
 
-    loop = asyncio.get_running_loop()
     try:
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            result = await loop.run_in_executor(pool, _do)
+        result = await asyncio.to_thread(_do)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -472,7 +522,6 @@ async def io_read_input(
     Returns ``{"values": [bool, ...], "value": bool, "module_addr": int, "channel": str}``
     where ``value`` is ``True`` only when all channels read HIGH.
     """
-    import concurrent.futures
 
     mgr = get_connection_manager()
     if not mgr.is_connected:
@@ -485,10 +534,8 @@ async def io_read_input(
         values = [hw.read_input(module_addr, base_idx + i) for i in range(channels_per_port)]
         return {"values": values, "value": all(values), "module_addr": module_addr, "channel": channel}
 
-    loop = asyncio.get_running_loop()
     try:
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            result = await loop.run_in_executor(pool, _do)
+        result = await asyncio.to_thread(_do)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return JSONResponse(result)
@@ -517,7 +564,6 @@ async def io_set_all_outputs(request: SetAllOutputsRequest):
     Each channel set to HIGH spawns the usual auto-reset safety timer.
     Returns the list of channel indices that were written.
     """
-    import concurrent.futures
 
     mgr = get_connection_manager()
     if not mgr.is_connected:
@@ -559,10 +605,8 @@ async def io_set_all_outputs(request: SetAllOutputsRequest):
             "auto_reset_s": _IO_AUTO_RESET_S if request.value else None,
         }
 
-    loop = asyncio.get_running_loop()
     try:
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            result = await loop.run_in_executor(pool, _do)
+        result = await asyncio.to_thread(_do)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -674,9 +718,7 @@ async def start_test_run(request: StartTestRunRequest):
     if request.source not in {"web", "ci", "cli", "external"}:
         raise HTTPException(status_code=400, detail=f"Unsupported run source: {request.source}")
 
-    config_path = Path(request.config_path)
-    if not config_path.exists():
-        raise HTTPException(status_code=404, detail=f"Bench configuration not found: {config_path}")
+    config_path = _resolve_config_path(request.config_path, must_exist=True)
     try:
         bench_config = BenchConfig.model_validate_json(config_path.read_text(encoding="utf-8"))
         from resolver import load_all_test_definitions
@@ -729,7 +771,7 @@ async def start_test_run(request: StartTestRunRequest):
         _execute_test_run_safe,
         run_id,
         request.ip_address,
-        request.config_path,
+        str(config_path),
         requested,
         request.source,
         loop,  # <-- event loop passed explicitly
@@ -835,7 +877,7 @@ async def test_run_history(limit: int = 50):
     is unavailable so the History tab always shows data.
     """
     from pocketbase_logger import pb_log
-    runs = pb_log.get_run_history(limit)
+    runs = await asyncio.to_thread(pb_log.get_run_history, limit)
     if not runs:
         runs = _run_history[:limit]
     return JSONResponse(runs)
@@ -856,7 +898,7 @@ async def test_run_detail(run_id: str):
         return JSONResponse(_current_test_run)
     # PocketBase
     from pocketbase_logger import pb_log
-    detail = pb_log.get_run_detail(run_id)
+    detail = await asyncio.to_thread(pb_log.get_run_detail, run_id)
     if detail is None:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
     return JSONResponse(detail)
@@ -869,7 +911,7 @@ async def delete_test_run(run_id: str):
     _run_history = [r for r in _run_history if r.get("run_id") != run_id]
 
     from pocketbase_logger import pb_log
-    pb_log.delete_run(run_id)
+    await asyncio.to_thread(pb_log.delete_run, run_id)
     return JSONResponse({"status": "deleted", "run_id": run_id})
 
 
@@ -880,7 +922,7 @@ async def clear_test_run_history():
     _run_history.clear()
 
     from pocketbase_logger import pb_log
-    pb_log.clear_history()
+    await asyncio.to_thread(pb_log.clear_history)
     return JSONResponse({"status": "cleared"})
 
 
@@ -899,7 +941,6 @@ async def get_module_parameters(
 ):
     """Retrieve metadata for all parameters available on the module at the given address."""
     import asyncio
-    import concurrent.futures
 
     mgr = get_connection_manager()
     if not mgr.is_connected:
@@ -928,11 +969,9 @@ async def get_module_parameters(
             })
         return params
 
-    loop = asyncio.get_running_loop()
     try:
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            result = await loop.run_in_executor(pool, _do)
-            return JSONResponse(result)
+        result = await asyncio.to_thread(_do)
+        return JSONResponse(result)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -947,7 +986,6 @@ async def read_module_parameter(
 ):
     """Read the current value of a module parameter."""
     import asyncio
-    import concurrent.futures
 
     mgr = get_connection_manager()
     if not mgr.is_connected:
@@ -984,11 +1022,9 @@ async def read_module_parameter(
             return {"value": [str(x) if x is not None else "" for x in val]}
         return {"value": str(val) if val is not None else ""}
 
-    loop = asyncio.get_running_loop()
     try:
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            result = await loop.run_in_executor(pool, _do)
-            return JSONResponse(result)
+        result = await asyncio.to_thread(_do)
+        return JSONResponse(result)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -1001,7 +1037,6 @@ async def write_module_parameter(
 ):
     """Write a new value to a module parameter and read it back."""
     import asyncio
-    import concurrent.futures
 
     mgr = get_connection_manager()
     if not mgr.is_connected:
@@ -1048,11 +1083,9 @@ async def write_module_parameter(
             new_val = mod.read_module_parameter_enum_str(param_id, instances=request.instance)
         return {"value": str(new_val) if new_val is not None else ""}
 
-    loop = asyncio.get_running_loop()
     try:
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            result = await loop.run_in_executor(pool, _do)
-            return JSONResponse(result)
+        result = await asyncio.to_thread(_do)
+        return JSONResponse(result)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -1064,7 +1097,6 @@ async def get_system_diagnoses(
 ):
     """Retrieve all active diagnoses raised in the system across all modules."""
     import asyncio
-    import concurrent.futures
 
     mgr = get_connection_manager()
     if not mgr.is_connected:
@@ -1121,11 +1153,9 @@ async def get_system_diagnoses(
                 pass  # skip if module doesn't support diagnosis or fails
         return active_diags
 
-    loop = asyncio.get_running_loop()
     try:
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            result = await loop.run_in_executor(pool, _do)
-            return JSONResponse(result)
+        result = await asyncio.to_thread(_do)
+        return JSONResponse(result)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -1138,7 +1168,7 @@ async def pocketbase_health():
     import requests as _req
     pb_url = _os.environ.get("PB_URL") or _os.environ.get("POCKETBASE_URL", "http://localhost:8090")
     try:
-        r = _req.get(f"{pb_url}/api/health", timeout=(1.5, 3))
+        r = await asyncio.to_thread(_req.get, f"{pb_url}/api/health", timeout=(1.5, 3))
         return JSONResponse({"status": "ok", "url": pb_url, "http_status": r.status_code})
     except Exception as exc:
         return JSONResponse(
@@ -1168,9 +1198,7 @@ async def dry_run(request: DryRunRequest):
     if not _NEW_COMPONENTS:
         raise HTTPException(status_code=501, detail="Resolver not available — check imports")
 
-    config_path = Path(request.config_path)
-    if not config_path.exists():
-        raise HTTPException(status_code=404, detail=f"Bench configuration not found: {config_path}")
+    config_path = _resolve_config_path(request.config_path, must_exist=True)
 
     try:
         bench_config = BenchConfig.model_validate_json(config_path.read_text(encoding="utf-8"))
@@ -1181,7 +1209,7 @@ async def dry_run(request: DryRunRequest):
             filters.safety_class = SafetyClass(request.safety_class_filter)
         plan = TestResolver().resolve(bench_config, filters)
         if request.export_path:
-            TestResolver().export_plan(plan, request.export_path)
+            TestResolver().export_plan(plan, str(_resolve_config_path(request.export_path)))
         return JSONResponse(plan.to_dict())
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -1205,7 +1233,7 @@ async def dashboard_data():
     all_runs: list[dict] = []
     try:
         from pocketbase_logger import pb_log
-        pb_runs = pb_log.get_run_history(500)
+        pb_runs = await asyncio.to_thread(pb_log.get_run_history, 500)
         if pb_runs:
             all_runs = pb_runs
     except Exception:
@@ -1856,11 +1884,15 @@ def _run_single_test_hw(
                         break
             if not replaced:
                 sub.append(mod_result)
-            all_ok = all(
-                r.get("passed", False)
-                for r in sub
-                if isinstance(r, dict) and r.get("passed") is not None
-            )
+            outcomes = [r.get("passed") for r in sub if isinstance(r, dict)]
+            evaluated = [bool(value) for value in outcomes if value is not None]
+            all_ok: bool | None
+            if any(value is False for value in evaluated):
+                all_ok = False
+            elif any(value is None for value in outcomes):
+                all_ok = None
+            else:
+                all_ok = bool(evaluated) and all(evaluated)
             entry["passed"] = all_ok
             entry["all_passed"] = all_ok
             total_ms = sum(
@@ -2003,11 +2035,12 @@ def _run_single_test_hw(
                     r["address"] = r["source_addr"]
                 elif "module_addr" in r:
                     r["address"] = r["module_addr"]
-        passed = all(
-            r.get("passed", False)
+        evaluated = [
+            bool(r.get("passed"))
             for r in raw
             if isinstance(r, dict) and r.get("passed") is not None
-        )
+        ]
+        passed = bool(evaluated) and all(evaluated)
         total_ms = sum(
             r.get("duration_ms", 0)
             for r in raw
@@ -2017,6 +2050,7 @@ def _run_single_test_hw(
             "results": raw,
             "all_passed": passed,
             "passed": passed,
+            "error": None if evaluated else "Test produced no evaluated results",
             "test_id": test_id,
             "duration_ms": round(total_ms, 1) if total_ms > 0 else None,
         }
@@ -2025,6 +2059,10 @@ def _run_single_test_hw(
             raw["passed"] = bool(raw.get("all_passed", False))
         raw.setdefault("test_id", test_id)
         sub = raw.get("results", [])
+        if "results" in raw and isinstance(sub, list) and not sub:
+            raw["passed"] = False
+            raw["all_passed"] = False
+            raw.setdefault("error", "Test produced no evaluated results")
         if isinstance(sub, list):
             for r in sub:
                 if isinstance(r, dict) and "address" not in r:
@@ -2056,7 +2094,6 @@ else:
 @app.get("/io/read-all")
 async def io_read_all():
     """Read all input, output, and inout channels for all modules."""
-    import concurrent.futures
     mgr = get_connection_manager()
     if not mgr.is_connected:
         raise HTTPException(status_code=400, detail="Not connected.")
@@ -2098,10 +2135,8 @@ async def io_read_all():
             result[addr] = {"inputs": inputs, "outputs": outputs, "inouts": inouts}
         return result
 
-    loop = asyncio.get_running_loop()
     try:
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            result = await loop.run_in_executor(pool, _do)
+        result = await asyncio.to_thread(_do)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return JSONResponse(result)

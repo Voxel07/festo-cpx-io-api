@@ -26,6 +26,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import threading
 import time
 
 import requests
@@ -47,6 +48,7 @@ COLL_MEASUREMENTS = "festo_measurements"
 
 _token: str | None = None
 _token_expiry: float = 0
+_auth_lock = threading.Lock()
 
 
 def _authenticate() -> str:
@@ -56,28 +58,29 @@ def _authenticate() -> str:
     """
     global _token, _token_expiry
 
-    if _token and time.time() < _token_expiry - 60:
-        return _token
+    with _auth_lock:
+        if _token and time.time() < _token_expiry - 60:
+            return _token
 
-    if not PB_USERNAME or not PB_PASSWORD:
-        _token = None
-        return ""
+        if not PB_USERNAME or not PB_PASSWORD:
+            _token = None
+            return ""
 
-    try:
-        resp = requests.post(
-            f"{PB_URL}/api/collections/users/auth-with-password",
-            json={"identity": PB_USERNAME, "password": PB_PASSWORD},
-            timeout=(1.5, 3),
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        _token = data.get("token", "")
-        _token_expiry = time.time() + 3600
-        return _token
-    except Exception as exc:
-        _token = None
-        print(f"[PocketBase] Auth failed ({PB_URL}): {exc}", flush=True)
-        return ""
+        try:
+            resp = requests.post(
+                f"{PB_URL}/api/collections/users/auth-with-password",
+                json={"identity": PB_USERNAME, "password": PB_PASSWORD},
+                timeout=(1.5, 3),
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            _token = data.get("token", "")
+            _token_expiry = time.time() + 3600
+            return _token
+        except Exception as exc:
+            _token = None
+            print(f"[PocketBase] Auth failed ({PB_URL}): {exc}", flush=True)
+            return ""
 
 
 def _headers() -> dict[str, str]:

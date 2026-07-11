@@ -20,6 +20,7 @@ import importlib
 import json
 import time
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -33,14 +34,15 @@ from config_models import (
 )
 
 
-def load_all_test_definitions() -> list[dict]:
+@lru_cache(maxsize=1)
+def _cached_test_definitions() -> tuple[dict, ...]:
     test_defs = []
     tests_dir = Path(__file__).parent / "tests"
     if not tests_dir.exists():
         tests_dir = Path("tests")
         
     if not tests_dir.exists():
-        return []
+        return ()
         
     for file in tests_dir.glob("*.py"):
         if file.name in ("__init__.py", "_base.py", "test_suite.py", "test_api.py"):
@@ -55,7 +57,12 @@ def load_all_test_definitions() -> list[dict]:
         except Exception as exc:
             print(f"Error loading test definition from {file}: {exc}")
             
-    return test_defs
+    return tuple(test_defs)
+
+
+def load_all_test_definitions() -> list[dict]:
+    """Return isolated copies of cached test metadata discovered from modules."""
+    return [dict(definition) for definition in _cached_test_definitions()]
 
 
 # ─── Data types ───────────────────────────────────────────────────────────────
@@ -89,6 +96,24 @@ class ResolvedTestInstance:
         if self.wiring_id:
             parts.append(self.wiring_id)
         return "-".join(parts)
+
+
+@dataclass(frozen=True)
+class ConditionCounterRoute:
+    """An output-to-CPX-AP-I-16* input route ready for a CC test."""
+
+    wiring_id: str
+    output_address: int
+    output_channel: int
+    counter_address: int
+    counter_channel: int
+    output_is_configurable: bool = False
+    counter_is_configurable: bool = False
+
+    @property
+    def counter_instance(self) -> int:
+        """The one-based parameter instance used by ``cpx_io``."""
+        return self.counter_channel + 1
 
 
 @dataclass
@@ -278,6 +303,88 @@ class TestResolver:
             created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             instances=deduped,
         )
+
+    @staticmethod
+    def resolve_condition_counter_routes(
+        config: BenchConfig, module_address: int | None = None
+    ) -> list[ConditionCounterRoute]:
+        """Resolve and orient wiring suitable for condition-counter tests.
+
+        CC parameters belong to CPX-AP-I-16* modules.  The configured wire may
+        list that module at either endpoint.  On configurable DIO endpoints,
+        ``port_directions`` in the bench configuration determines the source.
+        """
+        modules = {module.instance_id: module for module in config.module_instances}
+        routes: list[ConditionCounterRoute] = []
+
+        def channel_index(label: str) -> int:
+            digits = "".join(ch for ch in str(label) if ch.isdigit())
+            if not digits:
+                raise ValueError(f"Invalid channel label: {label!r}")
+            return int(digits)
+
+        def is_counter_module(module: ModuleInstance) -> bool:
+            return module.display_name.upper().startswith("CPX-AP-I-16")
+
+        def can_drive(module: ModuleInstance, label: str) -> bool:
+            key = str(channel_index(label))
+            if key in module.port_directions:
+                return module.port_directions[key] is True
+            return module.num_outputs > 0
+
+        # Output variants count their own switching cycles and need no external
+        # wire.  For configurable variants, bench_config selects output ports.
+        for module in config.module_instances:
+            if not is_counter_module(module):
+                continue
+            if module_address is not None and module.address != module_address:
+                continue
+            if module.port_directions:
+                output_channels = sorted(
+                    int(channel) for channel, output in module.port_directions.items() if output
+                )
+            elif module.num_outputs > 0 and module.num_inputs == 0:
+                output_channels = list(range(module.num_outputs))
+            else:
+                output_channels = []
+            for channel in output_channels:
+                routes.append(ConditionCounterRoute(
+                    wiring_id=f"internal:{module.instance_id}:{channel}",
+                    output_address=module.address,
+                    output_channel=channel,
+                    counter_address=module.address,
+                    counter_channel=channel,
+                    output_is_configurable=module.num_inouts > 0,
+                ))
+
+        for wire in config.wiring:
+            first = modules.get(wire.source_instance_id)
+            second = modules.get(wire.target_instance_id)
+            if first is None or second is None:
+                continue
+            orientations = (
+                (first, wire.source_channel, second, wire.target_channel),
+                (second, wire.target_channel, first, wire.source_channel),
+            )
+            for counter, counter_label, output, output_label in orientations:
+                if not is_counter_module(counter) or not can_drive(output, output_label):
+                    continue
+                counter_key = str(channel_index(counter_label))
+                if counter.port_directions.get(counter_key) is True:
+                    continue
+                if module_address is not None and counter.address != module_address:
+                    continue
+                routes.append(ConditionCounterRoute(
+                    wiring_id=wire.id,
+                    output_address=output.address,
+                    output_channel=channel_index(output_label),
+                    counter_address=counter.address,
+                    counter_channel=channel_index(counter_label),
+                    output_is_configurable=output.num_inouts > 0,
+                    counter_is_configurable=counter.num_inouts > 0,
+                ))
+                break
+        return routes
 
     # ── Matching helpers ──────────────────────────────────────────────────
 

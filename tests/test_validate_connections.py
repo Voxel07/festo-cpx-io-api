@@ -71,8 +71,9 @@ def validate_single(
     cpp_tgt = 2 if "M12" in tgt_mod.name else 1
 
     port_num_src = int(src_ch.lstrip("X"))
-    num_in_src = src_mod.num_inputs
-    out_base = port_num_src * cpp_src - num_in_src
+    # cpx_io numbers the output process image independently from inputs;
+    # mixed modules therefore do not offset output indices by num_inputs.
+    out_base = port_num_src * cpp_src
 
     port_num_tgt = int(tgt_ch.lstrip("X"))
     base_idx_tgt = port_num_tgt * cpp_tgt
@@ -81,19 +82,17 @@ def validate_single(
     src_offsets = [src_sub] if src_sub is not None else range(cpp_src)
     tgt_offsets = [tgt_sub] if tgt_sub is not None else range(cpp_tgt)
 
-    direction_param_id = 20145
-
     # Configure target direction if it has inouts (False = input)
     if tgt_mod.num_inouts > 0:
         for i in tgt_offsets:
             with contextlib.suppress(Exception):
-                hw.write_parameter(tgt_addr, direction_param_id, False, instance=base_idx_tgt + i + 1)
+                hw.configure_port_direction(tgt_addr, base_idx_tgt + i, False)
 
     # Configure source direction if it has inouts (True = output)
     if src_mod.num_inouts > 0:
         for i in src_offsets:
             with contextlib.suppress(Exception):
-                hw.write_parameter(src_addr, direction_param_id, True, instance=out_base + i + 1)
+                hw.configure_port_direction(src_addr, out_base + i, True)
             
     time.sleep(0.05)
 
@@ -134,7 +133,7 @@ def validate_single(
             if src_mod.num_inouts > 0:
                 # Restore to input (default)
                 with contextlib.suppress(Exception):
-                    hw.write_parameter(src_addr, direction_param_id, False, instance=out_base + i + 1)
+                    hw.configure_port_direction(src_addr, out_base + i, False)
     except Exception:
         pass
 
@@ -188,7 +187,8 @@ def run(
         log("warning", f"No connections found for module {module_address}")
         return {
             "ip_address": "", "total": 0, "passed": 0, "failed": 0,
-            "all_passed": True, "results": [],
+            "all_passed": False, "results": [],
+            "error": f"No connections found for module {module_address}",
         }
 
     if isinstance(hw_or_ip, str):
