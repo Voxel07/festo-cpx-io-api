@@ -75,8 +75,8 @@ dry-run-plan:
     - |
       export DRY_RUN=true
       python -c "
-      from resolver import TestResolver, create_basic_test_definitions
-      from config_models import BenchConfig, TestBenchMetadata
+      from resolver import TestResolver
+      from config_models import BenchConfig, TestBenchMetadata, create_basic_test_definitions
       import json
 
       # Build minimal config from topology.jsonc

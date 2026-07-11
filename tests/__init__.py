@@ -13,16 +13,16 @@ Usage::
 from __future__ import annotations
 
 from . import (
-    compare_topology,
-    condition_counter,
-    dio_toggle,
-    factory_reset,
-    open_load_diag,
-    output_toggle,
-    remanent_params,
-    validate_connections,
-    valve_condition_counter,
-    valve_toggle,
+    test_compare_topology as compare_topology,
+    test_condition_counter as condition_counter,
+    test_dio_toggle as dio_toggle,
+    test_factory_reset as factory_reset,
+    test_open_load_diag as open_load_diag,
+    test_output_toggle as output_toggle,
+    test_remanent_params as remanent_params,
+    test_validate_connections as validate_connections,
+    test_valve_condition_counter as valve_condition_counter,
+    test_valve_toggle as valve_toggle,
 )
 
 # Canonical registry used by api.py to dispatch test runs.

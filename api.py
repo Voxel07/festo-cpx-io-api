@@ -23,9 +23,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 import time
+import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -39,6 +41,8 @@ try:
         BenchConfig,
         ChannelDefinition,
         ModuleCategory,
+        SafetyClass,
+        TestDefinition,
     )
     from hal import CpxApHardware, SafeSession, CrossProcessLock
     from connection_manager import get_connection_manager
@@ -591,22 +595,24 @@ _current_test_run: dict | None = None  # {run_id, status, progress, results, ...
 # Populated when PocketBase is unavailable so HistoryTab always has data.
 _run_history: list[dict] = []
 
-# Per-run SSE queues: run_id → asyncio.Queue of log-entry dicts.
+# Per-run SSE queues: run_id → list of subscriber queues.
 # None is sent as a sentinel when the run ends.
-_log_queues: dict[str, asyncio.Queue] = {}
+_log_queues: dict[str, list[asyncio.Queue]] = {}
+_pb_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="pblog")
 
 
 # ─── SSE helpers ───────────────────────────────────────────────────────────
 
 async def _sse_generator(run_id: str, request: Request):
     """Yield SSE frames for *run_id*, starting with any buffered log entries."""
-    # Replay existing logs so a late-connecting client catches up
+    # Register before replay so logs emitted during replay are not lost.
+    queue: asyncio.Queue = asyncio.Queue()
+    _log_queues.setdefault(run_id, []).append(queue)
+
+    # Replay existing logs so a late-connecting client catches up.
     if _current_test_run and _current_test_run.get("run_id") == run_id:
         for entry in (_current_test_run.get("logs") or []):
             yield f"data: {json.dumps(entry)}\n\n"
-
-    queue: asyncio.Queue = asyncio.Queue()
-    _log_queues[run_id] = queue
     try:
         while True:
             if await request.is_disconnected():
@@ -620,7 +626,11 @@ async def _sse_generator(run_id: str, request: Request):
             except asyncio.TimeoutError:
                 yield ": keepalive\n\n"
     finally:
-        _log_queues.pop(run_id, None)
+        queues = _log_queues.get(run_id, [])
+        if queue in queues:
+            queues.remove(queue)
+        if not queues:
+            _log_queues.pop(run_id, None)
 
 _abort_flag = False
 
@@ -659,6 +669,34 @@ async def start_test_run(request: StartTestRunRequest):
     """Start a test run.  Returns 409 if another run is already in progress."""
     global _current_test_run, _abort_flag
 
+    if not request.tests:
+        raise HTTPException(status_code=400, detail="At least one test must be selected.")
+    if request.source not in {"web", "ci", "cli", "external"}:
+        raise HTTPException(status_code=400, detail=f"Unsupported run source: {request.source}")
+
+    config_path = Path(request.config_path)
+    if not config_path.exists():
+        raise HTTPException(status_code=404, detail=f"Bench configuration not found: {config_path}")
+    try:
+        bench_config = BenchConfig.model_validate_json(config_path.read_text(encoding="utf-8"))
+        from resolver import load_all_test_definitions
+        definitions = bench_config.test_definitions or [
+            TestDefinition.model_validate(raw) for raw in load_all_test_definitions()
+        ]
+        known = {definition.test_id: definition for definition in definitions}
+        requested = list(dict.fromkeys(request.tests))
+        unknown = [test_id for test_id in requested if test_id not in known]
+        if unknown:
+            raise HTTPException(status_code=400, detail=f"Unknown test ID(s): {', '.join(unknown)}")
+        if request.source == "ci":
+            blocked = [test_id for test_id in requested if not known[test_id].allowed_in_ci]
+            if blocked:
+                raise HTTPException(status_code=403, detail=f"Tests are not allowed in CI: {', '.join(blocked)}")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid bench configuration: {exc}") from exc
+
     if _test_run_lock.locked():
         raise HTTPException(
             status_code=409,
@@ -668,14 +706,14 @@ async def start_test_run(request: StartTestRunRequest):
     await _test_run_lock.acquire()
 
     _abort_flag = False
-    run_id = f"run-{int(time.time())}"
+    run_id = f"run-{uuid.uuid4().hex}"
     _current_test_run = {
         "run_id": run_id,
         "status": "running",
         "source": request.source,
         "ip_address": request.ip_address,
-        "tests": request.tests,
-        "progress": {"completed": 0, "total": len(request.tests), "current_test": None, "current_module": None},
+        "tests": requested,
+        "progress": {"completed": 0, "total": len(requested), "current_test": None, "current_module": None},
         "results": [],
         "checkpoints": [],
         "logs": [],
@@ -692,7 +730,7 @@ async def start_test_run(request: StartTestRunRequest):
         run_id,
         request.ip_address,
         request.config_path,
-        request.tests,
+        requested,
         request.source,
         loop,  # <-- event loop passed explicitly
     )
@@ -1117,6 +1155,7 @@ class DryRunRequest(BaseModel):
     bench_id: str = Field("default", description="Test bench identifier")
     test_filter: str | None = Field(None, description="Optional test_id filter")
     safety_class_filter: str | None = Field(None, description="Optional safety class filter (safe/caution/destructive)")
+    config_path: str = Field("data/bench_config.json", description="BenchConfig path")
     export_path: str | None = Field(None, description="Path to export resolved plan JSON")
 
 
@@ -1128,6 +1167,26 @@ async def dry_run(request: DryRunRequest):
     """
     if not _NEW_COMPONENTS:
         raise HTTPException(status_code=501, detail="Resolver not available — check imports")
+
+    config_path = Path(request.config_path)
+    if not config_path.exists():
+        raise HTTPException(status_code=404, detail=f"Bench configuration not found: {config_path}")
+
+    try:
+        bench_config = BenchConfig.model_validate_json(config_path.read_text(encoding="utf-8"))
+        from resolver import TestFilter, TestResolver
+
+        filters = TestFilter(test_id=request.test_filter)
+        if request.safety_class_filter:
+            filters.safety_class = SafetyClass(request.safety_class_filter)
+        plan = TestResolver().resolve(bench_config, filters)
+        if request.export_path:
+            TestResolver().export_plan(plan, request.export_path)
+        return JSONResponse(plan.to_dict())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not resolve test plan: {exc}") from exc
 
 
 # ─── Dashboard ─────────────────────────────────────────────────────────────
@@ -1374,7 +1433,7 @@ def _execute_test_run_safe(
     source: str,
     loop=None,  # asyncio event loop from caller (runs in thread)
 ) -> None:
-    """Run tests with SafeSession — guaranteed output reset on scope exit.
+    """Run tests on the shared interface and reset outputs before finishing.
 
     Runs in a thread pool — *loop* must be passed from the async caller
     because ``asyncio.get_running_loop()`` doesn't work in threads.
@@ -1382,30 +1441,35 @@ def _execute_test_run_safe(
     global _current_test_run, _abort_flag
     import traceback
 
-    from hal import CpxApHardware, SafeSession
     from pocketbase_logger import pb_log
 
     if loop is None:
         loop = asyncio.get_event_loop()
 
-    # Fire-and-forget PocketBase logger — never blocks test execution.
-    # Uses a shared thread pool so unreachable PB doesn't stall tests.
-    import concurrent.futures as _cf
-    _pb_pool = _cf.ThreadPoolExecutor(max_workers=2, thread_name_prefix="pblog")
+    pb_tail = None
 
     def _pb(call, *args):
         """Submit a PocketBase call to a background thread.  Best-effort only."""
+        nonlocal pb_tail
         try:
-            f = _pb_pool.submit(call, *args)
-            # Log failures after a short delay (non-blocking)
-            def _check():
+            previous = pb_tail
+
+            def invoke():
+                if previous is not None:
+                    with contextlib.suppress(Exception):
+                        previous.result()
+                return call(*args)
+
+            f = _pb_pool.submit(invoke)
+            pb_tail = f
+            def _check(done):
                 try:
-                    result = f.result(timeout=5)
+                    result = done.result()
                     if result is False:
                         _log("warning", f"PocketBase write failed ({call.__name__})")
                 except Exception:
                     pass
-            _pb_pool.submit(_check)
+            f.add_done_callback(_check)
         except Exception:
             pass
 
@@ -1414,10 +1478,11 @@ def _execute_test_run_safe(
         entry = {"level": level, "message": msg, "timestamp": ts}
         if _current_test_run is not None:
             _current_test_run["logs"].append(entry)
-        if run_id in _log_queues:
-            loop.call_soon_threadsafe(_log_queues[run_id].put_nowait, entry)
+        for queue in list(_log_queues.get(run_id, [])):
+            loop.call_soon_threadsafe(queue.put_nowait, entry)
 
     _log("info", f"Test run {run_id} started  source={source}  ip={ip_address}")
+    iface = None
 
     try:
         # Load BenchConfig
@@ -1490,6 +1555,9 @@ def _execute_test_run_safe(
 
         if not plan_instances:
             _log("warning", f"Check configuration ({config_path}) and wiring for compatibility.")
+            if _current_test_run is not None:
+                _current_test_run["status"] = "error"
+                _current_test_run["error"] = "No compatible test instances were resolved"
             return
 
         # Update progress total to reflect resolved instance count (not raw test-ID count)
@@ -1527,10 +1595,16 @@ def _execute_test_run_safe(
                     "duration_ms": 0,
                 })
 
+        _log("info", "Waiting for the cross-process hardware lock...")
+        hardware_lock = CrossProcessLock(ip_address)
+        hardware_lock.acquire(timeout=60.0)
         _log("info", "Running tests on shared hardware connection...")
         mgr = get_connection_manager()
         if not mgr.is_connected:
             _log("error", "Not connected to hardware. Connect via /hw/connect first.")
+            if _current_test_run is not None:
+                _current_test_run["status"] = "error"
+                _current_test_run["error"] = "Not connected to hardware"
             return
         iface = mgr.get_hw()
         for idx, inst in enumerate(plan_instances):
@@ -1558,37 +1632,12 @@ def _execute_test_run_safe(
                     _pb(pb_log.checkpoint, run_id, test_id, "running")
 
             try:
-                # Per-test timeout (seconds) — prevents a stuck test
-                # from holding hardware indefinitely.
-                _TEST_TIMEOUT_S = int(os.environ.get("TEST_TIMEOUT_S", "300"))
-                import threading
-                _test_result_box: list[dict] = []
-                _test_exc_box: list[Exception] = []
-
-                def _run_test_target():
-                    try:
-                        r = _run_single_test_hw(
-                            iface, inst, config_path, _log,
-                        )
-                        _test_result_box.append(r)
-                    except Exception as e:
-                        _test_exc_box.append(e)
-
-                t = threading.Thread(target=_run_test_target, daemon=True)
-                t.start()
-                t.join(timeout=_TEST_TIMEOUT_S)
-
-                if t.is_alive():
-                    _log("error", f"Test '{test_id}' timed out after {_TEST_TIMEOUT_S}s")
-                    result = {"test_id": test_id, "passed": False,
-                              "error": f"Test timed out after {_TEST_TIMEOUT_S}s"}
-                elif _test_exc_box:
-                    raise _test_exc_box[0]
-                elif _test_result_box:
-                    result = _test_result_box[0]
-                else:
-                    result = {"test_id": test_id, "passed": False,
-                              "error": "Test returned no result"}
+                # Run synchronously inside the already-isolated executor thread.
+                # A daemon timeout thread could continue writing hardware outputs
+                # after the run moved on to another test. Hardware-level timeouts
+                # remain authoritative; a hard test timeout requires process-level
+                # isolation and must not be emulated with an unkillable thread.
+                result = _run_single_test_hw(iface, inst, config_path, _log)
             except Exception as exc:
                 tb = traceback.format_exc()
                 _log("error", f"Test '{test_id}' raised unhandled exception: {exc}")
@@ -1598,6 +1647,11 @@ def _execute_test_run_safe(
 
             if _current_test_run is not None:
                 _current_test_run["progress"]["completed"] = idx + 1
+                if result.get("passed") is False and _current_test_run.get("status") == "running":
+                    # Preserve a failed test outcome in the run record.  A run
+                    # that finished executing is not necessarily a successful
+                    # run, and PocketBase/history consumers rely on this state.
+                    _current_test_run["status"] = "failed"
                 # Merge into existing live-results entry (e.g. from _push_live_module_result),
                 # deduplicating by module address instead of blindly extending.
                 results_list = _current_test_run["results"]
@@ -1658,16 +1712,31 @@ def _execute_test_run_safe(
         _log("error", f"Test run crashed: {exc}")
         _pb(pb_log.error, run_id, f"Test run crashed: {exc}")
     finally:
+        if iface is not None:
+            try:
+                iface.reset_all_outputs()
+                _log("info", "All hardware outputs reset to LOW")
+            except Exception as exc:
+                _log("error", f"Failed to reset hardware outputs: {exc}")
+                if _current_test_run is not None:
+                    _current_test_run["status"] = "error"
+                    _current_test_run["error"] = f"Output reset failed: {exc}"
+        if "hardware_lock" in locals():
+            hardware_lock.release()
         if _current_test_run is not None:
-            # Only keep "error" if the run crashed; otherwise → "completed"
-            if _current_test_run.get("status") != "error":
+            # Preserve failed/error outcomes; only a fully passing run is
+            # completed successfully.
+            if _current_test_run.get("status") not in {"error", "failed"}:
                 _current_test_run["status"] = "completed"
             history_entry = {
                 "id": run_id, "run_id": run_id, "source": source,
                 "ip_address": ip_address,
                 "status": _current_test_run.get("status", "error"),
-                "tests": json.dumps(tests),
-                "results": json.dumps(_current_test_run.get("results", []), default=str),
+                # Keep the in-memory API shape JSON-native. PocketBase may
+                # return legacy JSON strings, but the live UI consumes this
+                # endpoint directly and expects arrays.
+                "tests": list(tests),
+                "results": _current_test_run.get("results", []),
                 "checkpoints": _current_test_run.get("checkpoints", []),
                 "logs": _current_test_run.get("logs", []),
                 "started_at": _current_test_run.get("started_at", ""),
@@ -1677,10 +1746,17 @@ def _execute_test_run_safe(
             _run_history.insert(0, history_entry)
             if len(_run_history) > 200:
                 _run_history.pop()
-        if run_id in _log_queues:
-            loop.call_soon_threadsafe(_log_queues[run_id].put_nowait, None)
+        for queue in list(_log_queues.get(run_id, [])):
+            loop.call_soon_threadsafe(queue.put_nowait, None)
         loop.call_soon_threadsafe(_test_run_lock.release)
-        _pb(pb_log.test_run_completed, run_id, _current_test_run["results"] if _current_test_run else [])
+        final_run = _current_test_run or {}
+        _pb(
+            pb_log.test_run_completed,
+            run_id,
+            final_run.get("results", []),
+            final_run.get("status", "error"),
+            final_run.get("error"),
+        )
 
 
 def _run_single_test_hw(

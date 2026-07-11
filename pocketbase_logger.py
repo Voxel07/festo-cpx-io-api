@@ -213,7 +213,7 @@ class PocketBaseLogger:
             "source": source,
             "ip_address": ip_address,
             "status": "running",
-            "tests": json.dumps(tests),
+            "tests": tests,
             "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "test_bench_id": test_bench_id,
             "test_code_commit": test_code_commit,
@@ -224,7 +224,13 @@ class PocketBaseLogger:
             "schema_version": schema_version,
         })
 
-    def test_run_completed(self, run_id: str, results: list[dict]) -> None:
+    def test_run_completed(
+        self,
+        run_id: str,
+        results: list[dict],
+        status: str = "completed",
+        error: str | None = None,
+    ) -> None:
         # Update the existing record — do NOT create a duplicate
         try:
             resp = requests.get(
@@ -240,8 +246,8 @@ class PocketBaseLogger:
                     requests.patch(
                         f"{PB_URL}/api/collections/{COLL_TEST_RUNS}/records/{record_id}",
                         json={
-                            "status": "completed",
-                            "results": json.dumps(results, default=str),
+                            "status": status,
+                            "results": results,
                             "completed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                         },
                         headers=_headers(),
@@ -253,8 +259,8 @@ class PocketBaseLogger:
         # Fallback: create if no existing record found
         _post(COLL_TEST_RUNS, {
             "run_id": run_id,
-            "status": "completed",
-            "results": json.dumps(results, default=str),
+            "status": status,
+            "results": results,
             "completed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         })
 
@@ -297,7 +303,7 @@ class PocketBaseLogger:
             "run_id": run_id or "",
             "level": level,
             "message": message,
-            "details": json.dumps(details, default=str) if details else "",
+            "details": details or {},
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         })
 
@@ -406,6 +412,20 @@ class PocketBaseLogger:
                         headers=_headers(),
                         timeout=(1.0, 2.0),
                     )
+            # 4. Delete measurements, which otherwise become orphaned.
+            resp_measurements = requests.get(
+                f"{PB_URL}/api/collections/{COLL_MEASUREMENTS}/records",
+                params={"filter": f"(run_id='{run_id}')", "perPage": 500},
+                headers=_headers(),
+                timeout=(1.0, 2.0),
+            )
+            if resp_measurements.status_code == 200:
+                for item in resp_measurements.json().get("items", []):
+                    requests.delete(
+                        f"{PB_URL}/api/collections/{COLL_MEASUREMENTS}/records/{item['id']}",
+                        headers=_headers(),
+                        timeout=(1.0, 2.0),
+                    )
             return True
         except Exception as exc:
             print(f"[PocketBase] Delete run failed: {exc}", flush=True)
@@ -414,7 +434,7 @@ class PocketBaseLogger:
     def clear_history(self) -> bool:
         """Delete all test runs, checkpoints, and logs from PocketBase."""
         try:
-            for collection in (COLL_TEST_RUNS, COLL_CHECKPOINTS, COLL_SYSTEM_LOGS):
+            for collection in (COLL_TEST_RUNS, COLL_CHECKPOINTS, COLL_SYSTEM_LOGS, COLL_MEASUREMENTS):
                 while True:
                     resp = requests.get(
                         f"{PB_URL}/api/collections/{collection}/records",

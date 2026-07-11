@@ -16,7 +16,7 @@ Usage::
 from __future__ import annotations
 
 import fnmatch
-import importlib.util
+import importlib
 import json
 import time
 from dataclasses import dataclass, field
@@ -28,6 +28,7 @@ from config_models import (
     ModuleInstance,
     SafetyClass,
     TestDefinition,
+    create_basic_test_definitions,
     get_module_capabilities,
 )
 
@@ -42,18 +43,15 @@ def load_all_test_definitions() -> list[dict]:
         return []
         
     for file in tests_dir.glob("*.py"):
-        if file.name in ("__init__.py", "_base.py"):
+        if file.name in ("__init__.py", "_base.py", "test_suite.py", "test_api.py"):
             continue
         try:
             module_name = f"tests.{file.stem}"
-            spec = importlib.util.spec_from_file_location(module_name, file)
-            if spec and spec.loader:
-                mod = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(mod)
-                if hasattr(mod, "TEST_DEFINITIONS"):
-                    test_defs.extend(mod.TEST_DEFINITIONS)
-                elif hasattr(mod, "TEST_DEFINITION"):
-                    test_defs.append(mod.TEST_DEFINITION)
+            mod = importlib.import_module(module_name)
+            if hasattr(mod, "TEST_DEFINITIONS"):
+                test_defs.extend(mod.TEST_DEFINITIONS)
+            elif hasattr(mod, "TEST_DEFINITION"):
+                test_defs.append(mod.TEST_DEFINITION)
         except Exception as exc:
             print(f"Error loading test definition from {file}: {exc}")
             
@@ -187,16 +185,24 @@ class TestResolver:
         if not test_defs:
             raw_defs = load_all_test_definitions()
             test_defs = [TestDefinition.model_validate(d) for d in raw_defs]
+        if not test_defs:
+            test_defs = create_basic_test_definitions()
 
         for test_def in test_defs:
             singleton_emitted = False  # track for singleton tests
             for mod in config.module_instances:
                 if not self._matches_category(test_def, mod):
                     continue
-                if not self._matches_capabilities(test_def, config, mod):
-                    continue
-                if not self._matches_compatibility_pattern(test_def, mod):
-                    continue
+                # An explicit module override bypasses capability and glob
+                # matching, while category and exclusion rules still apply.
+                if mod.compatible_tests_override:
+                    if test_def.test_id not in mod.compatible_tests_override:
+                        continue
+                else:
+                    if not self._matches_capabilities(test_def, config, mod):
+                        continue
+                    if not self._matches_compatibility_pattern(test_def, mod):
+                        continue
                 if not self._matches_include_exclude(test_def, mod):
                     continue
 
@@ -251,6 +257,8 @@ class TestResolver:
                             )
                         )
                         singleton_emitted = True  # first wiring instance for singleton tests
+                        if test_def.singleton:
+                            break
 
         # ── Apply filters ──
         if filters:

@@ -32,6 +32,7 @@ def run_all_tests(
     connections_path: str = "connections.jsonc",
     topology_path: str = "topology.jsonc",
     timeout: float = 0,
+    bench_config_path: str = "data/bench_config.json",
 ) -> dict:
     """Run the complete test suite against a CPX-AP system.
 
@@ -52,20 +53,23 @@ def run_all_tests(
 
     hw = CpxApHardware()
     with SafeSession(hw, ip_address, timeout) as iface:
-        output["tests"]["validate-connections"] = _agg(
-            run_validate_connections(iface, connections_path)
+        output["tests"]["connection-validation"] = _agg(
+            run_validate_connections(
+                hw_or_ip=iface,
+                config_path=bench_config_path,
+            )
         )
         output["tests"]["compare-topology"] = _agg(
-            run_compare_topology(topology_path, iface)
+            run_compare_topology(hw=iface, config_path=bench_config_path)
         )
         output["tests"]["condition-counter"] = _agg(
-            test_condition_counter(iface, connections_path)
+            test_condition_counter(hw=iface, config_path=bench_config_path)
         )
         output["tests"]["valve-condition-counter"] = _agg(
-            test_valve_condition_counter(iface)
+            test_valve_condition_counter(hw=iface, config_path=bench_config_path)
         )
         output["tests"]["remanent-params"] = _agg(
-            test_remanent_params(iface, connections_path)
+            test_remanent_params(hw=iface, config_path=bench_config_path)
         )
 
     return output

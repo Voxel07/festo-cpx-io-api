@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from config_models import BenchConfig, SafetyClass
+from config_models import BenchConfig, SafetyClass, TestDefinition, create_basic_test_definitions
 from hal import CpxApHardware, SafeSession
 from repository import PocketBaseRepository, TestResultRecord, TestRunRecord
-from resolver import TestFilter, TestResolver
+from resolver import TestFilter, TestResolver, load_all_test_definitions
 
 # Global state for pytest session
 _session_run_id = ""
@@ -85,7 +85,17 @@ def resolved_plan(bench_config, request):
             filters.safety_class = SafetyClass(safety_filter)
 
     resolver = TestResolver()
-    return resolver.resolve(bench_config, filters)
+    plan = resolver.resolve(bench_config, filters)
+
+    # CI must never execute tests marked as unsafe for pipeline execution.
+    if os.environ.get("CI_JOB_ID") or os.environ.get("CI"):
+        definitions = bench_config.test_definitions or [
+            TestDefinition.model_validate(raw) for raw in load_all_test_definitions()
+        ] or create_basic_test_definitions()
+        allowed = {definition.test_id for definition in definitions if definition.allowed_in_ci}
+        plan.instances = [instance for instance in plan.instances if instance.test_id in allowed]
+
+    return plan
 
 
 def pytest_sessionstart(session):

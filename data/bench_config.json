@@ -25,14 +25,34 @@
       "valve_slots": 0,
       "num_inputs": 0,
       "num_outputs": 0,
-      "num_inouts": 0
+      "num_inouts": 0,
+      "port_directions": {}
     },
     {
       "instance_id": "mod-001",
+      "display_name": "CPX-AP-A-12DI4DO-PI",
+      "module_code": 12292,
+      "product_key": "K2Y0SCTN9PJ",
+      "address": 1,
+      "category": "inout",
+      "module_type_ref": "type-12292",
+      "firmware_version": null,
+      "compatible_tests_override": [],
+      "excluded_tests": [],
+      "is_negative_test_target": false,
+      "mounted_valves": [],
+      "valve_slots": 0,
+      "num_inputs": 12,
+      "num_outputs": 4,
+      "num_inouts": 0,
+      "port_directions": {}
+    },
+    {
+      "instance_id": "mod-002",
       "display_name": "CPX-AP-A-EP-M12",
       "module_code": 12421,
       "product_key": "NZRJHPCN5HF",
-      "address": 1,
+      "address": 2,
       "category": "bus",
       "module_type_ref": "type-12421",
       "firmware_version": null,
@@ -43,14 +63,15 @@
       "valve_slots": 0,
       "num_inputs": 0,
       "num_outputs": 0,
-      "num_inouts": 0
+      "num_inouts": 0,
+      "port_directions": {}
     },
     {
-      "instance_id": "mod-002",
+      "instance_id": "mod-003",
       "display_name": "CPX-AP-A-8HDO-M12-5P",
       "module_code": 12314,
       "product_key": "A_A8HDO_001",
-      "address": 2,
+      "address": 3,
       "category": "output",
       "module_type_ref": "type-12314",
       "firmware_version": null,
@@ -61,14 +82,15 @@
       "valve_slots": 0,
       "num_inputs": 0,
       "num_outputs": 8,
-      "num_inouts": 0
+      "num_inouts": 0,
+      "port_directions": {}
     },
     {
-      "instance_id": "mod-003",
+      "instance_id": "mod-004",
       "display_name": "CPX-AP-A-16DI-D-M12-5P",
       "module_code": 12289,
       "product_key": "HD3RMSWQFB8",
-      "address": 3,
+      "address": 4,
       "category": "input",
       "module_type_ref": "type-12289",
       "firmware_version": null,
@@ -79,14 +101,15 @@
       "valve_slots": 0,
       "num_inputs": 16,
       "num_outputs": 0,
-      "num_inouts": 0
+      "num_inouts": 0,
+      "port_directions": {}
     },
     {
-      "instance_id": "mod-004",
+      "instance_id": "mod-005",
       "display_name": "VABX-A-S-BV-V4A",
       "module_code": 8225,
       "product_key": "FLQBF0FZFYR",
-      "address": 4,
+      "address": 5,
       "category": "valve",
       "module_type_ref": "type-8225",
       "firmware_version": null,
@@ -99,14 +122,15 @@
       "valve_slots": 4,
       "num_inputs": 8,
       "num_outputs": 8,
-      "num_inouts": 0
+      "num_inouts": 0,
+      "port_directions": {}
     },
     {
-      "instance_id": "mod-005",
+      "instance_id": "mod-006",
       "display_name": "VABX-A-S-BV-V4B",
       "module_code": 8234,
       "product_key": "H6J95CVKKF5",
-      "address": 5,
+      "address": 6,
       "category": "valve",
       "module_type_ref": "type-8234",
       "firmware_version": null,
@@ -122,14 +146,34 @@
       "valve_slots": 4,
       "num_inputs": 8,
       "num_outputs": 8,
-      "num_inouts": 0
+      "num_inouts": 0,
+      "port_directions": {}
     },
     {
-      "instance_id": "mod-006",
+      "instance_id": "mod-007",
+      "display_name": "CPX-AP-I-16NDIO-M12-5P",
+      "module_code": 8510,
+      "product_key": "I16NDIO_002",
+      "address": 7,
+      "category": "inout",
+      "module_type_ref": "type-8510",
+      "firmware_version": null,
+      "compatible_tests_override": [],
+      "excluded_tests": [],
+      "is_negative_test_target": false,
+      "mounted_valves": [],
+      "valve_slots": 0,
+      "num_inputs": 16,
+      "num_outputs": 16,
+      "num_inouts": 0,
+      "port_directions": {}
+    },
+    {
+      "instance_id": "mod-008",
       "display_name": "CPX-AP-I-16DI-M8-3P",
       "module_code": 8501,
       "product_key": "HDMGRSM7XF1",
-      "address": 6,
+      "address": 8,
       "category": "input",
       "module_type_ref": "type-8501",
       "firmware_version": null,
@@ -140,14 +184,15 @@
       "valve_slots": 0,
       "num_inputs": 16,
       "num_outputs": 0,
-      "num_inouts": 0
+      "num_inouts": 0,
+      "port_directions": {}
     },
     {
-      "instance_id": "mod-007",
+      "instance_id": "mod-009",
       "display_name": "VMPAL-EPL-AP",
       "module_code": 8224,
       "product_key": "MZY5HTD6NB0",
-      "address": 7,
+      "address": 9,
       "category": "valve",
       "module_type_ref": "type-8224",
       "firmware_version": null,
@@ -175,7 +220,8 @@
       "valve_slots": 16,
       "num_inputs": 0,
       "num_outputs": 32,
-      "num_inouts": 0
+      "num_inouts": 0,
+      "port_directions": {}
     }
   ],
   "wiring": [],
