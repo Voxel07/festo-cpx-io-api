@@ -78,6 +78,18 @@ class HardwareInterface(ABC):
     def read_input(self, address: int, channel: int) -> bool:
         """Read a single digital input channel."""
 
+    def read_inputs(self, address: int, channels: list[int]) -> dict[int, bool]:
+        """Read several inputs, with a compatibility fallback for simple HALs."""
+        return {channel: self.read_input(address, channel) for channel in channels}
+
+    @abstractmethod
+    def read_analog(self, address: int, channel: int) -> float:
+        """Read one analog input as the raw numeric process-image value."""
+
+    def read_analogs(self, address: int, channels: list[int]) -> dict[int, float]:
+        """Read several analog values, with a compatibility fallback."""
+        return {channel: self.read_analog(address, channel) for channel in channels}
+
     @abstractmethod
     def write_output(self, address: int, channel: int, value: bool) -> None:
         """Write a single digital output channel."""
@@ -189,6 +201,32 @@ class CpxApHardware(HardwareInterface):
     def read_input(self, address: int, channel: int) -> bool:
         mod = self._get_module(address)
         return bool(mod.read_channel(channel))
+
+    def read_inputs(self, address: int, channels: list[int]) -> dict[int, bool]:
+        """Read a module process image once and select the requested channels.
+
+        ``ApModule.read_channel`` calls ``read_channels`` internally, so using it
+        once per graph input would duplicate the same Modbus transaction.
+        """
+        mod = self._get_module(address)
+        bulk_reader = getattr(mod, "read_channels", None)
+        if callable(bulk_reader):
+            values = bulk_reader()
+            return {channel: bool(values[channel]) for channel in channels}
+        return {channel: bool(mod.read_channel(channel)) for channel in channels}
+
+    def read_analog(self, address: int, channel: int) -> float:
+        mod = self._get_module(address)
+        return float(mod.read_channel(channel))
+
+    def read_analogs(self, address: int, channels: list[int]) -> dict[int, float]:
+        """Read an analog module process image once and preserve numeric values."""
+        mod = self._get_module(address)
+        bulk_reader = getattr(mod, "read_channels", None)
+        if callable(bulk_reader):
+            values = bulk_reader()
+            return {channel: float(values[channel]) for channel in channels}
+        return {channel: float(mod.read_channel(channel)) for channel in channels}
 
     def write_output(self, address: int, channel: int, value: bool) -> None:
         mod = self._get_module(address)

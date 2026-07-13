@@ -47,6 +47,15 @@ try:
     )
     from hal import CpxApHardware, SafeSession, CrossProcessLock
     from connection_manager import get_connection_manager
+    from automation import (
+        AutomationProgram,
+        AutomationStartRequest,
+        SimulationAnalogRequest,
+        SimulationInputRequest,
+        automation_engine,
+        automation_store,
+        simulation_hardware,
+    )
     _NEW_COMPONENTS = True
 except ImportError as e:
     print(f"FAILED TO IMPORT NEW COMPONENTS: {e}")
@@ -125,6 +134,7 @@ async def hw_connect(request: HwConnectRequest):
     operations use this shared connection.
     """
     try:
+        automation_engine.stop(reset_outputs=True)
         mgr = get_connection_manager()
         mgr.connect(request.ip_address, request.timeout)
         return JSONResponse({
@@ -141,6 +151,7 @@ async def hw_disconnect():
 
     All outputs are reset to LOW before disconnecting.
     """
+    automation_engine.stop(reset_outputs=True)
     mgr = get_connection_manager()
     mgr.disconnect()
     return JSONResponse({"status": "disconnected"})
@@ -155,6 +166,129 @@ async def hw_status():
         "ip_address": mgr.ip_address if mgr.is_connected else None,
         "timeout": mgr.timeout if mgr.is_connected else None,
     })
+
+
+# ─── Scratch-style automation programs ──────────────────────────────────────
+
+@app.get("/automation/programs")
+async def automation_programs():
+    """List programs stored in PocketBase (or the volatile fallback)."""
+    programs, persistence = await asyncio.to_thread(automation_store.list)
+    return JSONResponse({
+        "items": [program.model_dump() for program in programs],
+        "persistence": persistence,
+    })
+
+
+@app.get("/automation/programs/{program_id}")
+async def automation_program(program_id: str):
+    program = await asyncio.to_thread(automation_store.get, program_id)
+    if program is None:
+        raise HTTPException(status_code=404, detail="Automation program not found")
+    return JSONResponse(program.model_dump())
+
+
+@app.post("/automation/programs")
+async def save_automation_program(program: AutomationProgram):
+    saved, persistence = await asyncio.to_thread(automation_store.save, program)
+    return JSONResponse({"program": saved.model_dump(), "persistence": persistence})
+
+
+@app.put("/automation/programs/{program_id}")
+async def update_automation_program(program_id: str, program: AutomationProgram):
+    saved, persistence = await asyncio.to_thread(
+        automation_store.save, program.model_copy(update={"id": program_id})
+    )
+    return JSONResponse({"program": saved.model_dump(), "persistence": persistence})
+
+
+@app.delete("/automation/programs/{program_id}")
+async def delete_automation_program(program_id: str):
+    if automation_engine.status().get("program_id") == program_id:
+        automation_engine.stop(reset_outputs=True)
+    persistence = await asyncio.to_thread(automation_store.delete, program_id)
+    return JSONResponse({"ok": True, "persistence": persistence})
+
+
+@app.post("/automation/validate")
+async def validate_automation_program(program: AutomationProgram):
+    """Validate graph references and block configuration without running it."""
+    return JSONResponse({
+        "valid": True,
+        "nodes": len(program.nodes),
+        "edges": len(program.edges),
+        "physical_inputs": sum(node.type == "input" for node in program.nodes),
+        "physical_outputs": sum(node.type in {"output", "valve"} for node in program.nodes),
+    })
+
+
+@app.post("/automation/start")
+async def start_automation(request: AutomationStartRequest):
+    """Start a graph on the shared Modbus session.
+
+    The cyclic executor is local to the API process; HTTP is not part of the
+    I/O scan path.  Starting a program replaces the previously running one.
+    """
+    if request.target == "real" and _test_run_lock.locked():
+        raise HTTPException(status_code=409, detail="A hardware test run is in progress")
+    mgr = get_connection_manager()
+    if request.target == "real" and not mgr.is_connected:
+        raise HTTPException(status_code=400, detail="Not connected. Call /hw/connect first.")
+    program = request.program
+    if request.program_id:
+        program = await asyncio.to_thread(automation_store.get, request.program_id)
+        if program is None:
+            raise HTTPException(status_code=404, detail="Automation program not found")
+    assert program is not None
+    try:
+        if request.target == "real":
+            with _io_timers_lock:
+                for timer in _io_timers.values():
+                    timer.cancel()
+                _io_timers.clear()
+            hardware = mgr.get_hw()
+        else:
+            hardware = simulation_hardware
+        automation_engine.start(program, hardware, target=request.target)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return JSONResponse(automation_engine.status())
+
+
+@app.post("/automation/stop")
+async def stop_automation():
+    """Stop the scan loop and reset every physical output owned by the graph."""
+    await asyncio.to_thread(automation_engine.stop, reset_outputs=True)
+    return JSONResponse(automation_engine.status())
+
+
+@app.get("/automation/status")
+async def automation_status():
+    status = automation_engine.status()
+    # The editor may prepare a simulated program while another target is
+    # active, so virtual controls must remain observable independently of the
+    # currently running engine target.
+    status["simulation"] = simulation_hardware.snapshot()
+    return JSONResponse(status)
+
+
+@app.post("/automation/simulation/input")
+async def set_automation_simulation_input(request: SimulationInputRequest):
+    """Set a virtual CPX input used by a simulated automation program."""
+    simulation_hardware.set_input(request.module_addr, request.channel, request.value)
+    return JSONResponse({"ok": True, **request.model_dump()})
+
+
+@app.post("/automation/simulation/analog")
+async def set_automation_simulation_analog(request: SimulationAnalogRequest):
+    """Set a virtual raw analog channel used by simulated temperature/voltage blocks."""
+    simulation_hardware.set_analog(request.module_addr, request.channel, request.value)
+    return JSONResponse({"ok": True, **request.model_dump()})
+
+
+@app.get("/automation/simulation/state")
+async def automation_simulation_state():
+    return JSONResponse(simulation_hardware.snapshot())
 
 
 class ConfigGenerateRequest(BaseModel):
@@ -441,6 +575,8 @@ async def io_set_output(request: SetOutputRequest):
     pending timer.
     """
 
+    if automation_engine.running:
+        raise HTTPException(status_code=409, detail="Manual output control is locked while automation is running")
     mgr = get_connection_manager()
     if not mgr.is_connected:
         raise HTTPException(status_code=400, detail="Not connected. Call /hw/connect first.")
@@ -565,6 +701,8 @@ async def io_set_all_outputs(request: SetAllOutputsRequest):
     Returns the list of channel indices that were written.
     """
 
+    if automation_engine.running:
+        raise HTTPException(status_code=409, detail="Manual output control is locked while automation is running")
     mgr = get_connection_manager()
     if not mgr.is_connected:
         raise HTTPException(status_code=400, detail="Not connected. Call /hw/connect first.")
@@ -717,6 +855,11 @@ async def start_test_run(request: StartTestRunRequest):
         raise HTTPException(status_code=400, detail="At least one test must be selected.")
     if request.source not in {"web", "ci", "cli", "external"}:
         raise HTTPException(status_code=400, detail=f"Unsupported run source: {request.source}")
+    if automation_engine.running:
+        raise HTTPException(
+            status_code=409,
+            detail="Stop the running automation program before starting hardware tests.",
+        )
 
     config_path = _resolve_config_path(request.config_path, must_exist=True)
     try:
