@@ -34,6 +34,8 @@ BLOCK_TYPES = {
     "output",
     "valve",
     "cylinder",
+    "analog_in",
+    "analog_out",
     "comment",
 }
 
@@ -80,7 +82,7 @@ class AutomationProgram(BaseModel):
         for node in self.nodes:
             if node.type not in BLOCK_TYPES:
                 raise ValueError(f"Unsupported block type: {node.type}")
-            if node.type in {"input", "temperature", "voltage", "pressure", "output", "valve"}:
+            if node.type in {"input", "temperature", "voltage", "pressure", "output", "valve", "analog_in", "analog_out"}:
                 if "module_addr" not in node.data or "channel" not in node.data:
                     raise ValueError(
                         f"{node.type} block {node.id} needs module_addr and channel"
@@ -247,9 +249,9 @@ def _execution_order(program: AutomationProgram) -> list[AutomationNode]:
                 queue.append(target)
     ordered.extend(node for node in program.nodes if node.id not in seen)
     # Sources first, action/state blocks after combinatorial logic.
-    rank = {"input": 0, "temperature": 0, "voltage": 0, "timer": 0, "and": 1, "or": 1, "not": 1,
+    rank = {"input": 0, "analog_in": 0, "temperature": 0, "voltage": 0, "timer": 0, "and": 1, "or": 1, "not": 1,
             "pressure": 2, "counter": 2, "delay": 2,
-            "output": 3, "valve": 3, "cylinder": 4, "comment": 5}
+            "output": 3, "valve": 3, "analog_out": 3, "cylinder": 4, "comment": 5}
     return sorted(ordered, key=lambda node: rank.get(node.type, 9))
 
 
@@ -397,7 +399,7 @@ class AutomationEngine:
 
         requested_analogs: dict[int, set[int]] = defaultdict(set)
         for graph_node in self._program.nodes:
-            if graph_node.type in {"temperature", "voltage", "pressure"}:
+            if graph_node.type in {"temperature", "voltage", "pressure", "analog_in"}:
                 requested_analogs[int(graph_node.data["module_addr"])].add(
                     int(graph_node.data["channel"])
                 )
@@ -441,12 +443,23 @@ class AutomationEngine:
                 result: dict[str, bool | float] = {"signal": event, "state": stable}
 
             elif node.type in {"temperature", "voltage", "pressure"}:
-                raw_value = analog_values[(
-                    int(node.data["module_addr"]), int(node.data["channel"])
-                )]
-                scale = float(node.data.get("scale", 0.1 if node.type == "temperature" else 10 / 27648))
-                offset = float(node.data.get("offset", 0.0))
-                value = raw_value * scale + offset
+                # Accept an upstream numeric value from an analog_in block if wired,
+                # otherwise read directly from the hardware analog input.
+                upstream_values = [
+                    float(outputs.get(edge.source, {}).get("value", 0.0))
+                    for edge in incoming.get(node.id, [])
+                    if (outputs.get(edge.source, {}).get("_is_analog"))
+                ]
+                if upstream_values:
+                    value = upstream_values[0]
+                    raw_value = value
+                else:
+                    raw_value = analog_values[(
+                        int(node.data["module_addr"]), int(node.data["channel"])
+                    )]
+                    scale = float(node.data.get("scale", 0.1 if node.type == "temperature" else 10 / 27648))
+                    offset = float(node.data.get("offset", 0.0))
+                    value = raw_value * scale + offset
                 limit = float(node.data.get("limit", 25.0 if node.type == "temperature" else 5.0 if node.type == "voltage" else 6.0))
                 hysteresis = max(0.0, float(node.data.get("hysteresis", 0.1 if node.type == "pressure" else 0.0)))
                 was_active = bool(state.get("active", False))
@@ -583,6 +596,40 @@ class AutomationEngine:
                     "extended-event": extended and not was_extended,
                     "retracted-event": retracted and not was_retracted,
                     "position": round(position, 4),
+                }
+
+            elif node.type == "analog_in":
+                raw_value = analog_values[(
+                    int(node.data["module_addr"]), int(node.data["channel"])
+                )]
+                scale = float(node.data.get("scale", 1.0))
+                offset = float(node.data.get("offset", 0.0))
+                value = raw_value * scale + offset
+                result = {
+                    "signal": True,
+                    "value": round(value, 6),
+                    "raw_value": round(raw_value, 6),
+                    "_is_analog": True,
+                }
+
+            elif node.type == "analog_out":
+                # Accept a numeric value from an upstream analog block.
+                upstream_numeric = [
+                    float(outputs.get(edge.source, {}).get("value", 0.0))
+                    for edge in incoming.get(node.id, [])
+                    if outputs.get(edge.source, {})
+                ]
+                out_value = upstream_numeric[0] if upstream_numeric else 0.0
+                scale = float(node.data.get("scale", 1.0))
+                offset = float(node.data.get("offset", 0.0))
+                raw_out = (out_value - offset) / scale if scale != 0 else 0.0
+                address = int(node.data["module_addr"])
+                channel = int(node.data["channel"])
+                self._hardware.write_output(address, channel, bool(raw_out > 0))
+                result = {
+                    "signal": bool(raw_out > 0),
+                    "value": round(out_value, 6),
+                    "raw_value": round(raw_out, 6),
                 }
 
             else:
