@@ -353,6 +353,8 @@ def _enrich_generated_metadata(config: BenchConfig) -> None:
                     break
                     
         if match:
+            if "capabilities" in match:
+                inst.capabilities = list(match["capabilities"] or [])
             if "category" in match:
                 try:
                     cat_val = match["category"].lower() if match["category"] else None
@@ -460,8 +462,18 @@ async def generate_config(request: ConfigGenerateRequest):
                 # Merge wiring
                 if existing.wiring:
                     config.wiring = existing.wiring
-                # Merge mounted_valves per module instance (match by address)
+                # Preserve concrete per-product configuration when regenerating.
                 existing_valves: dict[int, list[int]] = {}
+                existing_capabilities_by_key = {
+                    inst.product_key: list(inst.capabilities)
+                    for inst in existing.module_instances
+                    if inst.product_key and inst.capabilities is not None
+                }
+                existing_capabilities_by_address = {
+                    inst.address: list(inst.capabilities)
+                    for inst in existing.module_instances
+                    if inst.capabilities is not None
+                }
                 for inst in (existing.module_instances or []):
                     mv = inst.mounted_valves
                     if mv is not None and len(mv) >= 0:
@@ -469,7 +481,15 @@ async def generate_config(request: ConfigGenerateRequest):
                 for inst in (config.module_instances or []):
                     if inst.address in existing_valves:
                         inst.mounted_valves = existing_valves[inst.address]
-                _enrich_generated_metadata(config)
+                    preserved = (
+                        existing_capabilities_by_key.get(inst.product_key)
+                        if inst.product_key
+                        else None
+                    )
+                    if preserved is None:
+                        preserved = existing_capabilities_by_address.get(inst.address)
+                    if preserved is not None:
+                        inst.capabilities = preserved
             except Exception:
                 pass  # existing file is corrupt or missing — proceed with fresh config
     except HTTPException:

@@ -32,7 +32,6 @@ from config_models import (
     SafetyClass,
     TestDefinition,
     create_basic_test_definitions,
-    get_module_capabilities,
 )
 
 
@@ -416,8 +415,7 @@ class TestResolver:
             return int(digits)
 
         def capabilities(module: ModuleInstance) -> set[str]:
-            module_type = config.module_types.get(module.module_type_ref)
-            return set(module_type.capabilities if module_type else ())
+            return config.module_capabilities(module)
 
         def is_counter_module(module: ModuleInstance) -> bool:
             return "condition_counter" in capabilities(module)
@@ -509,12 +507,7 @@ class TestResolver:
     ) -> bool:
         if not test.required_capabilities:
             return True
-        type_def = config.module_types.get(mod.module_type_ref)
-        if type_def is None:
-            # Fallback: infer capabilities dynamically if module_types is not in config
-            mod_caps = set(get_module_capabilities(mod.display_name, mod.category.value))
-        else:
-            mod_caps = set(type_def.capabilities)
+        mod_caps = config.module_capabilities(mod)
         return mod_caps.issuperset(test.required_capabilities)
 
     @staticmethod

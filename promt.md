@@ -80,22 +80,24 @@ The primary test endpoints are:
 `BenchConfig` contains:
 
 - Test-bench identity, version, schema version, description, and IP.
-- Module instances with stable instance ID, module code, product key, bus address, type reference, firmware, serial number, presence state, I/O counts, valve state, and negative-test marker.
-- Module types with product family, explicit capabilities, channel definitions, channel modes, limits, image asset, valve count, `channels_per_valve`, and product-specific `test_parameters`.
+- Module instances with stable instance ID, module code, product key, bus address, type reference, authoritative `capabilities`, firmware, serial number, presence state, I/O counts, valve state, and negative-test marker.
+- Module types with product family, legacy/default capabilities, channel definitions, channel modes, limits, image asset, valve count, `channels_per_valve`, and product-specific `test_parameters`.
 - Wiring with stable ID, instance/channel endpoints, signal type, direction, expected behavior, and physical/simulated/virtual type.
 - Test definitions with stable ID/version, assignment scope (`system`, `module`, `channel`, `wiring`), required capabilities/modes/wiring, category and include/exclude rules, safety class, CI policy, parallel declaration, target instances, and parameters.
 - UI positions, channel anchors, hotspot geometry, and rendering metadata.
 
 Validation rejects invalid JSONC, missing/invalid fields, duplicate instance IDs/addresses/product keys, invalid type references, duplicate or ambiguous wiring endpoints, self-wiring, invalid direction, unknown modules/channels/capabilities/target modules, invalid modes, invalid UI references/geometry, and missing configured assets.
 
-Legacy configs without `module_types` are upgraded conservatively from explicit category and I/O counts. Newly generated configs must persist the constructed module types; product behavior must not be inferred from a display name.
+`module_instances[].capabilities` is authoritative when present, including an explicitly empty list. Type capabilities are inherited only when that field is omitted for backward compatibility. Specialized behavior such as `condition_counter` must be declared on the concrete supporting products and must never be inferred from the broad input/output/inout category. Valve counters use the distinct `valve_condition_counter` capability.
+
+Legacy configs without `module_types` are upgraded conservatively from explicit category and I/O counts. Newly generated configs must persist concrete module capabilities; product behavior must not be inferred from a display name.
 
 ## Resolver contract
 
 `TestResolver` produces concrete `ResolvedTestInstance` objects and supports:
 
 - System, module, channel, and wiring assignment.
-- Required module/channel capabilities and supported/current channel modes.
+- Required concrete-module/channel capabilities and supported/current channel modes.
 - Wiring type and stable wiring ID binding.
 - Module code/product key include/exclude filters.
 - Target module instance filters.

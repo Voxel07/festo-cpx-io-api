@@ -60,7 +60,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "path",
-      "community": 10,
+      "community": 9,
       "norm_label": "path"
     },
     {
@@ -290,14 +290,14 @@
       "source_location": "L330",
       "_origin": "ast",
       "id": "api_enrich_generated_metadata",
-      "community": 18,
+      "community": 8,
       "norm_label": "_enrich_generated_metadata()"
     },
     {
       "label": "ui()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L404",
+      "source_location": "L406",
       "_origin": "ast",
       "id": "api_ui",
       "community": 5,
@@ -307,7 +307,7 @@
       "label": "architecture_graph()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L416",
+      "source_location": "L418",
       "_origin": "ast",
       "id": "api_architecture_graph",
       "community": 5,
@@ -317,27 +317,27 @@
       "label": "svg_map()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L431",
+      "source_location": "L433",
       "_origin": "ast",
       "id": "api_svg_map",
-      "community": 10,
+      "community": 9,
       "norm_label": "svg_map()"
     },
     {
       "label": "generate_config()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L445",
+      "source_location": "L447",
       "_origin": "ast",
       "id": "api_generate_config",
-      "community": 18,
+      "community": 8,
       "norm_label": "generate_config()"
     },
     {
       "label": "load_config()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L487",
+      "source_location": "L507",
       "_origin": "ast",
       "id": "api_load_config",
       "community": 8,
@@ -347,7 +347,7 @@
       "label": "save_config()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L498",
+      "source_location": "L518",
       "_origin": "ast",
       "id": "api_save_config",
       "community": 8,
@@ -357,7 +357,7 @@
       "label": "delete_config()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L509",
+      "source_location": "L529",
       "_origin": "ast",
       "id": "api_delete_config",
       "community": 8,
@@ -367,7 +367,7 @@
       "label": "compare_config()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L520",
+      "source_location": "L540",
       "_origin": "ast",
       "id": "api_compare_config",
       "community": 8,
@@ -377,17 +377,17 @@
       "label": "_auto_reset_output()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L552",
+      "source_location": "L572",
       "_origin": "ast",
       "id": "api_auto_reset_output",
-      "community": 23,
+      "community": 21,
       "norm_label": "_auto_reset_output()"
     },
     {
       "label": "SetOutputRequest",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L593",
+      "source_location": "L613",
       "_origin": "ast",
       "id": "api_setoutputrequest",
       "community": 7,
@@ -397,77 +397,77 @@
       "label": "_output_channel_indices()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L608",
+      "source_location": "L628",
       "_origin": "ast",
       "id": "api_output_channel_indices",
-      "community": 23,
+      "community": 21,
       "norm_label": "_output_channel_indices()"
     },
     {
       "label": "_has_dio_direction_parameter()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L637",
+      "source_location": "L657",
       "_origin": "ast",
       "id": "api_has_dio_direction_parameter",
-      "community": 23,
+      "community": 21,
       "norm_label": "_has_dio_direction_parameter()"
     },
     {
       "label": "_is_configurable_output()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L644",
+      "source_location": "L664",
       "_origin": "ast",
       "id": "api_is_configurable_output",
-      "community": 23,
+      "community": 21,
       "norm_label": "_is_configurable_output()"
     },
     {
       "label": "_validate_output_activation()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L651",
+      "source_location": "L671",
       "_origin": "ast",
       "id": "api_validate_output_activation",
-      "community": 23,
+      "community": 21,
       "norm_label": "_validate_output_activation()"
     },
     {
       "label": "io_set_output()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L689",
+      "source_location": "L709",
       "_origin": "ast",
       "id": "api_io_set_output",
-      "community": 17,
+      "community": 11,
       "norm_label": "io_set_output()"
     },
     {
       "label": "get_module_metadata()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L838",
+      "source_location": "L858",
       "_origin": "ast",
       "id": "api_get_module_metadata",
-      "community": 10,
+      "community": 9,
       "norm_label": "get_module_metadata()"
     },
     {
       "label": "io_read_input()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L848",
+      "source_location": "L868",
       "_origin": "ast",
       "id": "api_io_read_input",
-      "community": 17,
+      "community": 11,
       "norm_label": "io_read_input()"
     },
     {
       "label": "SetAllOutputsRequest",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L881",
+      "source_location": "L901",
       "_origin": "ast",
       "id": "api_setalloutputsrequest",
       "community": 7,
@@ -477,17 +477,17 @@
       "label": "io_set_all_outputs()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L891",
+      "source_location": "L911",
       "_origin": "ast",
       "id": "api_io_set_all_outputs",
-      "community": 2,
+      "community": 11,
       "norm_label": "io_set_all_outputs()"
     },
     {
       "label": "WiringCheckConnection",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L999",
+      "source_location": "L1019",
       "_origin": "ast",
       "id": "api_wiringcheckconnection",
       "community": 7,
@@ -497,7 +497,7 @@
       "label": "WiringCheckRequest",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1011",
+      "source_location": "L1031",
       "_origin": "ast",
       "id": "api_wiringcheckrequest",
       "community": 7,
@@ -507,20 +507,20 @@
       "label": "io_check_wiring()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1018",
+      "source_location": "L1038",
       "_origin": "ast",
       "id": "api_io_check_wiring",
-      "community": 17,
+      "community": 11,
       "norm_label": "io_check_wiring()"
     },
     {
       "label": "_queue_audit()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1074",
+      "source_location": "L1094",
       "_origin": "ast",
       "id": "api_queue_audit",
-      "community": 2,
+      "community": 11,
       "norm_label": "_queue_audit()"
     },
     {
@@ -537,7 +537,7 @@
       "label": "_sse_generator()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1091",
+      "source_location": "L1111",
       "_origin": "ast",
       "id": "api_sse_generator",
       "community": 25,
@@ -557,7 +557,7 @@
       "label": "test_run_status()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1124",
+      "source_location": "L1144",
       "_origin": "ast",
       "id": "api_test_run_status",
       "community": 5,
@@ -567,7 +567,7 @@
       "label": "stream_run_logs()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1130",
+      "source_location": "L1150",
       "_origin": "ast",
       "id": "api_stream_run_logs",
       "community": 25,
@@ -577,7 +577,7 @@
       "label": "StartTestRunRequest",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1145",
+      "source_location": "L1165",
       "_origin": "ast",
       "id": "api_starttestrunrequest",
       "community": 7,
@@ -587,7 +587,7 @@
       "label": "start_test_run()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1156",
+      "source_location": "L1176",
       "_origin": "ast",
       "id": "api_start_test_run",
       "community": 8,
@@ -597,7 +597,7 @@
       "label": "abort_test_run()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1278",
+      "source_location": "L1298",
       "_origin": "ast",
       "id": "api_abort_test_run",
       "community": 5,
@@ -607,27 +607,27 @@
       "label": "_extract_error_summary()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1284",
+      "source_location": "L1304",
       "_origin": "ast",
       "id": "api_extract_error_summary",
-      "community": 10,
+      "community": 5,
       "norm_label": "_extract_error_summary()"
     },
     {
       "label": "_merge_sub_results()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1328",
+      "source_location": "L1348",
       "_origin": "ast",
       "id": "api_merge_sub_results",
-      "community": 10,
+      "community": 5,
       "norm_label": "_merge_sub_results()"
     },
     {
       "label": "test_run_history()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1367",
+      "source_location": "L1387",
       "_origin": "ast",
       "id": "api_test_run_history",
       "community": 5,
@@ -637,7 +637,7 @@
       "label": "test_run_detail()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1381",
+      "source_location": "L1401",
       "_origin": "ast",
       "id": "api_test_run_detail",
       "community": 5,
@@ -647,7 +647,7 @@
       "label": "test_run_junit()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1402",
+      "source_location": "L1422",
       "_origin": "ast",
       "id": "api_test_run_junit",
       "community": 5,
@@ -657,7 +657,7 @@
       "label": "safety_status()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1434",
+      "source_location": "L1454",
       "_origin": "ast",
       "id": "api_safety_status",
       "community": 5,
@@ -667,17 +667,17 @@
       "label": "safety_emergency_stop()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1440",
+      "source_location": "L1460",
       "_origin": "ast",
       "id": "api_safety_emergency_stop",
-      "community": 2,
+      "community": 11,
       "norm_label": "safety_emergency_stop()"
     },
     {
       "label": "safety_reset()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1459",
+      "source_location": "L1479",
       "_origin": "ast",
       "id": "api_safety_reset",
       "community": 5,
@@ -687,7 +687,7 @@
       "label": "delete_test_run()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1490",
+      "source_location": "L1510",
       "_origin": "ast",
       "id": "api_delete_test_run",
       "community": 5,
@@ -697,7 +697,7 @@
       "label": "clear_test_run_history()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1501",
+      "source_location": "L1521",
       "_origin": "ast",
       "id": "api_clear_test_run_history",
       "community": 5,
@@ -707,7 +707,7 @@
       "label": "WriteParameterRequest",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1511",
+      "source_location": "L1531",
       "_origin": "ast",
       "id": "api_writeparameterrequest",
       "community": 7,
@@ -717,7 +717,7 @@
       "label": "get_module_parameters()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1519",
+      "source_location": "L1539",
       "_origin": "ast",
       "id": "api_get_module_parameters",
       "community": 11,
@@ -727,7 +727,7 @@
       "label": "read_module_parameter()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1562",
+      "source_location": "L1582",
       "_origin": "ast",
       "id": "api_read_module_parameter",
       "community": 11,
@@ -737,17 +737,17 @@
       "label": "write_module_parameter()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1615",
+      "source_location": "L1635",
       "_origin": "ast",
       "id": "api_write_module_parameter",
-      "community": 2,
+      "community": 11,
       "norm_label": "write_module_parameter()"
     },
     {
       "label": "get_system_diagnoses()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1692",
+      "source_location": "L1712",
       "_origin": "ast",
       "id": "api_get_system_diagnoses",
       "community": 11,
@@ -757,7 +757,7 @@
       "label": "pocketbase_health()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1762",
+      "source_location": "L1782",
       "_origin": "ast",
       "id": "api_pocketbase_health",
       "community": 5,
@@ -767,7 +767,7 @@
       "label": "PlanTestRunRequest",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1780",
+      "source_location": "L1800",
       "_origin": "ast",
       "id": "api_plantestrunrequest",
       "community": 7,
@@ -777,17 +777,17 @@
       "label": "plan_test_run()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1788",
+      "source_location": "L1808",
       "_origin": "ast",
       "id": "api_plan_test_run",
-      "community": 7,
+      "community": 8,
       "norm_label": "plan_test_run()"
     },
     {
       "label": "dashboard_data()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L1813",
+      "source_location": "L1833",
       "_origin": "ast",
       "id": "api_dashboard_data",
       "community": 5,
@@ -797,7 +797,7 @@
       "label": "ci_environment()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L2021",
+      "source_location": "L2041",
       "_origin": "ast",
       "id": "api_ci_environment",
       "community": 5,
@@ -807,27 +807,27 @@
       "label": "_execute_test_run_safe()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L2045",
+      "source_location": "L2065",
       "_origin": "ast",
       "id": "api_execute_test_run_safe",
-      "community": 10,
+      "community": 5,
       "norm_label": "_execute_test_run_safe()"
     },
     {
       "label": "_run_single_test_hw()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L2440",
+      "source_location": "L2460",
       "_origin": "ast",
       "id": "api_run_single_test_hw",
-      "community": 6,
+      "community": 15,
       "norm_label": "_run_single_test_hw()"
     },
     {
       "label": "io_read_all()",
       "file_type": "code",
       "source_file": "api.py",
-      "source_location": "L2745",
+      "source_location": "L2765",
       "_origin": "ast",
       "id": "api_io_read_all",
       "community": 11,
@@ -970,16 +970,16 @@
       "source_location": "L331",
       "_origin": "ast",
       "id": "api_rationale_331",
-      "community": 18,
+      "community": 8,
       "norm_label": "fix generated module metadata that cannot be inferred reliably from live topolog"
     },
     {
       "label": "Serve the built React SPA (production). During development use the Vite dev serv",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L405",
+      "source_location": "L407",
       "_origin": "ast",
-      "id": "api_rationale_405",
+      "id": "api_rationale_407",
       "community": 5,
       "norm_label": "serve the built react spa (production). during development use the vite dev serv"
     },
@@ -987,9 +987,9 @@
       "label": "Serve the generated Graphify visualization for the Architecture tab.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L417",
+      "source_location": "L419",
       "_origin": "ast",
-      "id": "api_rationale_417",
+      "id": "api_rationale_419",
       "community": 5,
       "norm_label": "serve the generated graphify visualization for the architecture tab."
     },
@@ -997,29 +997,29 @@
       "label": "Return the SVG icon file mapping (OrderCode -> filename).",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L432",
+      "source_location": "L434",
       "_origin": "ast",
-      "id": "api_rationale_432",
-      "community": 10,
+      "id": "api_rationale_434",
+      "community": 9,
       "norm_label": "return the svg icon file mapping (ordercode -> filename)."
     },
     {
       "label": "Query live hardware to discover modules and generate a modern BenchConfig struct",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L446",
+      "source_location": "L448",
       "_origin": "ast",
-      "id": "api_rationale_446",
-      "community": 18,
+      "id": "api_rationale_448",
+      "community": 8,
       "norm_label": "query live hardware to discover modules and generate a modern benchconfig struct"
     },
     {
       "label": "Load a previously saved unified BenchConfig file.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L488",
+      "source_location": "L508",
       "_origin": "ast",
-      "id": "api_rationale_488",
+      "id": "api_rationale_508",
       "community": 8,
       "norm_label": "load a previously saved unified benchconfig file."
     },
@@ -1027,9 +1027,9 @@
       "label": "Persist a complete BenchConfig structure (topology + connections) to a JSON file",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L499",
+      "source_location": "L519",
       "_origin": "ast",
-      "id": "api_rationale_499",
+      "id": "api_rationale_519",
       "community": 8,
       "norm_label": "persist a complete benchconfig structure (topology + connections) to a json file"
     },
@@ -1037,9 +1037,9 @@
       "label": "Delete a saved BenchConfig file.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L510",
+      "source_location": "L530",
       "_origin": "ast",
-      "id": "api_rationale_510",
+      "id": "api_rationale_530",
       "community": 8,
       "norm_label": "delete a saved benchconfig file."
     },
@@ -1047,9 +1047,9 @@
       "label": "Compare a stored BenchConfig module instances against the live CPX-AP system.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L521",
+      "source_location": "L541",
       "_origin": "ast",
-      "id": "api_rationale_521",
+      "id": "api_rationale_541",
       "community": 8,
       "norm_label": "compare a stored benchconfig module instances against the live cpx-ap system."
     },
@@ -1057,119 +1057,119 @@
       "label": "Background callback that resets an output to LOW.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L560",
+      "source_location": "L580",
       "_origin": "ast",
-      "id": "api_rationale_560",
-      "community": 23,
+      "id": "api_rationale_580",
+      "community": 21,
       "norm_label": "background callback that resets an output to low."
     },
     {
       "label": "Map a UI port to indices in ``mod.channels.outputs``.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L611",
+      "source_location": "L631",
       "_origin": "ast",
-      "id": "api_rationale_611",
-      "community": 23,
+      "id": "api_rationale_631",
+      "community": 21,
       "norm_label": "map a ui port to indices in ``mod.channels.outputs``."
     },
     {
       "label": "Return whether the module exposes configurable direction parameter 20145.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L638",
+      "source_location": "L658",
       "_origin": "ast",
-      "id": "api_rationale_638",
-      "community": 23,
+      "id": "api_rationale_658",
+      "community": 21,
       "norm_label": "return whether the module exposes configurable direction parameter 20145."
     },
     {
       "label": "Return whether an output-process-image channel is configurable DIO.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L645",
+      "source_location": "L665",
       "_origin": "ast",
-      "id": "api_rationale_645",
-      "community": 23,
+      "id": "api_rationale_665",
+      "community": 21,
       "norm_label": "return whether an output-process-image channel is configurable dio."
     },
     {
       "label": "Enforce configured electrical limits and wiring direction before activation.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L652",
+      "source_location": "L672",
       "_origin": "ast",
-      "id": "api_rationale_652",
-      "community": 23,
+      "id": "api_rationale_672",
+      "community": 21,
       "norm_label": "enforce configured electrical limits and wiring direction before activation."
     },
     {
       "label": "Set a single output channel on a module HIGH or LOW.      Uses the shared hardw",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L690",
+      "source_location": "L710",
       "_origin": "ast",
-      "id": "api_rationale_690",
-      "community": 17,
+      "id": "api_rationale_710",
+      "community": 11,
       "norm_label": "set a single output channel on a module high or low.      uses the shared hardw"
     },
     {
       "label": "Return the contents of module_metadata.json",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L839",
+      "source_location": "L859",
       "_origin": "ast",
-      "id": "api_rationale_839",
-      "community": 10,
+      "id": "api_rationale_859",
+      "community": 9,
       "norm_label": "return the contents of module_metadata.json"
     },
     {
       "label": "Read one or more input channels from a module (all channels of an M12 connector)",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L856",
+      "source_location": "L876",
       "_origin": "ast",
-      "id": "api_rationale_856",
-      "community": 17,
+      "id": "api_rationale_876",
+      "community": 11,
       "norm_label": "read one or more input channels from a module (all channels of an m12 connector)"
     },
     {
       "label": "Set all writable output/inout channels of a module HIGH or LOW.      When *chan",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L892",
+      "source_location": "L912",
       "_origin": "ast",
-      "id": "api_rationale_892",
-      "community": 2,
+      "id": "api_rationale_912",
+      "community": 11,
       "norm_label": "set all writable output/inout channels of a module high or low.      when *chan"
     },
     {
       "label": "Pulse and verify configured wires using one API request.      Connections remain",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1019",
+      "source_location": "L1039",
       "_origin": "ast",
-      "id": "api_rationale_1019",
-      "community": 17,
+      "id": "api_rationale_1039",
+      "community": 11,
       "norm_label": "pulse and verify configured wires using one api request.      connections remain"
     },
     {
       "label": "Persist an audit event without adding PocketBase latency to an action.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1080",
+      "source_location": "L1100",
       "_origin": "ast",
-      "id": "api_rationale_1080",
-      "community": 2,
+      "id": "api_rationale_1100",
+      "community": 11,
       "norm_label": "persist an audit event without adding pocketbase latency to an action."
     },
     {
       "label": "Yield SSE frames for *run_id*, starting with any buffered log entries.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1092",
+      "source_location": "L1112",
       "_origin": "ast",
-      "id": "api_rationale_1092",
+      "id": "api_rationale_1112",
       "community": 25,
       "norm_label": "yield sse frames for *run_id*, starting with any buffered log entries."
     },
@@ -1177,9 +1177,9 @@
       "label": "Return the current test-run state (id, status, progress, results).",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1125",
+      "source_location": "L1145",
       "_origin": "ast",
-      "id": "api_rationale_1125",
+      "id": "api_rationale_1145",
       "community": 5,
       "norm_label": "return the current test-run state (id, status, progress, results)."
     },
@@ -1187,9 +1187,9 @@
       "label": "Server-Sent Events stream of log entries for *run_id*.      Connect with ``Eve",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1131",
+      "source_location": "L1151",
       "_origin": "ast",
-      "id": "api_rationale_1131",
+      "id": "api_rationale_1151",
       "community": 25,
       "norm_label": "server-sent events stream of log entries for *run_id*.      connect with ``eve"
     },
@@ -1197,9 +1197,9 @@
       "label": "Start a test run.  Returns 409 if another run is already in progress.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1157",
+      "source_location": "L1177",
       "_origin": "ast",
-      "id": "api_rationale_1157",
+      "id": "api_rationale_1177",
       "community": 8,
       "norm_label": "start a test run.  returns 409 if another run is already in progress."
     },
@@ -1207,29 +1207,29 @@
       "label": "Build a human-readable error string from a result dict.      Handles nested ``",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1285",
+      "source_location": "L1305",
       "_origin": "ast",
-      "id": "api_rationale_1285",
-      "community": 10,
+      "id": "api_rationale_1305",
+      "community": 5,
       "norm_label": "build a human-readable error string from a result dict.      handles nested ``"
     },
     {
       "label": "Merge *incoming* sub-results into *existing* by address/module key.      Repla",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1329",
+      "source_location": "L1349",
       "_origin": "ast",
-      "id": "api_rationale_1329",
-      "community": 10,
+      "id": "api_rationale_1349",
+      "community": 5,
       "norm_label": "merge *incoming* sub-results into *existing* by address/module key.      repla"
     },
     {
       "label": "Return recent test runs.      Tries PocketBase first; falls back to in-memory",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1368",
+      "source_location": "L1388",
       "_origin": "ast",
-      "id": "api_rationale_1368",
+      "id": "api_rationale_1388",
       "community": 5,
       "norm_label": "return recent test runs.      tries pocketbase first; falls back to in-memory"
     },
@@ -1237,9 +1237,9 @@
       "label": "Return full detail for a specific test run.      Checks in-memory history firs",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1382",
+      "source_location": "L1402",
       "_origin": "ast",
-      "id": "api_rationale_1382",
+      "id": "api_rationale_1402",
       "community": 5,
       "norm_label": "return full detail for a specific test run.      checks in-memory history firs"
     },
@@ -1247,9 +1247,9 @@
       "label": "Render API-owned run results as JUnit XML for GitLab.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1403",
+      "source_location": "L1423",
       "_origin": "ast",
-      "id": "api_rationale_1403",
+      "id": "api_rationale_1423",
       "community": 5,
       "norm_label": "render api-owned run results as junit xml for gitlab."
     },
@@ -1257,19 +1257,19 @@
       "label": "Latch the emergency stop, abort tests, and reset live connections.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1441",
+      "source_location": "L1461",
       "_origin": "ast",
-      "id": "api_rationale_1441",
-      "community": 2,
+      "id": "api_rationale_1461",
+      "community": 11,
       "norm_label": "latch the emergency stop, abort tests, and reset live connections."
     },
     {
       "label": "Clear the software latch; an external interlock must still report safe.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1460",
+      "source_location": "L1480",
       "_origin": "ast",
-      "id": "api_rationale_1460",
+      "id": "api_rationale_1480",
       "community": 5,
       "norm_label": "clear the software latch; an external interlock must still report safe."
     },
@@ -1277,9 +1277,9 @@
       "label": "Delete a specific test run from history.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1491",
+      "source_location": "L1511",
       "_origin": "ast",
-      "id": "api_rationale_1491",
+      "id": "api_rationale_1511",
       "community": 5,
       "norm_label": "delete a specific test run from history."
     },
@@ -1287,9 +1287,9 @@
       "label": "Clear all test run history.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1502",
+      "source_location": "L1522",
       "_origin": "ast",
-      "id": "api_rationale_1502",
+      "id": "api_rationale_1522",
       "community": 5,
       "norm_label": "clear all test run history."
     },
@@ -1297,9 +1297,9 @@
       "label": "Retrieve metadata for all parameters available on the module at the given addres",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1524",
+      "source_location": "L1544",
       "_origin": "ast",
-      "id": "api_rationale_1524",
+      "id": "api_rationale_1544",
       "community": 11,
       "norm_label": "retrieve metadata for all parameters available on the module at the given addres"
     },
@@ -1307,9 +1307,9 @@
       "label": "Read the current value of a module parameter.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1569",
+      "source_location": "L1589",
       "_origin": "ast",
-      "id": "api_rationale_1569",
+      "id": "api_rationale_1589",
       "community": 11,
       "norm_label": "read the current value of a module parameter."
     },
@@ -1317,19 +1317,19 @@
       "label": "Write a new value to a module parameter and read it back.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1620",
+      "source_location": "L1640",
       "_origin": "ast",
-      "id": "api_rationale_1620",
-      "community": 2,
+      "id": "api_rationale_1640",
+      "community": 11,
       "norm_label": "write a new value to a module parameter and read it back."
     },
     {
       "label": "Retrieve all active diagnoses raised in the system across all modules.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1696",
+      "source_location": "L1716",
       "_origin": "ast",
-      "id": "api_rationale_1696",
+      "id": "api_rationale_1716",
       "community": 11,
       "norm_label": "retrieve all active diagnoses raised in the system across all modules."
     },
@@ -1337,9 +1337,9 @@
       "label": "Check whether the PocketBase logging service is reachable.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1763",
+      "source_location": "L1783",
       "_origin": "ast",
-      "id": "api_rationale_1763",
+      "id": "api_rationale_1783",
       "community": 5,
       "norm_label": "check whether the pocketbase logging service is reachable."
     },
@@ -1347,9 +1347,9 @@
       "label": "Request body for API-owned execution planning.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1781",
+      "source_location": "L1801",
       "_origin": "ast",
-      "id": "api_rationale_1781",
+      "id": "api_rationale_1801",
       "community": 7,
       "norm_label": "request body for api-owned execution planning."
     },
@@ -1357,19 +1357,19 @@
       "label": "Validate configuration and return the exact API execution plan.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1789",
+      "source_location": "L1809",
       "_origin": "ast",
-      "id": "api_rationale_1789",
-      "community": 7,
+      "id": "api_rationale_1809",
+      "community": 8,
       "norm_label": "validate configuration and return the exact api execution plan."
     },
     {
       "label": "Aggregate metrics for the dashboard from PocketBase and in-memory history.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L1814",
+      "source_location": "L1834",
       "_origin": "ast",
-      "id": "api_rationale_1814",
+      "id": "api_rationale_1834",
       "community": 5,
       "norm_label": "aggregate metrics for the dashboard from pocketbase and in-memory history."
     },
@@ -1377,9 +1377,9 @@
       "label": "Return the CI environment variables recognized by this service.      Useful fo",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L2022",
+      "source_location": "L2042",
       "_origin": "ast",
-      "id": "api_rationale_2022",
+      "id": "api_rationale_2042",
       "community": 5,
       "norm_label": "return the ci environment variables recognized by this service.      useful fo"
     },
@@ -1387,29 +1387,29 @@
       "label": "Execute an API-resolved plan with process-isolated safety timeouts.      Runs i",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L2056",
+      "source_location": "L2076",
       "_origin": "ast",
-      "id": "api_rationale_2056",
-      "community": 10,
+      "id": "api_rationale_2076",
+      "community": 5,
       "norm_label": "execute an api-resolved plan with process-isolated safety timeouts.      runs i"
     },
     {
       "label": "Dispatch a single test using a pre-connected HardwareInterface.      Each test",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L2446",
+      "source_location": "L2466",
       "_origin": "ast",
-      "id": "api_rationale_2446",
-      "community": 6,
+      "id": "api_rationale_2466",
+      "community": 15,
       "norm_label": "dispatch a single test using a pre-connected hardwareinterface.      each test"
     },
     {
       "label": "Read all input, output, and inout channels for all modules.",
       "file_type": "rationale",
       "source_file": "api.py",
-      "source_location": "L2746",
+      "source_location": "L2766",
       "_origin": "ast",
-      "id": "api_rationale_2746",
+      "id": "api_rationale_2766",
       "community": 11,
       "norm_label": "read all input, output, and inout channels for all modules."
     },
@@ -1420,7 +1420,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "automation",
-      "community": 7,
+      "community": 2,
       "norm_label": "automation.py"
     },
     {
@@ -1430,7 +1430,7 @@
       "source_location": "L42",
       "_origin": "ast",
       "id": "automation_automationposition",
-      "community": 7,
+      "community": 2,
       "norm_label": "automationposition"
     },
     {
@@ -1440,7 +1440,7 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "automation_automationnode",
-      "community": 7,
+      "community": 2,
       "norm_label": "automationnode"
     },
     {
@@ -1450,7 +1450,7 @@
       "source_location": "L54",
       "_origin": "ast",
       "id": "automation_automationedge",
-      "community": 7,
+      "community": 2,
       "norm_label": "automationedge"
     },
     {
@@ -1560,7 +1560,7 @@
       "source_location": "L149",
       "_origin": "ast",
       "id": "automation_simulatedhardware_read_topology",
-      "community": 13,
+      "community": 2,
       "norm_label": ".read_topology()"
     },
     {
@@ -1760,7 +1760,7 @@
       "source_location": "L245",
       "_origin": "ast",
       "id": "automation_execution_order",
-      "community": 7,
+      "community": 2,
       "norm_label": "_execution_order()"
     },
     {
@@ -1770,7 +1770,7 @@
       "source_location": "L279",
       "_origin": "ast",
       "id": "automation_automationengine",
-      "community": 13,
+      "community": 10,
       "norm_label": "automationengine"
     },
     {
@@ -1780,7 +1780,7 @@
       "source_location": "L282",
       "_origin": "ast",
       "id": "automation_automationengine_init",
-      "community": 13,
+      "community": 10,
       "norm_label": ".__init__()"
     },
     {
@@ -1790,7 +1790,7 @@
       "source_location": "L303",
       "_origin": "ast",
       "id": "automation_automationengine_running",
-      "community": 13,
+      "community": 10,
       "norm_label": ".running()"
     },
     {
@@ -1860,7 +1860,7 @@
       "source_location": "L682",
       "_origin": "ast",
       "id": "automation_automationprogramstore",
-      "community": 13,
+      "community": 2,
       "norm_label": "automationprogramstore"
     },
     {
@@ -1870,7 +1870,7 @@
       "source_location": "L687",
       "_origin": "ast",
       "id": "automation_automationprogramstore_init",
-      "community": 13,
+      "community": 2,
       "norm_label": ".__init__()"
     },
     {
@@ -1880,7 +1880,7 @@
       "source_location": "L697",
       "_origin": "ast",
       "id": "automation_automationprogramstore_pb",
-      "community": 13,
+      "community": 2,
       "norm_label": "._pb()"
     },
     {
@@ -1890,7 +1890,7 @@
       "source_location": "L703",
       "_origin": "ast",
       "id": "automation_automationprogramstore_payload",
-      "community": 13,
+      "community": 2,
       "norm_label": "._payload()"
     },
     {
@@ -1900,7 +1900,7 @@
       "source_location": "L715",
       "_origin": "ast",
       "id": "automation_automationprogramstore_from_record",
-      "community": 13,
+      "community": 2,
       "norm_label": "._from_record()"
     },
     {
@@ -1910,7 +1910,7 @@
       "source_location": "L727",
       "_origin": "ast",
       "id": "automation_automationprogramstore_list",
-      "community": 13,
+      "community": 2,
       "norm_label": ".list()"
     },
     {
@@ -1930,7 +1930,7 @@
       "source_location": "L767",
       "_origin": "ast",
       "id": "automation_automationprogramstore_save",
-      "community": 13,
+      "community": 2,
       "norm_label": ".save()"
     },
     {
@@ -1940,7 +1940,7 @@
       "source_location": "L798",
       "_origin": "ast",
       "id": "automation_automationprogramstore_delete",
-      "community": 13,
+      "community": 2,
       "norm_label": ".delete()"
     },
     {
@@ -1950,7 +1950,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "automation_rationale_1",
-      "community": 7,
+      "community": 2,
       "norm_label": "scratch-style automation graph execution and pocketbase persistence.  the brow"
     },
     {
@@ -1970,7 +1970,7 @@
       "source_location": "L246",
       "_origin": "ast",
       "id": "automation_rationale_246",
-      "community": 7,
+      "community": 2,
       "norm_label": "return a stable topological order, tolerating feedback around state blocks."
     },
     {
@@ -1980,7 +1980,7 @@
       "source_location": "L280",
       "_origin": "ast",
       "id": "automation_rationale_280",
-      "community": 13,
+      "community": 10,
       "norm_label": "single-program cyclic executor for the shared modbus connection."
     },
     {
@@ -1990,7 +1990,7 @@
       "source_location": "L683",
       "_origin": "ast",
       "id": "automation_rationale_683",
-      "community": 13,
+      "community": 2,
       "norm_label": "pocketbase-backed program crud with a clearly marked memory fallback."
     },
     {
@@ -2080,7 +2080,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "config_io",
-      "community": 10,
+      "community": 9,
       "norm_label": "config_io.py"
     },
     {
@@ -2110,7 +2110,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "config_io_strip_jsonc_comments",
-      "community": 10,
+      "community": 9,
       "norm_label": "_strip_jsonc_comments()"
     },
     {
@@ -2120,7 +2120,7 @@
       "source_location": "L74",
       "_origin": "ast",
       "id": "config_io_remove_trailing_commas",
-      "community": 10,
+      "community": 9,
       "norm_label": "_remove_trailing_commas()"
     },
     {
@@ -2130,7 +2130,7 @@
       "source_location": "L101",
       "_origin": "ast",
       "id": "config_io_parse_jsonc",
-      "community": 10,
+      "community": 9,
       "norm_label": "parse_jsonc()"
     },
     {
@@ -2140,7 +2140,7 @@
       "source_location": "L112",
       "_origin": "ast",
       "id": "config_io_validate_assets",
-      "community": 10,
+      "community": 9,
       "norm_label": "_validate_assets()"
     },
     {
@@ -2150,7 +2150,7 @@
       "source_location": "L134",
       "_origin": "ast",
       "id": "config_io_load_bench_config",
-      "community": 10,
+      "community": 8,
       "norm_label": "load_bench_config()"
     },
     {
@@ -2160,7 +2160,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "config_io_rationale_1",
-      "community": 10,
+      "community": 9,
       "norm_label": "canonical jsonc loading and semantic validation for bench configurations.  every"
     },
     {
@@ -2180,7 +2180,7 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "config_io_rationale_22",
-      "community": 10,
+      "community": 9,
       "norm_label": "remove jsonc comments without touching comment markers inside strings."
     },
     {
@@ -2190,7 +2190,7 @@
       "source_location": "L75",
       "_origin": "ast",
       "id": "config_io_rationale_75",
-      "community": 10,
+      "community": 9,
       "norm_label": "remove jsonc trailing commas before a closing object or array token."
     },
     {
@@ -2200,7 +2200,7 @@
       "source_location": "L102",
       "_origin": "ast",
       "id": "config_io_rationale_102",
-      "community": 10,
+      "community": 9,
       "norm_label": "parse a jsonc document and return its root object."
     },
     {
@@ -2210,7 +2210,7 @@
       "source_location": "L135",
       "_origin": "ast",
       "id": "config_io_rationale_135",
-      "community": 10,
+      "community": 8,
       "norm_label": "load, parse, and validate a bench configuration from *path*."
     },
     {
@@ -2220,7 +2220,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "config_models",
-      "community": 7,
+      "community": 17,
       "norm_label": "config_models.py"
     },
     {
@@ -2240,7 +2240,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "str",
-      "community": 7,
+      "community": 17,
       "norm_label": "str"
     },
     {
@@ -2250,7 +2250,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "enum",
-      "community": 7,
+      "community": 17,
       "norm_label": "enum"
     },
     {
@@ -2270,7 +2270,7 @@
       "source_location": "L44",
       "_origin": "ast",
       "id": "config_models_signaltype",
-      "community": 7,
+      "community": 17,
       "norm_label": "signaltype"
     },
     {
@@ -2280,7 +2280,7 @@
       "source_location": "L51",
       "_origin": "ast",
       "id": "config_models_connectiontype",
-      "community": 7,
+      "community": 17,
       "norm_label": "connectiontype"
     },
     {
@@ -2290,7 +2290,7 @@
       "source_location": "L57",
       "_origin": "ast",
       "id": "config_models_portkind",
-      "community": 7,
+      "community": 17,
       "norm_label": "portkind"
     },
     {
@@ -2300,7 +2300,7 @@
       "source_location": "L63",
       "_origin": "ast",
       "id": "config_models_presencestate",
-      "community": 7,
+      "community": 17,
       "norm_label": "presencestate"
     },
     {
@@ -2310,7 +2310,7 @@
       "source_location": "L70",
       "_origin": "ast",
       "id": "config_models_assignmentscope",
-      "community": 7,
+      "community": 17,
       "norm_label": "assignmentscope"
     },
     {
@@ -2320,7 +2320,7 @@
       "source_location": "L80",
       "_origin": "ast",
       "id": "config_models_channellimits",
-      "community": 7,
+      "community": 17,
       "norm_label": "channellimits"
     },
     {
@@ -2350,7 +2350,7 @@
       "source_location": "L117",
       "_origin": "ast",
       "id": "config_models_moduletypedefinition",
-      "community": 7,
+      "community": 24,
       "norm_label": "moduletypedefinition"
     },
     {
@@ -2360,7 +2360,7 @@
       "source_location": "L142",
       "_origin": "ast",
       "id": "config_models_testbenchmetadata",
-      "community": 7,
+      "community": 24,
       "norm_label": "testbenchmetadata"
     },
     {
@@ -2370,24 +2370,24 @@
       "source_location": "L153",
       "_origin": "ast",
       "id": "config_models_moduleinstance",
-      "community": 7,
+      "community": 24,
       "norm_label": "moduleinstance"
     },
     {
       "label": "WiringConnection",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L201",
+      "source_location": "L208",
       "_origin": "ast",
       "id": "config_models_wiringconnection",
-      "community": 7,
+      "community": 17,
       "norm_label": "wiringconnection"
     },
     {
       "label": "TestDefinition",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L226",
+      "source_location": "L233",
       "_origin": "ast",
       "id": "config_models_testdefinition",
       "community": 7,
@@ -2397,67 +2397,67 @@
       "label": "UIModulePosition",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L281",
+      "source_location": "L288",
       "_origin": "ast",
       "id": "config_models_uimoduleposition",
-      "community": 7,
+      "community": 17,
       "norm_label": "uimoduleposition"
     },
     {
       "label": "UIChannelAnchor",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L288",
+      "source_location": "L295",
       "_origin": "ast",
       "id": "config_models_uichannelanchor",
-      "community": 7,
+      "community": 17,
       "norm_label": "uichannelanchor"
     },
     {
       "label": "UIVisualizationMetadata",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L296",
+      "source_location": "L303",
       "_origin": "ast",
       "id": "config_models_uivisualizationmetadata",
-      "community": 7,
+      "community": 17,
       "norm_label": "uivisualizationmetadata"
     },
     {
       "label": "get_module_capabilities()",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L301",
+      "source_location": "L308",
       "_origin": "ast",
       "id": "config_models_get_module_capabilities",
-      "community": 7,
+      "community": 27,
       "norm_label": "get_module_capabilities()"
     },
     {
       "label": "infer_type_definition_from_instance()",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L322",
+      "source_location": "L329",
       "_origin": "ast",
       "id": "config_models_infer_type_definition_from_instance",
-      "community": 7,
+      "community": 24,
       "norm_label": "infer_type_definition_from_instance()"
     },
     {
       "label": "PowerSupplyConfig",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L378",
+      "source_location": "L385",
       "_origin": "ast",
       "id": "config_models_powersupplyconfig",
-      "community": 7,
+      "community": 17,
       "norm_label": "powersupplyconfig"
     },
     {
       "label": "BenchConfig",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L391",
+      "source_location": "L398",
       "_origin": "ast",
       "id": "config_models_benchconfig",
       "community": 6,
@@ -2467,37 +2467,47 @@
       "label": ".module_instance_at()",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L406",
+      "source_location": "L413",
       "_origin": "ast",
       "id": "config_models_benchconfig_module_instance_at",
-      "community": 7,
+      "community": 27,
       "norm_label": ".module_instance_at()"
     },
     {
       "label": ".module_type_at()",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L413",
+      "source_location": "L420",
       "_origin": "ast",
       "id": "config_models_benchconfig_module_type_at",
-      "community": 7,
+      "community": 27,
       "norm_label": ".module_type_at()"
+    },
+    {
+      "label": ".module_capabilities()",
+      "file_type": "code",
+      "source_file": "config_models.py",
+      "source_location": "L425",
+      "_origin": "ast",
+      "id": "config_models_benchconfig_module_capabilities",
+      "community": 27,
+      "norm_label": ".module_capabilities()"
     },
     {
       "label": "._populate_module_types()",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L419",
+      "source_location": "L440",
       "_origin": "ast",
       "id": "config_models_benchconfig_populate_module_types",
-      "community": 7,
+      "community": 24,
       "norm_label": "._populate_module_types()"
     },
     {
       "label": "._check_duplicate_instance_ids()",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L436",
+      "source_location": "L457",
       "_origin": "ast",
       "id": "config_models_benchconfig_check_duplicate_instance_ids",
       "community": 21,
@@ -2507,7 +2517,7 @@
       "label": "._check_duplicate_addresses()",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L445",
+      "source_location": "L466",
       "_origin": "ast",
       "id": "config_models_benchconfig_check_duplicate_addresses",
       "community": 21,
@@ -2517,7 +2527,7 @@
       "label": "._check_wiring_references()",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L454",
+      "source_location": "L475",
       "_origin": "ast",
       "id": "config_models_benchconfig_check_wiring_references",
       "community": 21,
@@ -2527,7 +2537,7 @@
       "label": "._check_test_references()",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L468",
+      "source_location": "L489",
       "_origin": "ast",
       "id": "config_models_benchconfig_check_test_references",
       "community": 21,
@@ -2537,7 +2547,7 @@
       "label": "._check_module_type_references()",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L492",
+      "source_location": "L514",
       "_origin": "ast",
       "id": "config_models_benchconfig_check_module_type_references",
       "community": 21,
@@ -2547,7 +2557,7 @@
       "label": "._check_duplicate_wiring_ids_and_endpoints()",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L504",
+      "source_location": "L526",
       "_origin": "ast",
       "id": "config_models_benchconfig_check_duplicate_wiring_ids_and_endpoints",
       "community": 21,
@@ -2557,7 +2567,7 @@
       "label": "._check_schema_version()",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L531",
+      "source_location": "L553",
       "_origin": "ast",
       "id": "config_models_benchconfig_check_schema_version",
       "community": 21,
@@ -2567,7 +2577,7 @@
       "label": "._check_duplicate_product_keys()",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L541",
+      "source_location": "L563",
       "_origin": "ast",
       "id": "config_models_benchconfig_check_duplicate_product_keys",
       "community": 21,
@@ -2577,7 +2587,7 @@
       "label": "._check_wiring_channels()",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L551",
+      "source_location": "L573",
       "_origin": "ast",
       "id": "config_models_benchconfig_check_wiring_channels",
       "community": 21,
@@ -2587,7 +2597,7 @@
       "label": "._check_ui_references()",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L590",
+      "source_location": "L612",
       "_origin": "ast",
       "id": "config_models_benchconfig_check_ui_references",
       "community": 21,
@@ -2597,20 +2607,20 @@
       "label": ".from_hardware()",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L625",
+      "source_location": "L647",
       "_origin": "ast",
       "id": "config_models_benchconfig_from_hardware",
-      "community": 7,
+      "community": 24,
       "norm_label": ".from_hardware()"
     },
     {
       "label": "create_basic_test_definitions()",
       "file_type": "code",
       "source_file": "config_models.py",
-      "source_location": "L739",
+      "source_location": "L762",
       "_origin": "ast",
       "id": "config_models_create_basic_test_definitions",
-      "community": 7,
+      "community": 23,
       "norm_label": "create_basic_test_definitions()"
     },
     {
@@ -2620,7 +2630,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "config_models_rationale_1",
-      "community": 7,
+      "community": 17,
       "norm_label": "pydantic models for test bench configuration validation.  provides typed model"
     },
     {
@@ -2630,7 +2640,7 @@
       "source_location": "L81",
       "_origin": "ast",
       "id": "config_models_rationale_81",
-      "community": 7,
+      "community": 17,
       "norm_label": "electrical/safety limits for a channel."
     },
     {
@@ -2650,7 +2660,7 @@
       "source_location": "L118",
       "_origin": "ast",
       "id": "config_models_rationale_118",
-      "community": 7,
+      "community": 24,
       "norm_label": "static definition of a module type \u2014 capabilities, channel layout, image."
     },
     {
@@ -2660,26 +2670,26 @@
       "source_location": "L154",
       "_origin": "ast",
       "id": "config_models_rationale_154",
-      "community": 7,
+      "community": 24,
       "norm_label": "a concrete module present (or expected) on a test bench."
     },
     {
       "label": "A physical, simulated, or virtual connection between two channels.",
       "file_type": "rationale",
       "source_file": "config_models.py",
-      "source_location": "L202",
+      "source_location": "L209",
       "_origin": "ast",
-      "id": "config_models_rationale_202",
-      "community": 7,
+      "id": "config_models_rationale_209",
+      "community": 17,
       "norm_label": "a physical, simulated, or virtual connection between two channels."
     },
     {
       "label": "A generic test that can be matched against module capabilities.",
       "file_type": "rationale",
       "source_file": "config_models.py",
-      "source_location": "L227",
+      "source_location": "L234",
       "_origin": "ast",
-      "id": "config_models_rationale_227",
+      "id": "config_models_rationale_234",
       "community": 7,
       "norm_label": "a generic test that can be matched against module capabilities."
     },
@@ -2687,29 +2697,29 @@
       "label": "Return conservative category defaults without inspecting product names.      Exp",
       "file_type": "rationale",
       "source_file": "config_models.py",
-      "source_location": "L302",
+      "source_location": "L309",
       "_origin": "ast",
-      "id": "config_models_rationale_302",
-      "community": 7,
+      "id": "config_models_rationale_309",
+      "community": 27,
       "norm_label": "return conservative category defaults without inspecting product names.      exp"
     },
     {
       "label": "Power supply configuration parameters.",
       "file_type": "rationale",
       "source_file": "config_models.py",
-      "source_location": "L379",
+      "source_location": "L386",
       "_origin": "ast",
-      "id": "config_models_rationale_379",
-      "community": 7,
+      "id": "config_models_rationale_386",
+      "community": 17,
       "norm_label": "power supply configuration parameters."
     },
     {
       "label": "Complete test bench configuration.",
       "file_type": "rationale",
       "source_file": "config_models.py",
-      "source_location": "L392",
+      "source_location": "L399",
       "_origin": "ast",
-      "id": "config_models_rationale_392",
+      "id": "config_models_rationale_399",
       "community": 6,
       "norm_label": "complete test bench configuration."
     },
@@ -2717,29 +2727,39 @@
       "label": "Return the configured module instance at a bus address.",
       "file_type": "rationale",
       "source_file": "config_models.py",
-      "source_location": "L407",
+      "source_location": "L414",
       "_origin": "ast",
-      "id": "config_models_rationale_407",
-      "community": 7,
+      "id": "config_models_rationale_414",
+      "community": 27,
       "norm_label": "return the configured module instance at a bus address."
     },
     {
       "label": "Return the explicit module-type definition for a bus address.",
       "file_type": "rationale",
       "source_file": "config_models.py",
-      "source_location": "L414",
+      "source_location": "L421",
       "_origin": "ast",
-      "id": "config_models_rationale_414",
-      "community": 7,
+      "id": "config_models_rationale_421",
+      "community": 27,
       "norm_label": "return the explicit module-type definition for a bus address."
+    },
+    {
+      "label": "Return capabilities for one concrete module.          An explicit instance list",
+      "file_type": "rationale",
+      "source_file": "config_models.py",
+      "source_location": "L426",
+      "_origin": "ast",
+      "id": "config_models_rationale_426",
+      "community": 27,
+      "norm_label": "return capabilities for one concrete module.          an explicit instance list"
     },
     {
       "label": "Reject impossible capability and explicit module references.",
       "file_type": "rationale",
       "source_file": "config_models.py",
-      "source_location": "L469",
+      "source_location": "L490",
       "_origin": "ast",
-      "id": "config_models_rationale_469",
+      "id": "config_models_rationale_490",
       "community": 21,
       "norm_label": "reject impossible capability and explicit module references."
     },
@@ -2747,9 +2767,9 @@
       "label": "Product keys identify physical products and must be unique per bench.",
       "file_type": "rationale",
       "source_file": "config_models.py",
-      "source_location": "L542",
+      "source_location": "L564",
       "_origin": "ast",
-      "id": "config_models_rationale_542",
+      "id": "config_models_rationale_564",
       "community": 21,
       "norm_label": "product keys identify physical products and must be unique per bench."
     },
@@ -2757,9 +2777,9 @@
       "label": "Verify wiring references valid source and target channels.",
       "file_type": "rationale",
       "source_file": "config_models.py",
-      "source_location": "L552",
+      "source_location": "L574",
       "_origin": "ast",
-      "id": "config_models_rationale_552",
+      "id": "config_models_rationale_574",
       "community": 21,
       "norm_label": "verify wiring references valid source and target channels."
     },
@@ -2767,20 +2787,20 @@
       "label": "Construct a BenchConfig directly from live hardware topology.",
       "file_type": "rationale",
       "source_file": "config_models.py",
-      "source_location": "L631",
+      "source_location": "L653",
       "_origin": "ast",
-      "id": "config_models_rationale_631",
-      "community": 7,
+      "id": "config_models_rationale_653",
+      "community": 24,
       "norm_label": "construct a benchconfig directly from live hardware topology."
     },
     {
       "label": "Return a sensible default set of test definitions.      These cover the most c",
       "file_type": "rationale",
       "source_file": "config_models.py",
-      "source_location": "L740",
+      "source_location": "L763",
       "_origin": "ast",
-      "id": "config_models_rationale_740",
-      "community": 7,
+      "id": "config_models_rationale_763",
+      "community": 23,
       "norm_label": "return a sensible default set of test definitions.      these cover the most c"
     },
     {
@@ -2790,7 +2810,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "connection_manager",
-      "community": 11,
+      "community": 18,
       "norm_label": "connection_manager.py"
     },
     {
@@ -2800,7 +2820,7 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "connection_manager_connectionmanager",
-      "community": 9,
+      "community": 18,
       "norm_label": "connectionmanager"
     },
     {
@@ -2810,7 +2830,7 @@
       "source_location": "L38",
       "_origin": "ast",
       "id": "connection_manager_connectionmanager_init",
-      "community": 9,
+      "community": 18,
       "norm_label": ".__init__()"
     },
     {
@@ -2820,7 +2840,7 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "connection_manager_connectionmanager_is_connected",
-      "community": 9,
+      "community": 18,
       "norm_label": ".is_connected()"
     },
     {
@@ -2830,7 +2850,7 @@
       "source_location": "L52",
       "_origin": "ast",
       "id": "connection_manager_connectionmanager_ip_address",
-      "community": 9,
+      "community": 18,
       "norm_label": ".ip_address()"
     },
     {
@@ -2840,7 +2860,7 @@
       "source_location": "L57",
       "_origin": "ast",
       "id": "connection_manager_connectionmanager_timeout",
-      "community": 9,
+      "community": 18,
       "norm_label": ".timeout()"
     },
     {
@@ -2850,7 +2870,7 @@
       "source_location": "L61",
       "_origin": "ast",
       "id": "connection_manager_connectionmanager_connect",
-      "community": 9,
+      "community": 18,
       "norm_label": ".connect()"
     },
     {
@@ -2860,7 +2880,7 @@
       "source_location": "L76",
       "_origin": "ast",
       "id": "connection_manager_connectionmanager_disconnect",
-      "community": 9,
+      "community": 18,
       "norm_label": ".disconnect()"
     },
     {
@@ -2870,7 +2890,7 @@
       "source_location": "L81",
       "_origin": "ast",
       "id": "connection_manager_connectionmanager_get_hw",
-      "community": 9,
+      "community": 18,
       "norm_label": ".get_hw()"
     },
     {
@@ -2880,7 +2900,7 @@
       "source_location": "L94",
       "_origin": "ast",
       "id": "connection_manager_connectionmanager_get_module",
-      "community": 9,
+      "community": 18,
       "norm_label": ".get_module()"
     },
     {
@@ -2890,7 +2910,7 @@
       "source_location": "L107",
       "_origin": "ast",
       "id": "connection_manager_connectionmanager_disconnect_unsafe",
-      "community": 9,
+      "community": 18,
       "norm_label": "._disconnect_unsafe()"
     },
     {
@@ -2910,7 +2930,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "connection_manager_rationale_1",
-      "community": 11,
+      "community": 18,
       "norm_label": "shared hardware connection manager for the cpx-ap api.  provides a module-leve"
     },
     {
@@ -2920,7 +2940,7 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "connection_manager_rationale_32",
-      "community": 9,
+      "community": 18,
       "norm_label": "thread-safe singleton that manages a single :class:`cpxaphardware` instance."
     },
     {
@@ -2930,7 +2950,7 @@
       "source_location": "L62",
       "_origin": "ast",
       "id": "connection_manager_rationale_62",
-      "community": 9,
+      "community": 18,
       "norm_label": "establish (or replace) the shared hardware connection."
     },
     {
@@ -2940,7 +2960,7 @@
       "source_location": "L77",
       "_origin": "ast",
       "id": "connection_manager_rationale_77",
-      "community": 9,
+      "community": 18,
       "norm_label": "gracefully close the shared connection."
     },
     {
@@ -2950,7 +2970,7 @@
       "source_location": "L82",
       "_origin": "ast",
       "id": "connection_manager_rationale_82",
-      "community": 9,
+      "community": 18,
       "norm_label": "return the shared hardware interface.          raises:             runtimeerr"
     },
     {
@@ -2960,7 +2980,7 @@
       "source_location": "L95",
       "_origin": "ast",
       "id": "connection_manager_rationale_95",
-      "community": 9,
+      "community": 18,
       "norm_label": "return the raw module object at *address*.          convenience for endpoints"
     },
     {
@@ -2970,7 +2990,7 @@
       "source_location": "L108",
       "_origin": "ast",
       "id": "connection_manager_rationale_108",
-      "community": 9,
+      "community": 18,
       "norm_label": "disconnect without acquiring the lock (caller must hold it)."
     },
     {
@@ -3250,7 +3270,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "hal",
-      "community": 19,
+      "community": 6,
       "norm_label": "hal.py"
     },
     {
@@ -3260,7 +3280,7 @@
       "source_location": "L26",
       "_origin": "ast",
       "id": "hal_moduleinfo",
-      "community": 7,
+      "community": 2,
       "norm_label": "moduleinfo"
     },
     {
@@ -3270,7 +3290,7 @@
       "source_location": "L40",
       "_origin": "ast",
       "id": "hal_moduleinfo_is_input",
-      "community": 7,
+      "community": 2,
       "norm_label": ".is_input()"
     },
     {
@@ -3280,7 +3300,7 @@
       "source_location": "L44",
       "_origin": "ast",
       "id": "hal_moduleinfo_is_output",
-      "community": 7,
+      "community": 2,
       "norm_label": ".is_output()"
     },
     {
@@ -3290,7 +3310,7 @@
       "source_location": "L48",
       "_origin": "ast",
       "id": "hal_moduleinfo_is_inout",
-      "community": 7,
+      "community": 2,
       "norm_label": ".is_inout()"
     },
     {
@@ -3300,7 +3320,7 @@
       "source_location": "L52",
       "_origin": "ast",
       "id": "hal_moduleinfo_is_valve",
-      "community": 7,
+      "community": 2,
       "norm_label": ".is_valve()"
     },
     {
@@ -3320,7 +3340,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "abc",
-      "community": 19,
+      "community": 6,
       "norm_label": "abc"
     },
     {
@@ -3350,7 +3370,7 @@
       "source_location": "L74",
       "_origin": "ast",
       "id": "hal_hardwareinterface_read_topology",
-      "community": 7,
+      "community": 2,
       "norm_label": ".read_topology()"
     },
     {
@@ -3550,7 +3570,7 @@
       "source_location": "L203",
       "_origin": "ast",
       "id": "hal_cpxaphardware_read_topology",
-      "community": 7,
+      "community": 2,
       "norm_label": ".read_topology()"
     },
     {
@@ -3690,7 +3710,7 @@
       "source_location": "L327",
       "_origin": "ast",
       "id": "hal_module_to_info",
-      "community": 7,
+      "community": 2,
       "norm_label": "_module_to_info()"
     },
     {
@@ -3710,7 +3730,7 @@
       "source_location": "L360",
       "_origin": "ast",
       "id": "hal_crossprocesslock_init",
-      "community": 10,
+      "community": 9,
       "norm_label": ".__init__()"
     },
     {
@@ -3810,7 +3830,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "hal_rationale_1",
-      "community": 19,
+      "community": 6,
       "norm_label": "hardware abstraction layer for the cpx-ap test framework.  defines :class:`har"
     },
     {
@@ -3820,7 +3840,7 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "hal_rationale_27",
-      "community": 7,
+      "community": 2,
       "norm_label": "lightweight snapshot of a module on the bus."
     },
     {
@@ -3860,7 +3880,7 @@
       "source_location": "L75",
       "_origin": "ast",
       "id": "hal_rationale_75",
-      "community": 7,
+      "community": 2,
       "norm_label": "return a list of all modules on the bus."
     },
     {
@@ -4080,7 +4100,7 @@
       "source_location": "L328",
       "_origin": "ast",
       "id": "hal_rationale_328",
-      "community": 7,
+      "community": 2,
       "norm_label": "convert a festo-cpx-io apmodule to a moduleinfo dto."
     },
     {
@@ -4130,7 +4150,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "power_supply",
-      "community": 19,
+      "community": 4,
       "norm_label": "power_supply.py"
     },
     {
@@ -4140,7 +4160,7 @@
       "source_location": "L40",
       "_origin": "ast",
       "id": "power_supply_try_load_hmp40x0",
-      "community": 10,
+      "community": 9,
       "norm_label": "_try_load_hmp40x0()"
     },
     {
@@ -4150,7 +4170,7 @@
       "source_location": "L100",
       "_origin": "ast",
       "id": "power_supply_powersupplynotavailable",
-      "community": 19,
+      "community": 4,
       "norm_label": "powersupplynotavailable"
     },
     {
@@ -4170,7 +4190,7 @@
       "source_location": "L104",
       "_origin": "ast",
       "id": "power_supply_is_available",
-      "community": 19,
+      "community": 4,
       "norm_label": "is_available()"
     },
     {
@@ -4290,7 +4310,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "power_supply_rationale_1",
-      "community": 19,
+      "community": 4,
       "norm_label": "power supply control for hardware-in-the-loop tests.  wraps the hmp40x0 serial"
     },
     {
@@ -4300,7 +4320,7 @@
       "source_location": "L41",
       "_origin": "ast",
       "id": "power_supply_rationale_41",
-      "community": 10,
+      "community": 9,
       "norm_label": "load ``hmp40x0`` from the sibling testing-lib without triggering the     full `"
     },
     {
@@ -4310,7 +4330,7 @@
       "source_location": "L101",
       "_origin": "ast",
       "id": "power_supply_rationale_101",
-      "community": 19,
+      "community": 4,
       "norm_label": "raised when the hmp40x0 library cannot be imported."
     },
     {
@@ -4320,7 +4340,7 @@
       "source_location": "L105",
       "_origin": "ast",
       "id": "power_supply_rationale_105",
-      "community": 19,
+      "community": 4,
       "norm_label": "return ``true`` if the hmp40x0 driver was loaded successfully or ip address is u"
     },
     {
@@ -5043,124 +5063,124 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "resolver",
-      "community": 7,
+      "community": 23,
       "norm_label": "resolver.py"
     },
     {
       "label": "_cached_test_definitions()",
       "file_type": "code",
       "source_file": "resolver.py",
-      "source_location": "L40",
+      "source_location": "L39",
       "_origin": "ast",
       "id": "resolver_cached_test_definitions",
-      "community": 7,
+      "community": 23,
       "norm_label": "_cached_test_definitions()"
     },
     {
       "label": "load_all_test_definitions()",
       "file_type": "code",
       "source_file": "resolver.py",
-      "source_location": "L65",
+      "source_location": "L64",
       "_origin": "ast",
       "id": "resolver_load_all_test_definitions",
-      "community": 7,
+      "community": 23,
       "norm_label": "load_all_test_definitions()"
     },
     {
       "label": "ResolvedTestInstance",
       "file_type": "code",
       "source_file": "resolver.py",
-      "source_location": "L74",
+      "source_location": "L73",
       "_origin": "ast",
       "id": "resolver_resolvedtestinstance",
-      "community": 7,
+      "community": 23,
       "norm_label": "resolvedtestinstance"
     },
     {
       "label": ".unique_id()",
       "file_type": "code",
       "source_file": "resolver.py",
-      "source_location": "L95",
+      "source_location": "L94",
       "_origin": "ast",
       "id": "resolver_resolvedtestinstance_unique_id",
-      "community": 7,
+      "community": 23,
       "norm_label": ".unique_id()"
     },
     {
       "label": "ConditionCounterRoute",
       "file_type": "code",
       "source_file": "resolver.py",
-      "source_location": "L108",
+      "source_location": "L107",
       "_origin": "ast",
       "id": "resolver_conditioncounterroute",
-      "community": 7,
+      "community": 42,
       "norm_label": "conditioncounterroute"
     },
     {
       "label": ".counter_instance()",
       "file_type": "code",
       "source_file": "resolver.py",
-      "source_location": "L120",
+      "source_location": "L119",
       "_origin": "ast",
       "id": "resolver_conditioncounterroute_counter_instance",
-      "community": 7,
+      "community": 42,
       "norm_label": ".counter_instance()"
     },
     {
       "label": "ExecutionPlan",
       "file_type": "code",
       "source_file": "resolver.py",
-      "source_location": "L126",
+      "source_location": "L125",
       "_origin": "ast",
       "id": "resolver_executionplan",
-      "community": 7,
+      "community": 29,
       "norm_label": "executionplan"
     },
     {
       "label": ".count()",
       "file_type": "code",
       "source_file": "resolver.py",
-      "source_location": "L136",
+      "source_location": "L135",
       "_origin": "ast",
       "id": "resolver_executionplan_count",
-      "community": 7,
+      "community": 29,
       "norm_label": ".count()"
     },
     {
       "label": ".filter_by_test_id()",
       "file_type": "code",
       "source_file": "resolver.py",
-      "source_location": "L139",
+      "source_location": "L138",
       "_origin": "ast",
       "id": "resolver_executionplan_filter_by_test_id",
-      "community": 7,
+      "community": 29,
       "norm_label": ".filter_by_test_id()"
     },
     {
       "label": ".filter_by_safety_class()",
       "file_type": "code",
       "source_file": "resolver.py",
-      "source_location": "L148",
+      "source_location": "L147",
       "_origin": "ast",
       "id": "resolver_executionplan_filter_by_safety_class",
-      "community": 7,
+      "community": 29,
       "norm_label": ".filter_by_safety_class()"
     },
     {
       "label": ".to_dict()",
       "file_type": "code",
       "source_file": "resolver.py",
-      "source_location": "L157",
+      "source_location": "L156",
       "_origin": "ast",
       "id": "resolver_executionplan_to_dict",
-      "community": 7,
+      "community": 29,
       "norm_label": ".to_dict()"
     },
     {
       "label": "TestFilter",
       "file_type": "code",
       "source_file": "resolver.py",
-      "source_location": "L189",
+      "source_location": "L188",
       "_origin": "ast",
       "id": "resolver_testfilter",
       "community": 7,
@@ -5170,7 +5190,7 @@
       "label": "TestResolver",
       "file_type": "code",
       "source_file": "resolver.py",
-      "source_location": "L203",
+      "source_location": "L202",
       "_origin": "ast",
       "id": "resolver_testresolver",
       "community": 7,
@@ -5180,17 +5200,17 @@
       "label": ".resolve()",
       "file_type": "code",
       "source_file": "resolver.py",
-      "source_location": "L206",
+      "source_location": "L205",
       "_origin": "ast",
       "id": "resolver_testresolver_resolve",
-      "community": 7,
+      "community": 23,
       "norm_label": ".resolve()"
     },
     {
       "label": ".resolve_condition_counter_routes()",
       "file_type": "code",
       "source_file": "resolver.py",
-      "source_location": "L400",
+      "source_location": "L399",
       "_origin": "ast",
       "id": "resolver_testresolver_resolve_condition_counter_routes",
       "community": 42,
@@ -5200,7 +5220,7 @@
       "label": "._matches_category()",
       "file_type": "code",
       "source_file": "resolver.py",
-      "source_location": "L499",
+      "source_location": "L497",
       "_origin": "ast",
       "id": "resolver_testresolver_matches_category",
       "community": 7,
@@ -5210,17 +5230,17 @@
       "label": "._matches_capabilities()",
       "file_type": "code",
       "source_file": "resolver.py",
-      "source_location": "L505",
+      "source_location": "L503",
       "_origin": "ast",
       "id": "resolver_testresolver_matches_capabilities",
-      "community": 7,
+      "community": 27,
       "norm_label": "._matches_capabilities()"
     },
     {
       "label": "._matches_include_exclude()",
       "file_type": "code",
       "source_file": "resolver.py",
-      "source_location": "L521",
+      "source_location": "L514",
       "_origin": "ast",
       "id": "resolver_testresolver_matches_include_exclude",
       "community": 7,
@@ -5230,7 +5250,7 @@
       "label": "._channel_satisfies()",
       "file_type": "code",
       "source_file": "resolver.py",
-      "source_location": "L542",
+      "source_location": "L535",
       "_origin": "ast",
       "id": "resolver_testresolver_channel_satisfies",
       "community": 7,
@@ -5240,10 +5260,10 @@
       "label": "._apply_filters()",
       "file_type": "code",
       "source_file": "resolver.py",
-      "source_location": "L552",
+      "source_location": "L545",
       "_origin": "ast",
       "id": "resolver_testresolver_apply_filters",
-      "community": 7,
+      "community": 23,
       "norm_label": "._apply_filters()"
     },
     {
@@ -5253,76 +5273,76 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "resolver_rationale_1",
-      "community": 7,
+      "community": 23,
       "norm_label": "capability-based test resolver.  matches generic test definitions against modu"
     },
     {
       "label": "Return isolated copies of cached test metadata discovered from modules.",
       "file_type": "rationale",
       "source_file": "resolver.py",
-      "source_location": "L66",
+      "source_location": "L65",
       "_origin": "ast",
-      "id": "resolver_rationale_66",
-      "community": 7,
+      "id": "resolver_rationale_65",
+      "community": 23,
       "norm_label": "return isolated copies of cached test metadata discovered from modules."
     },
     {
       "label": "A concrete test instance bound to a specific module/channel/connection.",
       "file_type": "rationale",
       "source_file": "resolver.py",
-      "source_location": "L75",
+      "source_location": "L74",
       "_origin": "ast",
-      "id": "resolver_rationale_75",
-      "community": 7,
+      "id": "resolver_rationale_74",
+      "community": 23,
       "norm_label": "a concrete test instance bound to a specific module/channel/connection."
     },
     {
       "label": "Generate a stable unique ID for this test instance.",
       "file_type": "rationale",
       "source_file": "resolver.py",
-      "source_location": "L96",
+      "source_location": "L95",
       "_origin": "ast",
-      "id": "resolver_rationale_96",
-      "community": 7,
+      "id": "resolver_rationale_95",
+      "community": 23,
       "norm_label": "generate a stable unique id for this test instance."
     },
     {
       "label": "An output-to-CPX-AP-I-16* input route ready for a CC test.",
       "file_type": "rationale",
       "source_file": "resolver.py",
-      "source_location": "L109",
+      "source_location": "L108",
       "_origin": "ast",
-      "id": "resolver_rationale_109",
-      "community": 7,
+      "id": "resolver_rationale_108",
+      "community": 42,
       "norm_label": "an output-to-cpx-ap-i-16* input route ready for a cc test."
     },
     {
       "label": "The one-based parameter instance used by ``cpx_io``.",
       "file_type": "rationale",
       "source_file": "resolver.py",
-      "source_location": "L121",
+      "source_location": "L120",
       "_origin": "ast",
-      "id": "resolver_rationale_121",
-      "community": 7,
+      "id": "resolver_rationale_120",
+      "community": 42,
       "norm_label": "the one-based parameter instance used by ``cpx_io``."
     },
     {
       "label": "The resolved execution plan \u2014 all test instances to execute.",
       "file_type": "rationale",
       "source_file": "resolver.py",
-      "source_location": "L127",
+      "source_location": "L126",
       "_origin": "ast",
-      "id": "resolver_rationale_127",
-      "community": 7,
+      "id": "resolver_rationale_126",
+      "community": 29,
       "norm_label": "the resolved execution plan \u2014 all test instances to execute."
     },
     {
       "label": "Optional filter criteria for the resolver.",
       "file_type": "rationale",
       "source_file": "resolver.py",
-      "source_location": "L190",
+      "source_location": "L189",
       "_origin": "ast",
-      "id": "resolver_rationale_190",
+      "id": "resolver_rationale_189",
       "community": 7,
       "norm_label": "optional filter criteria for the resolver."
     },
@@ -5330,9 +5350,9 @@
       "label": "Matches test definitions to module instances based on capabilities.",
       "file_type": "rationale",
       "source_file": "resolver.py",
-      "source_location": "L204",
+      "source_location": "L203",
       "_origin": "ast",
-      "id": "resolver_rationale_204",
+      "id": "resolver_rationale_203",
       "community": 7,
       "norm_label": "matches test definitions to module instances based on capabilities."
     },
@@ -5340,19 +5360,19 @@
       "label": "Produce an execution plan from a bench configuration.          For each (test_",
       "file_type": "rationale",
       "source_file": "resolver.py",
-      "source_location": "L211",
+      "source_location": "L210",
       "_origin": "ast",
-      "id": "resolver_rationale_211",
-      "community": 7,
+      "id": "resolver_rationale_210",
+      "community": 23,
       "norm_label": "produce an execution plan from a bench configuration.          for each (test_"
     },
     {
       "label": "Resolve and orient wiring suitable for condition-counter tests.          CC para",
       "file_type": "rationale",
       "source_file": "resolver.py",
-      "source_location": "L403",
+      "source_location": "L402",
       "_origin": "ast",
-      "id": "resolver_rationale_403",
+      "id": "resolver_rationale_402",
       "community": 42,
       "norm_label": "resolve and orient wiring suitable for condition-counter tests.          cc para"
     },
@@ -5443,7 +5463,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "test_execution",
-      "community": 1,
+      "community": 26,
       "norm_label": "test_execution.py"
     },
     {
@@ -5453,7 +5473,7 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "test_execution_instance_from_dict",
-      "community": 1,
+      "community": 26,
       "norm_label": "_instance_from_dict()"
     },
     {
@@ -5463,7 +5483,7 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "test_execution_child_execute",
-      "community": 1,
+      "community": 26,
       "norm_label": "_child_execute()"
     },
     {
@@ -5473,7 +5493,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "queue",
-      "community": 1,
+      "community": 26,
       "norm_label": "queue"
     },
     {
@@ -5483,7 +5503,7 @@
       "source_location": "L59",
       "_origin": "ast",
       "id": "test_execution_emergency_reset",
-      "community": 1,
+      "community": 26,
       "norm_label": "_emergency_reset()"
     },
     {
@@ -5493,7 +5513,7 @@
       "source_location": "L71",
       "_origin": "ast",
       "id": "test_execution_execute_resolved_instance",
-      "community": 1,
+      "community": 26,
       "norm_label": "execute_resolved_instance()"
     },
     {
@@ -5503,7 +5523,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "test_execution_rationale_1",
-      "community": 1,
+      "community": 26,
       "norm_label": "process-isolated execution used exclusively by the fastapi test service."
     },
     {
@@ -5513,7 +5533,7 @@
       "source_location": "L28",
       "_origin": "ast",
       "id": "test_execution_rationale_28",
-      "community": 1,
+      "community": 26,
       "norm_label": "child-process target.  it owns both the connection and safesession."
     },
     {
@@ -5523,7 +5543,7 @@
       "source_location": "L60",
       "_origin": "ast",
       "id": "test_execution_rationale_60",
-      "community": 1,
+      "community": 26,
       "norm_label": "reconnect after a killed child and force the bench back to a safe state."
     },
     {
@@ -5533,7 +5553,7 @@
       "source_location": "L78",
       "_origin": "ast",
       "id": "test_execution_rationale_78",
-      "community": 1,
+      "community": 26,
       "norm_label": "run one resolved instance in a killable child process.      timeout and abort bo"
     },
     {
@@ -5543,7 +5563,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_init",
-      "community": 15,
+      "community": 6,
       "norm_label": "__init__.py"
     },
     {
@@ -5553,7 +5573,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_init_rationale_1",
-      "community": 15,
+      "community": 6,
       "norm_label": "test registry for the cpx-ap validation suite.  each entry maps a test id (as"
     },
     {
@@ -5613,7 +5633,7 @@
       "source_location": "L83",
       "_origin": "ast",
       "id": "tests_base_load_connections",
-      "community": 10,
+      "community": 9,
       "norm_label": "load_connections()"
     },
     {
@@ -5673,7 +5693,7 @@
       "source_location": "L84",
       "_origin": "ast",
       "id": "tests_base_rationale_84",
-      "community": 10,
+      "community": 9,
       "norm_label": "load i/o connection entries from a jsonc file."
     },
     {
@@ -5703,7 +5723,7 @@
       "source_location": "L44",
       "_origin": "ast",
       "id": "tests_test_api_run",
-      "community": 6,
+      "community": 15,
       "norm_label": "run()"
     },
     {
@@ -5733,7 +5753,7 @@
       "source_location": "L51",
       "_origin": "ast",
       "id": "tests_test_api_rationale_51",
-      "community": 6,
+      "community": 15,
       "norm_label": "execute the test against a single module.      :param hw: pre-connected hardwa"
     },
     {
@@ -5743,7 +5763,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_test_automation",
-      "community": 13,
+      "community": 2,
       "norm_label": "test_automation.py"
     },
     {
@@ -5753,7 +5773,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "tests_test_automation_fakehardware",
-      "community": 13,
+      "community": 19,
       "norm_label": "fakehardware"
     },
     {
@@ -5763,7 +5783,7 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "tests_test_automation_fakehardware_init",
-      "community": 13,
+      "community": 19,
       "norm_label": ".__init__()"
     },
     {
@@ -5773,7 +5793,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "tests_test_automation_fakehardware_connect",
-      "community": 13,
+      "community": 19,
       "norm_label": ".connect()"
     },
     {
@@ -5783,7 +5803,7 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "tests_test_automation_fakehardware_disconnect",
-      "community": 13,
+      "community": 19,
       "norm_label": ".disconnect()"
     },
     {
@@ -5793,7 +5813,7 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "tests_test_automation_fakehardware_read_topology",
-      "community": 13,
+      "community": 2,
       "norm_label": ".read_topology()"
     },
     {
@@ -5803,7 +5823,7 @@
       "source_location": "L30",
       "_origin": "ast",
       "id": "tests_test_automation_fakehardware_read_input",
-      "community": 13,
+      "community": 19,
       "norm_label": ".read_input()"
     },
     {
@@ -5813,7 +5833,7 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "tests_test_automation_fakehardware_read_inputs",
-      "community": 13,
+      "community": 19,
       "norm_label": ".read_inputs()"
     },
     {
@@ -5823,7 +5843,7 @@
       "source_location": "L37",
       "_origin": "ast",
       "id": "tests_test_automation_fakehardware_read_analog",
-      "community": 13,
+      "community": 19,
       "norm_label": ".read_analog()"
     },
     {
@@ -5833,7 +5853,7 @@
       "source_location": "L40",
       "_origin": "ast",
       "id": "tests_test_automation_fakehardware_read_analogs",
-      "community": 13,
+      "community": 19,
       "norm_label": ".read_analogs()"
     },
     {
@@ -5843,7 +5863,7 @@
       "source_location": "L43",
       "_origin": "ast",
       "id": "tests_test_automation_fakehardware_write_output",
-      "community": 13,
+      "community": 19,
       "norm_label": ".write_output()"
     },
     {
@@ -5853,7 +5873,7 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "tests_test_automation_fakehardware_write_channels",
-      "community": 13,
+      "community": 19,
       "norm_label": ".write_channels()"
     },
     {
@@ -5863,7 +5883,7 @@
       "source_location": "L51",
       "_origin": "ast",
       "id": "tests_test_automation_fakehardware_reset_all_outputs",
-      "community": 13,
+      "community": 19,
       "norm_label": ".reset_all_outputs()"
     },
     {
@@ -5883,7 +5903,7 @@
       "source_location": "L58",
       "_origin": "ast",
       "id": "tests_test_automation_fakehardware_write_parameter",
-      "community": 13,
+      "community": 19,
       "norm_label": ".write_parameter()"
     },
     {
@@ -5903,7 +5923,7 @@
       "source_location": "L64",
       "_origin": "ast",
       "id": "tests_test_automation_fakehardware_module_supports_channel_write",
-      "community": 13,
+      "community": 19,
       "norm_label": ".module_supports_channel_write()"
     },
     {
@@ -5913,7 +5933,7 @@
       "source_location": "L68",
       "_origin": "ast",
       "id": "tests_test_automation_program",
-      "community": 13,
+      "community": 10,
       "norm_label": "program()"
     },
     {
@@ -5923,7 +5943,7 @@
       "source_location": "L72",
       "_origin": "ast",
       "id": "tests_test_automation_automationenginetests",
-      "community": 13,
+      "community": 10,
       "norm_label": "automationenginetests"
     },
     {
@@ -5933,7 +5953,7 @@
       "source_location": "L73",
       "_origin": "ast",
       "id": "tests_test_automation_automationenginetests_test_program_list_skips_an_invalid_record_without_hiding_valid_records",
-      "community": 13,
+      "community": 10,
       "norm_label": ".test_program_list_skips_an_invalid_record_without_hiding_valid_records()"
     },
     {
@@ -5943,7 +5963,7 @@
       "source_location": "L93",
       "_origin": "ast",
       "id": "tests_test_automation_automationenginetests_test_hardware_reads_modules_without_bulk_read_helper",
-      "community": 13,
+      "community": 19,
       "norm_label": ".test_hardware_reads_modules_without_bulk_read_helper()"
     },
     {
@@ -5953,7 +5973,7 @@
       "source_location": "L105",
       "_origin": "ast",
       "id": "tests_test_automation_automationenginetests_test_one_shot_timer_triggers_an_output_once",
-      "community": 13,
+      "community": 10,
       "norm_label": ".test_one_shot_timer_triggers_an_output_once()"
     },
     {
@@ -5963,7 +5983,7 @@
       "source_location": "L125",
       "_origin": "ast",
       "id": "tests_test_automation_automationenginetests_test_repeating_timer_keeps_a_stable_cadence",
-      "community": 13,
+      "community": 10,
       "norm_label": ".test_repeating_timer_keeps_a_stable_cadence()"
     },
     {
@@ -5973,7 +5993,7 @@
       "source_location": "L143",
       "_origin": "ast",
       "id": "tests_test_automation_automationenginetests_test_simulated_hardware_keeps_virtual_io_state",
-      "community": 13,
+      "community": 19,
       "norm_label": ".test_simulated_hardware_keeps_virtual_io_state()"
     },
     {
@@ -5983,7 +6003,7 @@
       "source_location": "L161",
       "_origin": "ast",
       "id": "tests_test_automation_automationenginetests_test_simulated_inputs_on_the_same_channel_are_overridden_per_node",
-      "community": 13,
+      "community": 10,
       "norm_label": ".test_simulated_inputs_on_the_same_channel_are_overridden_per_node()"
     },
     {
@@ -5993,7 +6013,7 @@
       "source_location": "L180",
       "_origin": "ast",
       "id": "tests_test_automation_automationenginetests_test_temperature_and_voltage_limits_emit_boolean_signals",
-      "community": 13,
+      "community": 10,
       "norm_label": ".test_temperature_and_voltage_limits_emit_boolean_signals()"
     },
     {
@@ -6003,7 +6023,7 @@
       "source_location": "L206",
       "_origin": "ast",
       "id": "tests_test_automation_automationenginetests_test_rising_input_delay_toggles_output_without_blocking",
-      "community": 13,
+      "community": 10,
       "norm_label": ".test_rising_input_delay_toggles_output_without_blocking()"
     },
     {
@@ -6013,7 +6033,7 @@
       "source_location": "L236",
       "_origin": "ast",
       "id": "tests_test_automation_automationenginetests_test_counter_emits_only_on_every_configured_event",
-      "community": 13,
+      "community": 10,
       "norm_label": ".test_counter_emits_only_on_every_configured_event()"
     },
     {
@@ -6023,7 +6043,7 @@
       "source_location": "L257",
       "_origin": "ast",
       "id": "tests_test_automation_automationenginetests_test_pressure_gate_forwards_signal_only_at_configured_pressure",
-      "community": 13,
+      "community": 10,
       "norm_label": ".test_pressure_gate_forwards_signal_only_at_configured_pressure()"
     },
     {
@@ -6033,7 +6053,7 @@
       "source_location": "L279",
       "_origin": "ast",
       "id": "tests_test_automation_automationenginetests_test_virtual_cylinder_emits_end_position_event",
-      "community": 13,
+      "community": 10,
       "norm_label": ".test_virtual_cylinder_emits_end_position_event()"
     },
     {
@@ -6043,7 +6063,7 @@
       "source_location": "L299",
       "_origin": "ast",
       "id": "tests_test_automation_automationenginetests_test_graph_rejects_missing_edge_endpoint",
-      "community": 13,
+      "community": 10,
       "norm_label": ".test_graph_rejects_missing_edge_endpoint()"
     },
     {
@@ -6053,7 +6073,7 @@
       "source_location": "L307",
       "_origin": "ast",
       "id": "tests_test_automation_automationenginetests_test_stop_resets_only_outputs_owned_by_the_program",
-      "community": 13,
+      "community": 10,
       "norm_label": ".test_stop_resets_only_outputs_owned_by_the_program()"
     },
     {
@@ -6063,7 +6083,7 @@
       "source_location": "L318",
       "_origin": "ast",
       "id": "tests_test_automation_automationenginetests_test_inputs_on_one_module_share_one_process_image_read",
-      "community": 13,
+      "community": 10,
       "norm_label": ".test_inputs_on_one_module_share_one_process_image_read()"
     },
     {
@@ -6073,7 +6093,7 @@
       "source_location": "L333",
       "_origin": "ast",
       "id": "tests_test_automation_automationenginetests_test_nand_is_false_only_when_both_inputs_are_high",
-      "community": 13,
+      "community": 10,
       "norm_label": ".test_nand_is_false_only_when_both_inputs_are_high()"
     },
     {
@@ -6083,7 +6103,7 @@
       "source_location": "L356",
       "_origin": "ast",
       "id": "tests_test_automation_automationenginetests_test_conversion_scales_an_incoming_analog_value",
-      "community": 13,
+      "community": 10,
       "norm_label": ".test_conversion_scales_an_incoming_analog_value()"
     },
     {
@@ -6093,7 +6113,7 @@
       "source_location": "L375",
       "_origin": "ast",
       "id": "tests_test_automation_automationenginetests_test_nand_drives_follow_output",
-      "community": 13,
+      "community": 10,
       "norm_label": ".test_nand_drives_follow_output()"
     },
     {
@@ -6103,7 +6123,7 @@
       "source_location": "L403",
       "_origin": "ast",
       "id": "tests_test_automation_automationenginetests_test_action_blocks_for_one_valve_share_physical_state",
-      "community": 13,
+      "community": 10,
       "norm_label": ".test_action_blocks_for_one_valve_share_physical_state()"
     },
     {
@@ -6143,7 +6163,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_test_condition_counter",
-      "community": 42,
+      "community": 6,
       "norm_label": "test_condition_counter.py"
     },
     {
@@ -6153,7 +6173,7 @@
       "source_location": "L38",
       "_origin": "ast",
       "id": "tests_test_condition_counter_run",
-      "community": 42,
+      "community": 15,
       "norm_label": "run()"
     },
     {
@@ -6163,7 +6183,7 @@
       "source_location": "L116",
       "_origin": "ast",
       "id": "tests_test_condition_counter_run_with_power_cycle",
-      "community": 42,
+      "community": 15,
       "norm_label": "run_with_power_cycle()"
     },
     {
@@ -6173,7 +6193,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_test_condition_counter_rationale_1",
-      "community": 42,
+      "community": 6,
       "norm_label": "condition-counter validation for wired cpx-ap-i-16* channels.  the resolver owns"
     },
     {
@@ -6183,7 +6203,7 @@
       "source_location": "L45",
       "_origin": "ast",
       "id": "tests_test_condition_counter_rationale_45",
-      "community": 42,
+      "community": 15,
       "norm_label": "count rising edges on every resolved route for one cc module."
     },
     {
@@ -6193,7 +6213,7 @@
       "source_location": "L123",
       "_origin": "ast",
       "id": "tests_test_condition_counter_rationale_123",
-      "community": 42,
+      "community": 15,
       "norm_label": "run cc edge validation, then verify successful counters persist."
     },
     {
@@ -6927,13 +6947,53 @@
       "norm_label": "full end-to-end remanent-params test with bench power cycle."
     },
     {
+      "label": "test_resolver_capabilities.py",
+      "file_type": "code",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "tests_test_resolver_capabilities",
+      "community": 24,
+      "norm_label": "test_resolver_capabilities.py"
+    },
+    {
+      "label": "InstanceCapabilityResolutionTests",
+      "file_type": "code",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L16",
+      "_origin": "ast",
+      "id": "tests_test_resolver_capabilities_instancecapabilityresolutiontests",
+      "community": 24,
+      "norm_label": "instancecapabilityresolutiontests"
+    },
+    {
+      "label": ".test_instance_capabilities_override_shared_type_capabilities()",
+      "file_type": "code",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L17",
+      "_origin": "ast",
+      "id": "tests_test_resolver_capabilities_instancecapabilityresolutiontests_test_instance_capabilities_override_shared_type_capabilities",
+      "community": 24,
+      "norm_label": ".test_instance_capabilities_override_shared_type_capabilities()"
+    },
+    {
+      "label": ".test_omitted_instance_capabilities_keep_legacy_type_fallback()",
+      "file_type": "code",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L63",
+      "_origin": "ast",
+      "id": "tests_test_resolver_capabilities_instancecapabilityresolutiontests_test_omitted_instance_capabilities_keep_legacy_type_fallback",
+      "community": 24,
+      "norm_label": ".test_omitted_instance_capabilities_keep_legacy_type_fallback()"
+    },
+    {
       "label": "test_system_diagnosis.py",
       "file_type": "code",
       "source_file": "tests/test_system_diagnosis.py",
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_test_system_diagnosis",
-      "community": 6,
+      "community": 4,
       "norm_label": "test_system_diagnosis.py"
     },
     {
@@ -6943,7 +7003,7 @@
       "source_location": "L28",
       "_origin": "ast",
       "id": "tests_test_system_diagnosis_run",
-      "community": 6,
+      "community": 4,
       "norm_label": "run()"
     },
     {
@@ -6953,7 +7013,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_test_system_diagnosis_rationale_1",
-      "community": 6,
+      "community": 4,
       "norm_label": "system diagnosis validation test."
     },
     {
@@ -6963,7 +7023,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_test_validate_connections",
-      "community": 15,
+      "community": 6,
       "norm_label": "test_validate_connections.py"
     },
     {
@@ -6993,7 +7053,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "tests_test_validate_connections_rationale_1",
-      "community": 15,
+      "community": 6,
       "norm_label": "connection wiring validation test.  pulses each source output defined in *conn"
     },
     {
@@ -7123,7 +7183,7 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "valve_channels_valve_slot_to_channels",
-      "community": 21,
+      "community": 16,
       "norm_label": "valve_slot_to_channels()"
     },
     {
@@ -7133,7 +7193,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "valve_channels_expand_valve_indices",
-      "community": 2,
+      "community": 16,
       "norm_label": "expand_valve_indices()"
     },
     {
@@ -7153,7 +7213,7 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "valve_channels_rationale_12",
-      "community": 21,
+      "community": 16,
       "norm_label": "return hardware channel indices for one zero-based valve slot."
     },
     {
@@ -7163,7 +7223,7 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "valve_channels_rationale_22",
-      "community": 2,
+      "community": 16,
       "norm_label": "flatten valve slots into hardware channel indices."
     },
     {
@@ -7350,7 +7410,7 @@
       "label": "Resolver contract",
       "file_type": "document",
       "source_file": "promt.md",
-      "source_location": "L93",
+      "source_location": "L95",
       "_origin": "ast",
       "id": "promt_resolver_contract",
       "community": 35,
@@ -7360,7 +7420,7 @@
       "label": "Test implementation contract",
       "file_type": "document",
       "source_file": "promt.md",
-      "source_location": "L107",
+      "source_location": "L109",
       "_origin": "ast",
       "id": "promt_test_implementation_contract",
       "community": 35,
@@ -7370,7 +7430,7 @@
       "label": "Safety contract",
       "file_type": "document",
       "source_file": "promt.md",
-      "source_location": "L122",
+      "source_location": "L124",
       "_origin": "ast",
       "id": "promt_safety_contract",
       "community": 35,
@@ -7380,7 +7440,7 @@
       "label": "Persistence contract",
       "file_type": "document",
       "source_file": "promt.md",
-      "source_location": "L134",
+      "source_location": "L136",
       "_origin": "ast",
       "id": "promt_persistence_contract",
       "community": 35,
@@ -7390,7 +7450,7 @@
       "label": "GitLab CI contract",
       "file_type": "document",
       "source_file": "promt.md",
-      "source_location": "L151",
+      "source_location": "L153",
       "_origin": "ast",
       "id": "promt_gitlab_ci_contract",
       "community": 35,
@@ -7400,7 +7460,7 @@
       "label": "React/React Flow contract",
       "file_type": "document",
       "source_file": "promt.md",
-      "source_location": "L167",
+      "source_location": "L169",
       "_origin": "ast",
       "id": "promt_react_react_flow_contract",
       "community": 35,
@@ -7410,7 +7470,7 @@
       "label": "Verification checklist for future changes",
       "file_type": "document",
       "source_file": "promt.md",
-      "source_location": "L179",
+      "source_location": "L181",
       "_origin": "ast",
       "id": "promt_verification_checklist_for_future_changes",
       "community": 35,
@@ -7755,9 +7815,9 @@
       "source_file": "api.py",
       "source_location": "L1018",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api",
-      "target": "api_io_check_wiring",
-      "confidence_score": 1.0
+      "target": "api_io_check_wiring"
     },
     {
       "relation": "contains",
@@ -7875,9 +7935,9 @@
       "source_file": "api.py",
       "source_location": "L1074",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api",
-      "target": "api_queue_audit",
-      "confidence_score": 1.0
+      "target": "api_queue_audit"
     },
     {
       "relation": "contains",
@@ -8165,9 +8225,9 @@
       "source_file": "api.py",
       "source_location": "L999",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api",
-      "target": "api_wiringcheckconnection",
-      "confidence_score": 1.0
+      "target": "api_wiringcheckconnection"
     },
     {
       "relation": "contains",
@@ -8175,9 +8235,9 @@
       "source_file": "api.py",
       "source_location": "L1011",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api",
-      "target": "api_wiringcheckrequest",
-      "confidence_score": 1.0
+      "target": "api_wiringcheckrequest"
     },
     {
       "relation": "contains",
@@ -8644,9 +8704,9 @@
       "source_file": "api.py",
       "source_location": "L77",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_rationale_77",
-      "target": "api_recover_interrupted_test_runs",
-      "confidence_score": 1.0
+      "target": "api_recover_interrupted_test_runs"
     },
     {
       "relation": "references",
@@ -8665,9 +8725,9 @@
       "source_file": "api.py",
       "source_location": "L96",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_rationale_96",
-      "target": "api_config_roots",
-      "confidence_score": 1.0
+      "target": "api_config_roots"
     },
     {
       "relation": "calls",
@@ -8939,9 +8999,9 @@
       "source_file": "api.py",
       "source_location": "L104",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_rationale_104",
-      "target": "api_resolve_config_path",
-      "confidence_score": 1.0
+      "target": "api_resolve_config_path"
     },
     {
       "relation": "calls",
@@ -9233,9 +9293,9 @@
       "source_file": "api.py",
       "source_location": "L999",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_wiringcheckconnection",
-      "target": "basemodel",
-      "confidence_score": 1.0
+      "target": "basemodel"
     },
     {
       "relation": "inherits",
@@ -9243,9 +9303,9 @@
       "source_file": "api.py",
       "source_location": "L1011",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_wiringcheckrequest",
-      "target": "basemodel",
-      "confidence_score": 1.0
+      "target": "basemodel"
     },
     {
       "relation": "inherits",
@@ -9464,9 +9524,9 @@
       "source_file": "api.py",
       "source_location": "L144",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_rationale_144",
-      "target": "api_hw_connect",
-      "confidence_score": 1.0
+      "target": "api_hw_connect"
     },
     {
       "relation": "calls",
@@ -9485,9 +9545,9 @@
       "source_file": "api.py",
       "source_location": "L165",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_rationale_165",
-      "target": "api_hw_disconnect",
-      "confidence_score": 1.0
+      "target": "api_hw_disconnect"
     },
     {
       "relation": "calls",
@@ -9506,9 +9566,9 @@
       "source_file": "api.py",
       "source_location": "L177",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_rationale_177",
-      "target": "api_hw_status",
-      "confidence_score": 1.0
+      "target": "api_hw_status"
     },
     {
       "relation": "rationale_for",
@@ -9516,9 +9576,9 @@
       "source_file": "api.py",
       "source_location": "L190",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_rationale_190",
-      "target": "api_automation_programs",
-      "confidence_score": 1.0
+      "target": "api_automation_programs"
     },
     {
       "relation": "references",
@@ -9548,9 +9608,9 @@
       "source_file": "api.py",
       "source_location": "L234",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_rationale_234",
-      "target": "api_validate_automation_program",
-      "confidence_score": 1.0
+      "target": "api_validate_automation_program"
     },
     {
       "relation": "references",
@@ -9569,9 +9629,9 @@
       "source_file": "api.py",
       "source_location": "L246",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_rationale_246",
-      "target": "api_start_automation",
-      "confidence_score": 1.0
+      "target": "api_start_automation"
     },
     {
       "relation": "references",
@@ -9601,9 +9661,9 @@
       "source_file": "api.py",
       "source_location": "L279",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_rationale_279",
-      "target": "api_stop_automation",
-      "confidence_score": 1.0
+      "target": "api_stop_automation"
     },
     {
       "relation": "rationale_for",
@@ -9611,9 +9671,9 @@
       "source_file": "api.py",
       "source_location": "L296",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_rationale_296",
-      "target": "api_set_automation_simulation_input",
-      "confidence_score": 1.0
+      "target": "api_set_automation_simulation_input"
     },
     {
       "relation": "references",
@@ -9632,9 +9692,9 @@
       "source_file": "api.py",
       "source_location": "L303",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_rationale_303",
-      "target": "api_set_automation_simulation_analog",
-      "confidence_score": 1.0
+      "target": "api_set_automation_simulation_analog"
     },
     {
       "relation": "references",
@@ -10210,17 +10270,17 @@
       "source_file": "api.py",
       "source_location": "L331",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_rationale_331",
-      "target": "api_enrich_generated_metadata",
-      "confidence_score": 1.0
+      "target": "api_enrich_generated_metadata"
     },
     {
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L405",
+      "source_location": "L407",
       "weight": 1.0,
-      "source": "api_rationale_405",
+      "source": "api_rationale_407",
       "target": "api_ui",
       "confidence_score": 1.0
     },
@@ -10228,9 +10288,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L417",
+      "source_location": "L419",
       "weight": 1.0,
-      "source": "api_rationale_417",
+      "source": "api_rationale_419",
       "target": "api_architecture_graph",
       "confidence_score": 1.0
     },
@@ -10238,9 +10298,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L432",
+      "source_location": "L434",
       "weight": 1.0,
-      "source": "api_rationale_432",
+      "source": "api_rationale_434",
       "target": "api_svg_map",
       "confidence_score": 1.0
     },
@@ -10281,9 +10341,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L446",
+      "source_location": "L448",
       "weight": 1.0,
-      "source": "api_rationale_446",
+      "source": "api_rationale_448",
       "target": "api_generate_config",
       "confidence_score": 1.0
     },
@@ -10302,9 +10362,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L488",
+      "source_location": "L508",
       "weight": 1.0,
-      "source": "api_rationale_488",
+      "source": "api_rationale_508",
       "target": "api_load_config",
       "confidence_score": 1.0
     },
@@ -10312,9 +10372,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L499",
+      "source_location": "L519",
       "weight": 1.0,
-      "source": "api_rationale_499",
+      "source": "api_rationale_519",
       "target": "api_save_config",
       "confidence_score": 1.0
     },
@@ -10322,9 +10382,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L510",
+      "source_location": "L530",
       "weight": 1.0,
-      "source": "api_rationale_510",
+      "source": "api_rationale_530",
       "target": "api_delete_config",
       "confidence_score": 1.0
     },
@@ -10354,9 +10414,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L521",
+      "source_location": "L541",
       "weight": 1.0,
-      "source": "api_rationale_521",
+      "source": "api_rationale_541",
       "target": "api_compare_config",
       "confidence_score": 1.0
     },
@@ -10408,9 +10468,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L560",
+      "source_location": "L580",
       "weight": 1.0,
-      "source": "api_rationale_560",
+      "source": "api_rationale_580",
       "target": "api_auto_reset_output",
       "confidence_score": 1.0
     },
@@ -10421,9 +10481,9 @@
       "source_file": "api.py",
       "source_location": "L1027",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_io_check_wiring",
-      "target": "api_setoutputrequest",
-      "confidence_score": 1.0
+      "target": "api_setoutputrequest"
     },
     {
       "relation": "references",
@@ -10622,9 +10682,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L611",
+      "source_location": "L631",
       "weight": 1.0,
-      "source": "api_rationale_611",
+      "source": "api_rationale_631",
       "target": "api_output_channel_indices",
       "confidence_score": 1.0
     },
@@ -10643,9 +10703,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L638",
+      "source_location": "L658",
       "weight": 1.0,
-      "source": "api_rationale_638",
+      "source": "api_rationale_658",
       "target": "api_has_dio_direction_parameter",
       "confidence_score": 1.0
     },
@@ -10653,9 +10713,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L645",
+      "source_location": "L665",
       "weight": 1.0,
-      "source": "api_rationale_645",
+      "source": "api_rationale_665",
       "target": "api_is_configurable_output",
       "confidence_score": 1.0
     },
@@ -10663,9 +10723,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L652",
+      "source_location": "L672",
       "weight": 1.0,
-      "source": "api_rationale_652",
+      "source": "api_rationale_672",
       "target": "api_validate_output_activation",
       "confidence_score": 1.0
     },
@@ -10698,9 +10758,9 @@
       "source_file": "api.py",
       "source_location": "L1036",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_io_check_wiring",
-      "target": "api_io_set_output",
-      "confidence_score": 1.0
+      "target": "api_io_set_output"
     },
     {
       "relation": "calls",
@@ -10709,9 +10769,9 @@
       "source_file": "api.py",
       "source_location": "L822",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_io_set_output",
-      "target": "api_queue_audit",
-      "confidence_score": 1.0
+      "target": "api_queue_audit"
     },
     {
       "relation": "calls",
@@ -10728,9 +10788,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L690",
+      "source_location": "L710",
       "weight": 1.0,
-      "source": "api_rationale_690",
+      "source": "api_rationale_710",
       "target": "api_io_set_output",
       "confidence_score": 1.0
     },
@@ -10738,11 +10798,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L839",
+      "source_location": "L859",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "api_rationale_839",
-      "target": "api_get_module_metadata"
+      "source": "api_rationale_859",
+      "target": "api_get_module_metadata",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
@@ -10751,9 +10811,9 @@
       "source_file": "api.py",
       "source_location": "L1038",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_io_check_wiring",
-      "target": "api_io_read_input",
-      "confidence_score": 1.0
+      "target": "api_io_read_input"
     },
     {
       "relation": "calls",
@@ -10770,9 +10830,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L856",
+      "source_location": "L876",
       "weight": 1.0,
-      "source": "api_rationale_856",
+      "source": "api_rationale_876",
       "target": "api_io_read_input",
       "confidence_score": 1.0
     },
@@ -10954,9 +11014,9 @@
       "source_file": "api.py",
       "source_location": "L984",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_io_set_all_outputs",
-      "target": "api_queue_audit",
-      "confidence_score": 1.0
+      "target": "api_queue_audit"
     },
     {
       "relation": "calls",
@@ -10995,9 +11055,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L892",
+      "source_location": "L912",
       "weight": 1.0,
-      "source": "api_rationale_892",
+      "source": "api_rationale_912",
       "target": "api_io_set_all_outputs",
       "confidence_score": 1.0
     },
@@ -11007,9 +11067,9 @@
       "source_file": "api.py",
       "source_location": "L52",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckconnection",
-      "target": "automation_automationprogram",
-      "confidence_score": 0.5
+      "target": "automation_automationprogram"
     },
     {
       "relation": "uses",
@@ -11017,9 +11077,9 @@
       "source_file": "api.py",
       "source_location": "L52",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckconnection",
-      "target": "automation_automationstartrequest",
-      "confidence_score": 0.5
+      "target": "automation_automationstartrequest"
     },
     {
       "relation": "uses",
@@ -11027,9 +11087,9 @@
       "source_file": "api.py",
       "source_location": "L52",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckconnection",
-      "target": "automation_simulationanalogrequest",
-      "confidence_score": 0.5
+      "target": "automation_simulationanalogrequest"
     },
     {
       "relation": "uses",
@@ -11037,9 +11097,9 @@
       "source_file": "api.py",
       "source_location": "L52",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckconnection",
-      "target": "automation_simulationinputrequest",
-      "confidence_score": 0.5
+      "target": "automation_simulationinputrequest"
     },
     {
       "relation": "uses",
@@ -11047,9 +11107,9 @@
       "source_file": "api.py",
       "source_location": "L49",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckconnection",
-      "target": "config_io_configloaderror",
-      "confidence_score": 0.5
+      "target": "config_io_configloaderror"
     },
     {
       "relation": "uses",
@@ -11057,9 +11117,9 @@
       "source_file": "api.py",
       "source_location": "L2107",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckconnection",
-      "target": "config_models_benchconfig",
-      "confidence_score": 0.5
+      "target": "config_models_benchconfig"
     },
     {
       "relation": "uses",
@@ -11067,9 +11127,9 @@
       "source_file": "api.py",
       "source_location": "L42",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckconnection",
-      "target": "config_models_channeldefinition",
-      "confidence_score": 0.5
+      "target": "config_models_channeldefinition"
     },
     {
       "relation": "uses",
@@ -11077,9 +11137,9 @@
       "source_file": "api.py",
       "source_location": "L42",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckconnection",
-      "target": "config_models_modulecategory",
-      "confidence_score": 0.5
+      "target": "config_models_modulecategory"
     },
     {
       "relation": "uses",
@@ -11087,9 +11147,9 @@
       "source_file": "api.py",
       "source_location": "L42",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckconnection",
-      "target": "config_models_safetyclass",
-      "confidence_score": 0.5
+      "target": "config_models_safetyclass"
     },
     {
       "relation": "uses",
@@ -11097,9 +11157,9 @@
       "source_file": "api.py",
       "source_location": "L42",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckconnection",
-      "target": "config_models_testdefinition",
-      "confidence_score": 0.5
+      "target": "config_models_testdefinition"
     },
     {
       "relation": "uses",
@@ -11107,9 +11167,9 @@
       "source_file": "api.py",
       "source_location": "L2753",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckconnection",
-      "target": "hal_cpxaphardware",
-      "confidence_score": 0.5
+      "target": "hal_cpxaphardware"
     },
     {
       "relation": "uses",
@@ -11117,9 +11177,9 @@
       "source_file": "api.py",
       "source_location": "L50",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckconnection",
-      "target": "hal_safesession",
-      "confidence_score": 0.5
+      "target": "hal_safesession"
     },
     {
       "relation": "uses",
@@ -11127,9 +11187,9 @@
       "source_file": "api.py",
       "source_location": "L2305",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckconnection",
-      "target": "repository_testresultrecord",
-      "confidence_score": 0.5
+      "target": "repository_testresultrecord"
     },
     {
       "relation": "uses",
@@ -11137,9 +11197,9 @@
       "source_file": "api.py",
       "source_location": "L2124",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckconnection",
-      "target": "resolver_testfilter",
-      "confidence_score": 0.5
+      "target": "resolver_testfilter"
     },
     {
       "relation": "uses",
@@ -11147,9 +11207,9 @@
       "source_file": "api.py",
       "source_location": "L2124",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckconnection",
-      "target": "resolver_testresolver",
-      "confidence_score": 0.5
+      "target": "resolver_testresolver"
     },
     {
       "relation": "references",
@@ -11158,9 +11218,9 @@
       "source_file": "api.py",
       "source_location": "L1018",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_io_check_wiring",
-      "target": "api_wiringcheckrequest",
-      "confidence_score": 1.0
+      "target": "api_wiringcheckrequest"
     },
     {
       "relation": "uses",
@@ -11168,9 +11228,9 @@
       "source_file": "api.py",
       "source_location": "L52",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckrequest",
-      "target": "automation_automationprogram",
-      "confidence_score": 0.5
+      "target": "automation_automationprogram"
     },
     {
       "relation": "uses",
@@ -11178,9 +11238,9 @@
       "source_file": "api.py",
       "source_location": "L52",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckrequest",
-      "target": "automation_automationstartrequest",
-      "confidence_score": 0.5
+      "target": "automation_automationstartrequest"
     },
     {
       "relation": "uses",
@@ -11188,9 +11248,9 @@
       "source_file": "api.py",
       "source_location": "L52",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckrequest",
-      "target": "automation_simulationanalogrequest",
-      "confidence_score": 0.5
+      "target": "automation_simulationanalogrequest"
     },
     {
       "relation": "uses",
@@ -11198,9 +11258,9 @@
       "source_file": "api.py",
       "source_location": "L52",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckrequest",
-      "target": "automation_simulationinputrequest",
-      "confidence_score": 0.5
+      "target": "automation_simulationinputrequest"
     },
     {
       "relation": "uses",
@@ -11208,9 +11268,9 @@
       "source_file": "api.py",
       "source_location": "L49",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckrequest",
-      "target": "config_io_configloaderror",
-      "confidence_score": 0.5
+      "target": "config_io_configloaderror"
     },
     {
       "relation": "uses",
@@ -11218,9 +11278,9 @@
       "source_file": "api.py",
       "source_location": "L2107",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckrequest",
-      "target": "config_models_benchconfig",
-      "confidence_score": 0.5
+      "target": "config_models_benchconfig"
     },
     {
       "relation": "uses",
@@ -11228,9 +11288,9 @@
       "source_file": "api.py",
       "source_location": "L42",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckrequest",
-      "target": "config_models_channeldefinition",
-      "confidence_score": 0.5
+      "target": "config_models_channeldefinition"
     },
     {
       "relation": "uses",
@@ -11238,9 +11298,9 @@
       "source_file": "api.py",
       "source_location": "L42",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckrequest",
-      "target": "config_models_modulecategory",
-      "confidence_score": 0.5
+      "target": "config_models_modulecategory"
     },
     {
       "relation": "uses",
@@ -11248,9 +11308,9 @@
       "source_file": "api.py",
       "source_location": "L42",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckrequest",
-      "target": "config_models_safetyclass",
-      "confidence_score": 0.5
+      "target": "config_models_safetyclass"
     },
     {
       "relation": "uses",
@@ -11258,9 +11318,9 @@
       "source_file": "api.py",
       "source_location": "L42",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckrequest",
-      "target": "config_models_testdefinition",
-      "confidence_score": 0.5
+      "target": "config_models_testdefinition"
     },
     {
       "relation": "uses",
@@ -11268,9 +11328,9 @@
       "source_file": "api.py",
       "source_location": "L2753",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckrequest",
-      "target": "hal_cpxaphardware",
-      "confidence_score": 0.5
+      "target": "hal_cpxaphardware"
     },
     {
       "relation": "uses",
@@ -11278,9 +11338,9 @@
       "source_file": "api.py",
       "source_location": "L50",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckrequest",
-      "target": "hal_safesession",
-      "confidence_score": 0.5
+      "target": "hal_safesession"
     },
     {
       "relation": "uses",
@@ -11288,9 +11348,9 @@
       "source_file": "api.py",
       "source_location": "L2305",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckrequest",
-      "target": "repository_testresultrecord",
-      "confidence_score": 0.5
+      "target": "repository_testresultrecord"
     },
     {
       "relation": "uses",
@@ -11298,9 +11358,9 @@
       "source_file": "api.py",
       "source_location": "L2124",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckrequest",
-      "target": "resolver_testfilter",
-      "confidence_score": 0.5
+      "target": "resolver_testfilter"
     },
     {
       "relation": "uses",
@@ -11308,17 +11368,17 @@
       "source_file": "api.py",
       "source_location": "L2124",
       "weight": 0.8,
+      "confidence_score": 0.5,
       "source": "api_wiringcheckrequest",
-      "target": "resolver_testresolver",
-      "confidence_score": 0.5
+      "target": "resolver_testresolver"
     },
     {
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1019",
+      "source_location": "L1039",
       "weight": 1.0,
-      "source": "api_rationale_1019",
+      "source": "api_rationale_1039",
       "target": "api_io_check_wiring",
       "confidence_score": 1.0
     },
@@ -11329,17 +11389,17 @@
       "source_file": "api.py",
       "source_location": "L1074",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_queue_audit",
-      "target": "any",
-      "confidence_score": 1.0
+      "target": "any"
     },
     {
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1080",
+      "source_location": "L1100",
       "weight": 1.0,
-      "source": "api_rationale_1080",
+      "source": "api_rationale_1100",
       "target": "api_queue_audit",
       "confidence_score": 1.0
     },
@@ -11350,9 +11410,9 @@
       "source_file": "api.py",
       "source_location": "L1449",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_safety_emergency_stop",
-      "target": "api_queue_audit",
-      "confidence_score": 1.0
+      "target": "api_queue_audit"
     },
     {
       "relation": "calls",
@@ -11361,9 +11421,9 @@
       "source_file": "api.py",
       "source_location": "L1673",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_write_module_parameter",
-      "target": "api_queue_audit",
-      "confidence_score": 1.0
+      "target": "api_queue_audit"
     },
     {
       "relation": "references",
@@ -11864,9 +11924,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1092",
+      "source_location": "L1112",
       "weight": 1.0,
-      "source": "api_rationale_1092",
+      "source": "api_rationale_1112",
       "target": "api_sse_generator",
       "confidence_score": 1.0
     },
@@ -11907,9 +11967,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1125",
+      "source_location": "L1145",
       "weight": 1.0,
-      "source": "api_rationale_1125",
+      "source": "api_rationale_1145",
       "target": "api_test_run_status",
       "confidence_score": 1.0
     },
@@ -11917,9 +11977,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1131",
+      "source_location": "L1151",
       "weight": 1.0,
-      "source": "api_rationale_1131",
+      "source": "api_rationale_1151",
       "target": "api_stream_run_logs",
       "confidence_score": 1.0
     },
@@ -12098,9 +12158,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1157",
+      "source_location": "L1177",
       "weight": 1.0,
-      "source": "api_rationale_1157",
+      "source": "api_rationale_1177",
       "target": "api_start_test_run",
       "confidence_score": 1.0
     },
@@ -12152,9 +12212,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1285",
+      "source_location": "L1305",
       "weight": 1.0,
-      "source": "api_rationale_1285",
+      "source": "api_rationale_1305",
       "target": "api_extract_error_summary",
       "confidence_score": 1.0
     },
@@ -12173,9 +12233,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1329",
+      "source_location": "L1349",
       "weight": 1.0,
-      "source": "api_rationale_1329",
+      "source": "api_rationale_1349",
       "target": "api_merge_sub_results",
       "confidence_score": 1.0
     },
@@ -12183,9 +12243,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1368",
+      "source_location": "L1388",
       "weight": 1.0,
-      "source": "api_rationale_1368",
+      "source": "api_rationale_1388",
       "target": "api_test_run_history",
       "confidence_score": 1.0
     },
@@ -12193,9 +12253,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1382",
+      "source_location": "L1402",
       "weight": 1.0,
-      "source": "api_rationale_1382",
+      "source": "api_rationale_1402",
       "target": "api_test_run_detail",
       "confidence_score": 1.0
     },
@@ -12203,9 +12263,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1403",
+      "source_location": "L1423",
       "weight": 1.0,
-      "source": "api_rationale_1403",
+      "source": "api_rationale_1423",
       "target": "api_test_run_junit",
       "confidence_score": 1.0
     },
@@ -12213,9 +12273,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1441",
+      "source_location": "L1461",
       "weight": 1.0,
-      "source": "api_rationale_1441",
+      "source": "api_rationale_1461",
       "target": "api_safety_emergency_stop",
       "confidence_score": 1.0
     },
@@ -12234,9 +12294,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1460",
+      "source_location": "L1480",
       "weight": 1.0,
-      "source": "api_rationale_1460",
+      "source": "api_rationale_1480",
       "target": "api_safety_reset",
       "confidence_score": 1.0
     },
@@ -12244,9 +12304,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1491",
+      "source_location": "L1511",
       "weight": 1.0,
-      "source": "api_rationale_1491",
+      "source": "api_rationale_1511",
       "target": "api_delete_test_run",
       "confidence_score": 1.0
     },
@@ -12254,9 +12314,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1502",
+      "source_location": "L1522",
       "weight": 1.0,
-      "source": "api_rationale_1502",
+      "source": "api_rationale_1522",
       "target": "api_clear_test_run_history",
       "confidence_score": 1.0
     },
@@ -12446,9 +12506,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1524",
+      "source_location": "L1544",
       "weight": 1.0,
-      "source": "api_rationale_1524",
+      "source": "api_rationale_1544",
       "target": "api_get_module_parameters",
       "confidence_score": 1.0
     },
@@ -12456,9 +12516,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1569",
+      "source_location": "L1589",
       "weight": 1.0,
-      "source": "api_rationale_1569",
+      "source": "api_rationale_1589",
       "target": "api_read_module_parameter",
       "confidence_score": 1.0
     },
@@ -12477,9 +12537,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1620",
+      "source_location": "L1640",
       "weight": 1.0,
-      "source": "api_rationale_1620",
+      "source": "api_rationale_1640",
       "target": "api_write_module_parameter",
       "confidence_score": 1.0
     },
@@ -12509,9 +12569,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1696",
+      "source_location": "L1716",
       "weight": 1.0,
-      "source": "api_rationale_1696",
+      "source": "api_rationale_1716",
       "target": "api_get_system_diagnoses",
       "confidence_score": 1.0
     },
@@ -12519,9 +12579,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1763",
+      "source_location": "L1783",
       "weight": 1.0,
-      "source": "api_rationale_1763",
+      "source": "api_rationale_1783",
       "target": "api_pocketbase_health",
       "confidence_score": 1.0
     },
@@ -12690,9 +12750,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1781",
+      "source_location": "L1801",
       "weight": 1.0,
-      "source": "api_rationale_1781",
+      "source": "api_rationale_1801",
       "target": "api_plantestrunrequest",
       "confidence_score": 1.0
     },
@@ -12744,9 +12804,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1789",
+      "source_location": "L1809",
       "weight": 1.0,
-      "source": "api_rationale_1789",
+      "source": "api_rationale_1809",
       "target": "api_plan_test_run",
       "confidence_score": 1.0
     },
@@ -12754,9 +12814,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L1814",
+      "source_location": "L1834",
       "weight": 1.0,
-      "source": "api_rationale_1814",
+      "source": "api_rationale_1834",
       "target": "api_dashboard_data",
       "confidence_score": 1.0
     },
@@ -12764,9 +12824,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L2022",
+      "source_location": "L2042",
       "weight": 1.0,
-      "source": "api_rationale_2022",
+      "source": "api_rationale_2042",
       "target": "api_ci_environment",
       "confidence_score": 1.0
     },
@@ -12873,9 +12933,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L2056",
+      "source_location": "L2076",
       "weight": 1.0,
-      "source": "api_rationale_2056",
+      "source": "api_rationale_2076",
       "target": "api_execute_test_run_safe",
       "confidence_score": 1.0
     },
@@ -12883,9 +12943,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L2446",
+      "source_location": "L2466",
       "weight": 1.0,
-      "source": "api_rationale_2446",
+      "source": "api_rationale_2466",
       "target": "api_run_single_test_hw",
       "confidence_score": 1.0
     },
@@ -13058,9 +13118,9 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "api.py",
-      "source_location": "L2746",
+      "source_location": "L2766",
       "weight": 1.0,
-      "source": "api_rationale_2746",
+      "source": "api_rationale_2766",
       "target": "api_io_read_all",
       "confidence_score": 1.0
     },
@@ -13589,9 +13649,9 @@
       "source_file": "automation.py",
       "source_location": "L133",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "automation_rationale_133",
-      "target": "automation_simulatedhardware",
-      "confidence_score": 1.0
+      "target": "automation_simulatedhardware"
     },
     {
       "relation": "method",
@@ -14090,9 +14150,9 @@
       "source_file": "automation.py",
       "source_location": "L246",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "automation_rationale_246",
-      "target": "automation_execution_order",
-      "confidence_score": 1.0
+      "target": "automation_execution_order"
     },
     {
       "relation": "method",
@@ -14200,9 +14260,9 @@
       "source_file": "automation.py",
       "source_location": "L280",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "automation_rationale_280",
-      "target": "automation_automationengine",
-      "confidence_score": 1.0
+      "target": "automation_automationengine"
     },
     {
       "relation": "imports",
@@ -14561,9 +14621,9 @@
       "source_file": "automation.py",
       "source_location": "L683",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "automation_rationale_683",
-      "target": "automation_automationprogramstore",
-      "confidence_score": 1.0
+      "target": "automation_automationprogramstore"
     },
     {
       "relation": "imports",
@@ -14614,9 +14674,9 @@
       "source_file": "automation.py",
       "source_location": "L692",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "automation_automationprogramstore_init",
-      "target": "automation_automationprogramstore_get",
-      "confidence_score": 1.0
+      "target": "automation_automationprogramstore_get"
     },
     {
       "relation": "calls",
@@ -15766,6 +15826,17 @@
       "relation": "imports_from",
       "context": "import",
       "confidence": "EXTRACTED",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L5",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities",
+      "target": "config_models",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
       "source_file": "tests/test_system_diagnosis.py",
       "source_location": "L4",
       "weight": 1.0,
@@ -15836,6 +15907,27 @@
       "confidence_score": 1.0,
       "source": "config_models_modulecategory",
       "target": "str"
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L5",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities",
+      "target": "config_models_modulecategory",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L5",
+      "weight": 0.8,
+      "source": "tests_test_resolver_capabilities_instancecapabilityresolutiontests",
+      "target": "config_models_modulecategory",
+      "confidence_score": 0.5
     },
     {
       "relation": "inherits",
@@ -16281,6 +16373,49 @@
       "target": "config_models_moduletypedefinition"
     },
     {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L5",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities",
+      "target": "config_models_moduletypedefinition",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L5",
+      "weight": 0.8,
+      "source": "tests_test_resolver_capabilities_instancecapabilityresolutiontests",
+      "target": "config_models_moduletypedefinition",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L21",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities_instancecapabilityresolutiontests_test_instance_capabilities_override_shared_type_capabilities",
+      "target": "config_models_moduletypedefinition"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L67",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities_instancecapabilityresolutiontests_test_omitted_instance_capabilities_keep_legacy_type_fallback",
+      "target": "config_models_moduletypedefinition"
+    },
+    {
       "relation": "calls",
       "context": "call",
       "confidence": "EXTRACTED",
@@ -16289,6 +16424,49 @@
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "config_models_benchconfig_from_hardware",
+      "target": "config_models_testbenchmetadata"
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L5",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities",
+      "target": "config_models_testbenchmetadata",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L5",
+      "weight": 0.8,
+      "source": "tests_test_resolver_capabilities_instancecapabilityresolutiontests",
+      "target": "config_models_testbenchmetadata",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L19",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities_instancecapabilityresolutiontests_test_instance_capabilities_override_shared_type_capabilities",
+      "target": "config_models_testbenchmetadata"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L65",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities_instancecapabilityresolutiontests_test_omitted_instance_capabilities_keep_legacy_type_fallback",
       "target": "config_models_testbenchmetadata"
     },
     {
@@ -16301,6 +16479,17 @@
       "confidence_score": 1.0,
       "source": "config_models_benchconfig_from_hardware",
       "target": "config_models_moduleinstance"
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "config_models.py",
+      "source_location": "L425",
+      "weight": 1.0,
+      "source": "config_models_benchconfig_module_capabilities",
+      "target": "config_models_moduleinstance",
+      "confidence_score": 1.0
     },
     {
       "relation": "references",
@@ -16429,14 +16618,57 @@
       "target": "config_models_moduleinstance"
     },
     {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L5",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities",
+      "target": "config_models_moduleinstance",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L5",
+      "weight": 0.8,
+      "source": "tests_test_resolver_capabilities_instancecapabilityresolutiontests",
+      "target": "config_models_moduleinstance",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L27",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities_instancecapabilityresolutiontests_test_instance_capabilities_override_shared_type_capabilities",
+      "target": "config_models_moduleinstance"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L73",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities_instancecapabilityresolutiontests_test_omitted_instance_capabilities_keep_legacy_type_fallback",
+      "target": "config_models_moduleinstance"
+    },
+    {
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "config_models.py",
-      "source_location": "L202",
+      "source_location": "L209",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "config_models_rationale_202",
-      "target": "config_models_wiringconnection"
+      "source": "config_models_rationale_209",
+      "target": "config_models_wiringconnection",
+      "confidence_score": 1.0
     },
     {
       "relation": "references",
@@ -16453,11 +16685,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "config_models.py",
-      "source_location": "L227",
+      "source_location": "L234",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "config_models_rationale_227",
-      "target": "config_models_testdefinition"
+      "source": "config_models_rationale_234",
+      "target": "config_models_testdefinition",
+      "confidence_score": 1.0
     },
     {
       "relation": "imports",
@@ -16565,6 +16797,49 @@
       "target": "config_models_testdefinition"
     },
     {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L5",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities",
+      "target": "config_models_testdefinition",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L5",
+      "weight": 0.8,
+      "source": "tests_test_resolver_capabilities_instancecapabilityresolutiontests",
+      "target": "config_models_testdefinition",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L47",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities_instancecapabilityresolutiontests_test_instance_capabilities_override_shared_type_capabilities",
+      "target": "config_models_testdefinition"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "config_models.py",
+      "source_location": "L437",
+      "weight": 1.0,
+      "source": "config_models_benchconfig_module_capabilities",
+      "target": "config_models_get_module_capabilities",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "calls",
       "context": "call",
       "confidence": "EXTRACTED",
@@ -16579,11 +16854,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "config_models.py",
-      "source_location": "L302",
+      "source_location": "L309",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "config_models_rationale_302",
-      "target": "config_models_get_module_capabilities"
+      "source": "config_models_rationale_309",
+      "target": "config_models_get_module_capabilities",
+      "confidence_score": 1.0
     },
     {
       "relation": "imports",
@@ -16622,11 +16897,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "config_models.py",
-      "source_location": "L379",
+      "source_location": "L386",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "config_models_rationale_379",
-      "target": "config_models_powersupplyconfig"
+      "source": "config_models_rationale_386",
+      "target": "config_models_powersupplyconfig",
+      "confidence_score": 1.0
     },
     {
       "relation": "references",
@@ -16753,6 +17028,16 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "config_models.py",
+      "source_location": "L425",
+      "weight": 1.0,
+      "source": "config_models_benchconfig",
+      "target": "config_models_benchconfig_module_capabilities",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "config_models.py",
       "source_location": "L406",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -16784,11 +17069,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "config_models.py",
-      "source_location": "L392",
+      "source_location": "L399",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "config_models_rationale_392",
-      "target": "config_models_benchconfig"
+      "source": "config_models_rationale_399",
+      "target": "config_models_benchconfig",
+      "confidence_score": 1.0
     },
     {
       "relation": "imports",
@@ -17152,6 +17437,49 @@
       "relation": "imports",
       "context": "import",
       "confidence": "EXTRACTED",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L5",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities",
+      "target": "config_models_benchconfig",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L5",
+      "weight": 0.8,
+      "source": "tests_test_resolver_capabilities_instancecapabilityresolutiontests",
+      "target": "config_models_benchconfig",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L18",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities_instancecapabilityresolutiontests_test_instance_capabilities_override_shared_type_capabilities",
+      "target": "config_models_benchconfig"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L64",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities_instancecapabilityresolutiontests_test_omitted_instance_capabilities_keep_legacy_type_fallback",
+      "target": "config_models_benchconfig"
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
       "source_file": "tests/test_system_diagnosis.py",
       "source_location": "L4",
       "weight": 1.0,
@@ -17252,6 +17580,17 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "config_models.py",
+      "source_location": "L431",
+      "weight": 1.0,
+      "source": "config_models_benchconfig_module_capabilities",
+      "target": "config_models_benchconfig_module_instance_at",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "config_models.py",
       "source_location": "L415",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -17262,11 +17601,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "config_models.py",
-      "source_location": "L407",
+      "source_location": "L414",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "config_models_rationale_407",
-      "target": "config_models_benchconfig_module_instance_at"
+      "source": "config_models_rationale_414",
+      "target": "config_models_benchconfig_module_instance_at",
+      "confidence_score": 1.0
     },
     {
       "relation": "rationale_for",
@@ -17282,51 +17621,82 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "config_models.py",
-      "source_location": "L469",
+      "source_location": "L421",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "config_models_rationale_469",
-      "target": "config_models_benchconfig_check_test_references"
+      "source": "config_models_rationale_421",
+      "target": "config_models_benchconfig_module_type_at",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "config_models.py",
+      "source_location": "L493",
+      "weight": 1.0,
+      "source": "config_models_benchconfig_check_test_references",
+      "target": "config_models_benchconfig_module_capabilities",
+      "confidence_score": 1.0
     },
     {
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "config_models.py",
-      "source_location": "L542",
+      "source_location": "L426",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "config_models_rationale_542",
-      "target": "config_models_benchconfig_check_duplicate_product_keys"
+      "source": "config_models_rationale_426",
+      "target": "config_models_benchconfig_module_capabilities",
+      "confidence_score": 1.0
     },
     {
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "config_models.py",
-      "source_location": "L552",
+      "source_location": "L490",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "config_models_rationale_552",
-      "target": "config_models_benchconfig_check_wiring_channels"
+      "source": "config_models_rationale_490",
+      "target": "config_models_benchconfig_check_test_references",
+      "confidence_score": 1.0
     },
     {
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "config_models.py",
-      "source_location": "L631",
+      "source_location": "L564",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "config_models_rationale_631",
-      "target": "config_models_benchconfig_from_hardware"
+      "source": "config_models_rationale_564",
+      "target": "config_models_benchconfig_check_duplicate_product_keys",
+      "confidence_score": 1.0
     },
     {
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "config_models.py",
-      "source_location": "L740",
+      "source_location": "L574",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "config_models_rationale_740",
-      "target": "config_models_create_basic_test_definitions"
+      "source": "config_models_rationale_574",
+      "target": "config_models_benchconfig_check_wiring_channels",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "config_models.py",
+      "source_location": "L653",
+      "weight": 1.0,
+      "source": "config_models_rationale_653",
+      "target": "config_models_benchconfig_from_hardware",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "config_models.py",
+      "source_location": "L763",
+      "weight": 1.0,
+      "source": "config_models_rationale_763",
+      "target": "config_models_create_basic_test_definitions",
+      "confidence_score": 1.0
     },
     {
       "relation": "imports",
@@ -20913,9 +21283,9 @@
       "source_file": "repository.py",
       "source_location": "L32",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "repository_rationale_32",
-      "target": "repository_testrunrecord",
-      "confidence_score": 1.0
+      "target": "repository_testrunrecord"
     },
     {
       "relation": "references",
@@ -20956,9 +21326,9 @@
       "source_file": "repository.py",
       "source_location": "L52",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "repository_rationale_52",
-      "target": "repository_testresultrecord",
-      "confidence_score": 1.0
+      "target": "repository_testresultrecord"
     },
     {
       "relation": "references",
@@ -20999,9 +21369,9 @@
       "source_file": "repository.py",
       "source_location": "L78",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "repository_rationale_78",
-      "target": "repository_measurementrecord",
-      "confidence_score": 1.0
+      "target": "repository_measurementrecord"
     },
     {
       "relation": "references",
@@ -21031,9 +21401,9 @@
       "source_file": "repository.py",
       "source_location": "L92",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "repository_rationale_92",
-      "target": "repository_logeventrecord",
-      "confidence_score": 1.0
+      "target": "repository_logeventrecord"
     },
     {
       "relation": "references",
@@ -21084,9 +21454,9 @@
       "source_file": "repository.py",
       "source_location": "L106",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "repository_rationale_106",
-      "target": "repository_resultrepository",
-      "confidence_score": 1.0
+      "target": "repository_resultrepository"
     },
     {
       "relation": "method",
@@ -21175,9 +21545,9 @@
       "source_file": "repository.py",
       "source_location": "L110",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "repository_rationale_110",
-      "target": "repository_resultrepository_create_test_run",
-      "confidence_score": 1.0
+      "target": "repository_resultrepository_create_test_run"
     },
     {
       "relation": "rationale_for",
@@ -21185,9 +21555,9 @@
       "source_file": "repository.py",
       "source_location": "L121",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "repository_rationale_121",
-      "target": "repository_resultrepository_update_test_run",
-      "confidence_score": 1.0
+      "target": "repository_resultrepository_update_test_run"
     },
     {
       "relation": "rationale_for",
@@ -21195,9 +21565,9 @@
       "source_file": "repository.py",
       "source_location": "L125",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "repository_rationale_125",
-      "target": "repository_resultrepository_add_test_result",
-      "confidence_score": 1.0
+      "target": "repository_resultrepository_add_test_result"
     },
     {
       "relation": "rationale_for",
@@ -21205,9 +21575,9 @@
       "source_file": "repository.py",
       "source_location": "L129",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "repository_rationale_129",
-      "target": "repository_resultrepository_add_measurement",
-      "confidence_score": 1.0
+      "target": "repository_resultrepository_add_measurement"
     },
     {
       "relation": "rationale_for",
@@ -21215,9 +21585,9 @@
       "source_file": "repository.py",
       "source_location": "L133",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "repository_rationale_133",
-      "target": "repository_resultrepository_add_log_event",
-      "confidence_score": 1.0
+      "target": "repository_resultrepository_add_log_event"
     },
     {
       "relation": "rationale_for",
@@ -21225,9 +21595,9 @@
       "source_file": "repository.py",
       "source_location": "L139",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "repository_rationale_139",
-      "target": "repository_resultrepository_get_run_history",
-      "confidence_score": 1.0
+      "target": "repository_resultrepository_get_run_history"
     },
     {
       "relation": "rationale_for",
@@ -21235,9 +21605,9 @@
       "source_file": "repository.py",
       "source_location": "L143",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "repository_rationale_143",
-      "target": "repository_resultrepository_get_run_detail",
-      "confidence_score": 1.0
+      "target": "repository_resultrepository_get_run_detail"
     },
     {
       "relation": "method",
@@ -21415,9 +21785,9 @@
       "source_file": "repository.py",
       "source_location": "L161",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "repository_rationale_161",
-      "target": "repository_pocketbaserepository",
-      "confidence_score": 1.0
+      "target": "repository_pocketbaserepository"
     },
     {
       "relation": "calls",
@@ -21755,9 +22125,9 @@
       "source_file": "repository.py",
       "source_location": "L406",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "repository_rationale_406",
-      "target": "repository_pocketbaserepository_save_execution_context",
-      "confidence_score": 1.0
+      "target": "repository_pocketbaserepository_save_execution_context"
     },
     {
       "relation": "calls",
@@ -21798,9 +22168,9 @@
       "source_file": "repository.py",
       "source_location": "L452",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "repository_rationale_452",
-      "target": "repository_pocketbaserepository_recover_stale_runs",
-      "confidence_score": 1.0
+      "target": "repository_pocketbaserepository_recover_stale_runs"
     },
     {
       "relation": "rationale_for",
@@ -21808,9 +22178,9 @@
       "source_file": "repository.py",
       "source_location": "L486",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "repository_rationale_486",
-      "target": "repository_utc_now",
-      "confidence_score": 1.0
+      "target": "repository_utc_now"
     },
     {
       "relation": "calls",
@@ -21829,9 +22199,9 @@
       "source_file": "repository.py",
       "source_location": "L491",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "repository_rationale_491",
-      "target": "repository_resultstore",
-      "confidence_score": 1.0
+      "target": "repository_resultstore"
     },
     {
       "relation": "method",
@@ -22232,9 +22602,9 @@
       "source_file": "repository.py",
       "source_location": "L592",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "repository_rationale_592",
-      "target": "repository_pocketbase_api_context",
-      "confidence_score": 1.0
+      "target": "repository_pocketbase_api_context"
     },
     {
       "relation": "contains",
@@ -22339,6 +22709,17 @@
       "target": "resolver"
     },
     {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L13",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities",
+      "target": "resolver",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "calls",
       "context": "call",
       "confidence": "EXTRACTED",
@@ -22353,11 +22734,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "resolver.py",
-      "source_location": "L66",
+      "source_location": "L65",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "resolver_rationale_66",
-      "target": "resolver_load_all_test_definitions"
+      "source": "resolver_rationale_65",
+      "target": "resolver_load_all_test_definitions",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
@@ -22396,11 +22777,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "resolver.py",
-      "source_location": "L75",
+      "source_location": "L74",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "resolver_rationale_75",
-      "target": "resolver_resolvedtestinstance"
+      "source": "resolver_rationale_74",
+      "target": "resolver_resolvedtestinstance",
+      "confidence_score": 1.0
     },
     {
       "relation": "method",
@@ -22471,11 +22852,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "resolver.py",
-      "source_location": "L96",
+      "source_location": "L95",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "resolver_rationale_96",
-      "target": "resolver_resolvedtestinstance_unique_id"
+      "source": "resolver_rationale_95",
+      "target": "resolver_resolvedtestinstance_unique_id",
+      "confidence_score": 1.0
     },
     {
       "relation": "method",
@@ -22491,11 +22872,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "resolver.py",
-      "source_location": "L109",
+      "source_location": "L108",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "resolver_rationale_109",
-      "target": "resolver_conditioncounterroute"
+      "source": "resolver_rationale_108",
+      "target": "resolver_conditioncounterroute",
+      "confidence_score": 1.0
     },
     {
       "relation": "references",
@@ -22512,11 +22893,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "resolver.py",
-      "source_location": "L121",
+      "source_location": "L120",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "resolver_rationale_121",
-      "target": "resolver_conditioncounterroute_counter_instance"
+      "source": "resolver_rationale_120",
+      "target": "resolver_conditioncounterroute_counter_instance",
+      "confidence_score": 1.0
     },
     {
       "relation": "method",
@@ -22564,21 +22945,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "resolver.py",
-      "source_location": "L121",
+      "source_location": "L126",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "resolver_rationale_121",
-      "target": "resolver_executionplan"
-    },
-    {
-      "relation": "rationale_for",
-      "confidence": "EXTRACTED",
-      "source_file": "resolver.py",
-      "source_location": "L127",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "resolver_rationale_127",
-      "target": "resolver_executionplan"
+      "source": "resolver_rationale_126",
+      "target": "resolver_executionplan",
+      "confidence_score": 1.0
     },
     {
       "relation": "references",
@@ -22595,11 +22966,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "resolver.py",
-      "source_location": "L190",
+      "source_location": "L189",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "resolver_rationale_190",
-      "target": "resolver_testfilter"
+      "source": "resolver_rationale_189",
+      "target": "resolver_testfilter",
+      "confidence_score": 1.0
     },
     {
       "relation": "references",
@@ -22627,11 +22998,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "resolver.py",
-      "source_location": "L204",
+      "source_location": "L203",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "resolver_rationale_204",
-      "target": "resolver_testresolver"
+      "source": "resolver_rationale_203",
+      "target": "resolver_testresolver",
+      "confidence_score": 1.0
     },
     {
       "relation": "method",
@@ -22715,14 +23086,46 @@
       "target": "resolver_testresolver"
     },
     {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L13",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities",
+      "target": "resolver_testresolver",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L13",
+      "weight": 0.8,
+      "source": "tests_test_resolver_capabilities_instancecapabilityresolutiontests",
+      "target": "resolver_testresolver",
+      "confidence_score": 0.5
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L56",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities_instancecapabilityresolutiontests_test_instance_capabilities_override_shared_type_capabilities",
+      "target": "resolver_testresolver"
+    },
+    {
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "resolver.py",
-      "source_location": "L211",
+      "source_location": "L210",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "resolver_rationale_211",
-      "target": "resolver_testresolver_resolve"
+      "source": "resolver_rationale_210",
+      "target": "resolver_testresolver_resolve",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
@@ -22783,11 +23186,11 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "resolver.py",
-      "source_location": "L403",
+      "source_location": "L402",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "resolver_rationale_403",
-      "target": "resolver_testresolver_resolve_condition_counter_routes"
+      "source": "resolver_rationale_402",
+      "target": "resolver_testresolver_resolve_condition_counter_routes",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
@@ -26118,6 +26521,36 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L16",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities",
+      "target": "tests_test_resolver_capabilities_instancecapabilityresolutiontests",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L17",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities_instancecapabilityresolutiontests",
+      "target": "tests_test_resolver_capabilities_instancecapabilityresolutiontests_test_instance_capabilities_override_shared_type_capabilities",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_resolver_capabilities.py",
+      "source_location": "L63",
+      "weight": 1.0,
+      "source": "tests_test_resolver_capabilities_instancecapabilityresolutiontests",
+      "target": "tests_test_resolver_capabilities_instancecapabilityresolutiontests_test_omitted_instance_capabilities_keep_legacy_type_fallback",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "tests/test_system_diagnosis.py",
       "source_location": "L38",
       "weight": 1.0,
@@ -26614,5 +27047,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "d24ee03d6bc183456fe453f02b424fa48783d28b"
+  "built_at_commit": "0f0d9c4b68dd77707e682372d0b98d4217ab8f79"
 }

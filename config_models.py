@@ -163,6 +163,13 @@ class ModuleInstance(BaseModel):
         "",
         description="Key into module_types map for this module's type definition",
     )
+    capabilities: list[str] | None = Field(
+        default=None,
+        description=(
+            "Authoritative capabilities of this concrete module. When omitted, "
+            "module_type capabilities are used only as a legacy fallback."
+        ),
+    )
     firmware_version: str | None = Field(None)
     serial_number: str | None = Field(None)
     presence_state: PresenceState = Field(PresenceState.EXPECTED)
@@ -306,13 +313,13 @@ def get_module_capabilities(display_name: str, category: str) -> list[str]:
     """
     del display_name
     defaults = {
-        "input": ["digital_input", "condition_counter", "remanent_params"],
-        "output": ["digital_output", "condition_counter", "remanent_params"],
+        "input": ["digital_input", "remanent_params"],
+        "output": ["digital_output", "remanent_params"],
         "inout": [
             "digital_input", "digital_output", "configurable_io",
-            "condition_counter", "remanent_params",
+            "remanent_params",
         ],
-        "valve": ["digital_output", "valve_output", "condition_counter", "remanent_params"],
+        "valve": ["digital_output", "valve_output", "remanent_params"],
         "bus": ["system_diagnosis"],
         "interface": ["system_diagnosis"],
     }
@@ -415,6 +422,20 @@ class BenchConfig(BaseModel):
         module = self.module_instance_at(address)
         return self.module_types[module.module_type_ref]
 
+    def module_capabilities(self, module: ModuleInstance | int) -> set[str]:
+        """Return capabilities for one concrete module.
+
+        An explicit instance list is authoritative, including an intentionally
+        empty list. Type/category inheritance exists only for older configs.
+        """
+        instance = self.module_instance_at(module) if isinstance(module, int) else module
+        if instance.capabilities is not None:
+            return set(instance.capabilities)
+        module_type = self.module_types.get(instance.module_type_ref)
+        if module_type is not None:
+            return set(module_type.capabilities)
+        return set(get_module_capabilities(instance.display_name, instance.category.value))
+
     @model_validator(mode="after")
     def _populate_module_types(self) -> BenchConfig:
         if not self.module_types:
@@ -468,8 +489,9 @@ class BenchConfig(BaseModel):
     def _check_test_references(self) -> BenchConfig:
         """Reject impossible capability and explicit module references."""
         available_capabilities: set[str] = set()
+        for module in self.module_instances:
+            available_capabilities.update(self.module_capabilities(module))
         for module_type in self.module_types.values():
-            available_capabilities.update(module_type.capabilities)
             for channel in module_type.channels:
                 available_capabilities.update(channel.capabilities)
         module_ids = {module.instance_id for module in self.module_instances}
@@ -719,6 +741,7 @@ class BenchConfig(BaseModel):
                     address=addr,
                     category=cat,
                     module_type_ref=type_ref,
+                    capabilities=caps,
                     mounted_valves=list(range(16)) if cat == ModuleCategory.VALVE else [],
                     num_inputs=m.num_inputs,
                     num_outputs=m.num_outputs,

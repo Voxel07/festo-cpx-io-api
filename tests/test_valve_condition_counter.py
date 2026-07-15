@@ -28,7 +28,7 @@ TEST_DEFINITION = {
     "version": "1.0.0",
     "description": "Set CC setpoint, toggle valves past threshold, verify diagnosis",
     "required_capabilities": [
-        "condition_counter",
+        "valve_condition_counter",
         "valve_output"
     ],
     "supported_categories": [

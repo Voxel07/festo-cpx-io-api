@@ -86,31 +86,43 @@
   },
   "CPX-AP-I-16DI-M8-3P": {
     "category": "input",
+    "capabilities": ["digital_input", "condition_counter", "remanent_params"],
     "mounted_valves": [],
     "valve_slots": null
   },
   "CPX-AP-I-16DI-M12-5P": {
     "category": "input",
+    "capabilities": ["digital_input", "condition_counter", "remanent_params"],
     "mounted_valves": [],
     "valve_slots": null
   },
   "CPX-AP-I-16NDI-M12-5P": {
     "category": "input",
+    "capabilities": ["digital_input", "condition_counter", "remanent_params"],
     "mounted_valves": [],
     "valve_slots": null
   },
   "CPX-AP-I-16DIO-M12-5P": {
     "category": "inout",
+    "capabilities": ["digital_input", "digital_output", "configurable_io", "condition_counter", "remanent_params"],
     "mounted_valves": [],
     "valve_slots": null
   },
   "CPX-AP-I-16DIO-M8-3P": {
     "category": "inout",
+    "capabilities": ["digital_input", "digital_output", "configurable_io", "condition_counter", "remanent_params"],
     "mounted_valves": [],
     "valve_slots": null
   },
   "CPX-AP-I-16NIDO-M12-5P": {
     "category": "inout",
+    "capabilities": ["digital_input", "digital_output", "configurable_io", "condition_counter", "remanent_params"],
+    "mounted_valves": [],
+    "valve_slots": null
+  },
+  "CPX-AP-I-16NDIO-M12-5P": {
+    "category": "inout",
+    "capabilities": ["digital_input", "digital_output", "configurable_io", "condition_counter", "remanent_params"],
     "mounted_valves": [],
     "valve_slots": null
   },
