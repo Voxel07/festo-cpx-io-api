@@ -32,11 +32,6 @@ TEST_DEFINITIONS = [
         "can_run_parallel": False,
         "singleton": False,
         "parameters": {},
-        "compatible_modules": [
-            "CPX-AP-A-*DO*",
-            "CPX-AP-A-*HDO*",
-            "CPX-AP-I-*DO*",
-        ]
     }
 ]
 

@@ -6,14 +6,12 @@ test definitions, and UI visualization metadata.
 
 Usage::
 
-    from config_models import BenchConfig
-    config = BenchConfig.model_validate_json(jsonc_content)
+    from config_io import load_bench_config
+    config = load_bench_config("data/bench_config.json")
 """
 
 from __future__ import annotations
 
-import re
-import warnings
 from enum import Enum
 from typing import Any
 
@@ -62,6 +60,20 @@ class PortKind(str, Enum):
     INOUT = "inout"
 
 
+class PresenceState(str, Enum):
+    EXPECTED = "expected"
+    OPTIONAL = "optional"
+    PRESENT = "present"
+    MISSING = "missing"
+
+
+class AssignmentScope(str, Enum):
+    SYSTEM = "system"
+    MODULE = "module"
+    CHANNEL = "channel"
+    WIRING = "wiring"
+
+
 # ─── Channel / Port ───────────────────────────────────────────────────────────
 
 
@@ -88,6 +100,16 @@ class ChannelDefinition(BaseModel):
     ui_hotspot_radius: float | None = Field(None, ge=0, description="UI hotspot radius in pixels")
     limits: ChannelLimits | None = Field(None, description="Electrical/safety limits for the channel")
 
+    @model_validator(mode="after")
+    def _validate_modes(self) -> ChannelDefinition:
+        supported = set(self.supported_modes)
+        for field_name, mode in (("default_mode", self.default_mode), ("current_mode", self.current_mode)):
+            if mode and supported and mode not in supported:
+                raise ValueError(f"{field_name} {mode!r} is not present in supported_modes")
+        if self.ui_hotspot_radius is not None and self.ui_hotspot_radius == 0:
+            raise ValueError("ui_hotspot_radius must be greater than zero")
+        return self
+
 
 # ─── Module Type Definition ───────────────────────────────────────────────────
 
@@ -96,6 +118,7 @@ class ModuleTypeDefinition(BaseModel):
     """Static definition of a module type — capabilities, channel layout, image."""
 
     module_code: int = Field(..., description="Numeric module code")
+    product_family: str = Field("", description="Stable product family identifier")
     capabilities: list[str] = Field(
         default_factory=list,
         description="Supported capabilities: digital_input, digital_output, condition_counter, etc.",
@@ -104,8 +127,13 @@ class ModuleTypeDefinition(BaseModel):
     num_outputs: int = Field(0, ge=0)
     num_configurable: int = Field(0, ge=0, description="Configurable in/out channels")
     valve_count: int = Field(0, ge=0, description="Number of valve slots (VABX only)")
+    channels_per_valve: int = Field(0, ge=0, description="Hardware output channels per valve slot")
     channels: list[ChannelDefinition] = Field(default_factory=list)
     image_asset: str = Field("", description="SVG/PNG filename for UI")
+    test_parameters: dict[str, dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Product-specific parameters keyed by test ID",
+    )
 
 
 # ─── Test Bench Metadata ──────────────────────────────────────────────────────
@@ -136,6 +164,8 @@ class ModuleInstance(BaseModel):
         description="Key into module_types map for this module's type definition",
     )
     firmware_version: str | None = Field(None)
+    serial_number: str | None = Field(None)
+    presence_state: PresenceState = Field(PresenceState.EXPECTED)
     compatible_tests_override: list[str] = Field(
         default_factory=list,
         description="Explicit test IDs to include (overrides capability matching)",
@@ -214,6 +244,13 @@ class TestDefinition(BaseModel):
     safety_class: SafetyClass = Field(SafetyClass.SAFE)
     allowed_in_ci: bool = Field(True, description="Whether this test can run in CI pipelines")
     can_run_parallel: bool = Field(False, description="Whether test instances can run in parallel")
+    assignment_scope: AssignmentScope = Field(
+        AssignmentScope.MODULE,
+        description="Whether this definition expands per system, module, channel, or wiring",
+    )
+    required_channel_capabilities: list[str] = Field(default_factory=list)
+    required_channel_modes: list[str] = Field(default_factory=list)
+    target_module_instance_ids: list[str] = Field(default_factory=list)
     singleton: bool = Field(
         False,
         description="If True, only one instance is created regardless of how many modules match (e.g. system-wide tests)",
@@ -238,12 +275,6 @@ class TestDefinition(BaseModel):
         default_factory=list,
         description="Exclude specific product keys",
     )
-    compatible_modules: list[str] = Field(
-        default_factory=list,
-        description="Glob patterns of module names compatible with this test",
-    )
-
-
 # ─── UI Visualization Metadata ────────────────────────────────────────────────
 
 
@@ -259,7 +290,7 @@ class UIChannelAnchor(BaseModel):
     channel_index: int
     anchor_x: float = Field(..., ge=0, le=1)
     anchor_y: float = Field(..., ge=0, le=1)
-    hotspot_radius: float = 10.0
+    hotspot_radius: float = Field(10.0, gt=0)
 
 
 class UIVisualizationMetadata(BaseModel):
@@ -268,92 +299,78 @@ class UIVisualizationMetadata(BaseModel):
 
 
 def get_module_capabilities(display_name: str, category: str) -> list[str]:
-    name_up = display_name.upper()
-    caps = []
-    
-    # Check category/name for input
-    if category == "input" or "DI" in name_up or "DIO" in name_up or "DIDO" in name_up or "VABX" in name_up:
-        caps.append("digital_input")
-        
-    # Check category/name for output
-    if category == "output" or "DO" in name_up or "DIO" in name_up or "DIDO" in name_up or "VABX" in name_up:
-        caps.append("digital_output")
-        
-    # Check category/name for valve
-    if category == "valve" or "VABX" in name_up or "VMPAL" in name_up or "VAEM" in name_up:
-        caps.extend(["valve_output"])
-        
-    # Condition counter & Remanent params support
-    if any(x in name_up for x in ("DI", "DO", "DIO", "HDO", "AI", "IOL", "VABX")):
-        caps.extend(["condition_counter", "remanent_params"])
-        
-    # System diagnosis support for bus/interface modules
-    if category == "bus" or any(x in name_up for x in ("EP", "EC", "PN", "PB", "EPLI")):
-        caps.append("system_diagnosis")
-        
-    return list(set(caps))
+    """Return conservative category defaults without inspecting product names.
+
+    Explicit ``module_types`` remain authoritative.  These defaults only keep
+    generated legacy configurations usable until their capabilities are stored.
+    """
+    del display_name
+    defaults = {
+        "input": ["digital_input", "condition_counter", "remanent_params"],
+        "output": ["digital_output", "condition_counter", "remanent_params"],
+        "inout": [
+            "digital_input", "digital_output", "configurable_io",
+            "condition_counter", "remanent_params",
+        ],
+        "valve": ["digital_output", "valve_output", "condition_counter", "remanent_params"],
+        "bus": ["system_diagnosis"],
+        "interface": ["system_diagnosis"],
+    }
+    return list(defaults.get(category, ()))
 
 
 def infer_type_definition_from_instance(mod: ModuleInstance) -> ModuleTypeDefinition:
-    name = mod.display_name.upper()
     code = mod.module_code
     category = mod.category
-    
-    num_in = 0
-    num_out = 0
-    num_io = 0
-    valve_count = 0
-    
-    if "VABX" in name or "VMPAL" in name or "VAEM" in name or category == ModuleCategory.VALVE:
-        num_in = 8 if "VABX" in name else 0
-        num_out = 8
-        valve_count = 16
-    else:
-        # Check for configurable DIO / DIDO channels BEFORE separate DI / DO:
-        # '4DIDO' and '16DIO' have fully configurable ports (num_io), whereas
-        # '4DI8DO' has separate fixed-direction ports (num_in + num_out).
-        dido_match = re.search(r'(\d+)(?:DIDO|DIO)', name)
-        if dido_match:
-            num_io = int(dido_match.group(1))
-        else:
-            # Match input channels (DI or AI)
-            di_match = re.search(r'(\d+)(?:DI|AI)', name)
-            if di_match:
-                num_in = int(di_match.group(1))
-
-            # Match output channels (DO, HDO, or AO)
-            do_match = re.search(r'(\d+)(?:DO|HDO|AO)', name)
-            if do_match:
-                num_out = int(do_match.group(1))
+    num_in = mod.num_inputs
+    num_out = mod.num_outputs
+    num_io = mod.num_inouts
+    valve_count = mod.valve_slots or len(mod.mounted_valves)
+    channels_per_valve = (
+        max(1, num_out // valve_count)
+        if category == ModuleCategory.VALVE and num_out and valve_count
+        else (2 if category == ModuleCategory.VALVE else 0)
+    )
         
     caps = get_module_capabilities(mod.display_name, category.value)
     
     channels = []
-    max_ch = max(num_in, num_out, num_io, 8)
+    max_ch = max(num_in, num_out, num_io, valve_count)
     for ch_idx in range(max_ch):
         ch_caps = []
+        supported_modes: list[str] = []
+        default_mode = ""
+        current_mode = ""
         if num_out > 0 or category == ModuleCategory.VALVE:
             ch_caps.append("digital_output")
         if num_in > 0:
             ch_caps.append("digital_input")
         if num_io > 0:
             ch_caps.append("configurable_io")
+            supported_modes = ["input", "output"]
+            default_mode = "input"
+            current_mode = "output" if mod.port_directions.get(str(ch_idx)) else "input"
             
         channels.append(
             ChannelDefinition(
                 index=ch_idx,
                 name=f"X{ch_idx}",
                 capabilities=ch_caps,
+                supported_modes=supported_modes,
+                default_mode=default_mode,
+                current_mode=current_mode,
             )
         )
         
     return ModuleTypeDefinition(
         module_code=code,
+        product_family=category.value,
         capabilities=caps,
         num_inputs=num_in,
         num_outputs=num_out,
         num_configurable=num_io,
         valve_count=valve_count,
+        channels_per_valve=channels_per_valve,
         channels=channels,
     )
 
@@ -385,6 +402,18 @@ class BenchConfig(BaseModel):
     wiring: list[WiringConnection] = Field(default_factory=list)
     test_definitions: list[TestDefinition] = Field(default_factory=list)
     ui_metadata: UIVisualizationMetadata = Field(default_factory=UIVisualizationMetadata)
+
+    def module_instance_at(self, address: int) -> ModuleInstance:
+        """Return the configured module instance at a bus address."""
+        for module in self.module_instances:
+            if module.address == address:
+                return module
+        raise KeyError(f"No configured module at address {address}")
+
+    def module_type_at(self, address: int) -> ModuleTypeDefinition:
+        """Return the explicit module-type definition for a bus address."""
+        module = self.module_instance_at(address)
+        return self.module_types[module.module_type_ref]
 
     @model_validator(mode="after")
     def _populate_module_types(self) -> BenchConfig:
@@ -437,8 +466,66 @@ class BenchConfig(BaseModel):
 
     @model_validator(mode="after")
     def _check_test_references(self) -> BenchConfig:
-        """Warn about tests referencing nonexistent capabilities (non-fatal)."""
-        return self  # Soft check — resolver handles missing capabilities at runtime
+        """Reject impossible capability and explicit module references."""
+        available_capabilities: set[str] = set()
+        for module_type in self.module_types.values():
+            available_capabilities.update(module_type.capabilities)
+            for channel in module_type.channels:
+                available_capabilities.update(channel.capabilities)
+        module_ids = {module.instance_id for module in self.module_instances}
+        for test in self.test_definitions:
+            requested = set(test.required_capabilities) | set(test.required_channel_capabilities)
+            missing = requested - available_capabilities
+            if missing:
+                raise ValueError(
+                    f"Test '{test.test_id}' references unavailable capabilities: {sorted(missing)}"
+                )
+            unknown_modules = set(test.target_module_instance_ids) - module_ids
+            if unknown_modules:
+                raise ValueError(
+                    f"Test '{test.test_id}' references unknown module instances: "
+                    f"{sorted(unknown_modules)}"
+                )
+        return self
+
+    @model_validator(mode="after")
+    def _check_module_type_references(self) -> BenchConfig:
+        for module in self.module_instances:
+            if not module.module_type_ref:
+                module.module_type_ref = f"type-{module.module_code}"
+            if module.module_type_ref not in self.module_types:
+                raise ValueError(
+                    f"Module '{module.instance_id}' references unknown module type "
+                    f"'{module.module_type_ref}'"
+                )
+        return self
+
+    @model_validator(mode="after")
+    def _check_duplicate_wiring_ids_and_endpoints(self) -> BenchConfig:
+        ids: set[str] = set()
+        endpoints: set[tuple[str, str, str, str]] = set()
+        for wire in self.wiring:
+            if wire.id in ids:
+                raise ValueError(f"Duplicate wiring ID: {wire.id!r}")
+            ids.add(wire.id)
+            endpoint = (
+                wire.source_instance_id,
+                wire.source_channel,
+                wire.target_instance_id,
+                wire.target_channel,
+            )
+            reverse = (endpoint[2], endpoint[3], endpoint[0], endpoint[1])
+            if endpoint[0:2] == endpoint[2:4]:
+                raise ValueError(f"Wiring '{wire.id}' connects a channel to itself")
+            if endpoint in endpoints or reverse in endpoints:
+                raise ValueError(f"Ambiguous duplicate wiring endpoints for '{wire.id}'")
+            endpoints.add(endpoint)
+            if wire.direction != "output_to_input":
+                raise ValueError(
+                    f"Wiring '{wire.id}' has unsupported direction {wire.direction!r}; "
+                    "expected 'output_to_input'"
+                )
+        return self
 
     @model_validator(mode="after")
     def _check_schema_version(self) -> BenchConfig:
@@ -452,12 +539,12 @@ class BenchConfig(BaseModel):
 
     @model_validator(mode="after")
     def _check_duplicate_product_keys(self) -> BenchConfig:
-        """Warn about duplicate product keys (non-fatal by default)."""
+        """Product keys identify physical products and must be unique per bench."""
         keys = [m.product_key for m in self.module_instances if m.product_key]
         seen: set[str] = set()
         dupes = {k for k in keys if k in seen or seen.add(k)}
         if dupes:
-            warnings.warn(f"Duplicate product keys found: {sorted(dupes)}", UserWarning, stacklevel=2)
+            raise ValueError(f"Duplicate product keys found: {sorted(dupes)}")
         return self
 
     @model_validator(mode="after")
@@ -499,6 +586,41 @@ class BenchConfig(BaseModel):
                         )
         return self
 
+    @model_validator(mode="after")
+    def _check_ui_references(self) -> BenchConfig:
+        module_ids = {module.instance_id for module in self.module_instances}
+        positioned: set[str] = set()
+        for position in self.ui_metadata.module_positions:
+            if position.instance_id not in module_ids:
+                raise ValueError(
+                    f"UI position references unknown module '{position.instance_id}'"
+                )
+            if position.instance_id in positioned:
+                raise ValueError(f"Duplicate UI position for module '{position.instance_id}'")
+            positioned.add(position.instance_id)
+        anchors: set[tuple[str, int]] = set()
+        for anchor in self.ui_metadata.channel_anchors:
+            if anchor.instance_id not in module_ids:
+                raise ValueError(
+                    f"UI channel anchor references unknown module '{anchor.instance_id}'"
+                )
+            key = (anchor.instance_id, anchor.channel_index)
+            if key in anchors:
+                raise ValueError(
+                    f"Duplicate UI channel anchor for '{anchor.instance_id}' "
+                    f"channel {anchor.channel_index}"
+                )
+            anchors.add(key)
+            module = next(item for item in self.module_instances if item.instance_id == anchor.instance_id)
+            module_type = self.module_types[module.module_type_ref]
+            valid_channels = {channel.index for channel in module_type.channels}
+            if valid_channels and anchor.channel_index not in valid_channels:
+                raise ValueError(
+                    f"UI channel anchor references unknown channel {anchor.channel_index} "
+                    f"on module '{anchor.instance_id}'"
+                )
+        return self
+
     @classmethod
     def from_hardware(
         cls,
@@ -516,12 +638,9 @@ class BenchConfig(BaseModel):
             version="1.0",
         )
 
-        def infer_cat(name: str, is_valve: bool, num_in: int, num_out: int, num_io: int) -> ModuleCategory:
-            name_up = name.upper()
-            if is_valve or "VABX-A-S-BV-V" in name_up or "VMPAL" in name_up or "VAEM" in name_up:
+        def infer_cat(is_valve: bool, num_in: int, num_out: int, num_io: int) -> ModuleCategory:
+            if is_valve:
                 return ModuleCategory.VALVE
-            if any(x in name_up for x in ("EP", "EC", "PN", "PB", "EPLI")) or "bus" in name_up:
-                return ModuleCategory.BUS
             if num_io > 0 or (num_in > 0 and num_out > 0):
                 return ModuleCategory.INOUT
             if num_out > 0:
@@ -530,21 +649,17 @@ class BenchConfig(BaseModel):
                 return ModuleCategory.INPUT
             return ModuleCategory.BUS
 
-        def infer_caps(name: str, num_in: int, num_out: int, num_io: int) -> list[str]:
+        def infer_caps(is_valve: bool, num_in: int, num_out: int, num_io: int) -> list[str]:
             caps = []
-            name_up = name.upper()
             if num_in > 0:
                 caps.append("digital_input")
             if num_out > 0:
                 caps.append("digital_output")
             if num_io > 0:
                 caps.append("configurable_io")
-            if "VABX" in name_up:
-                caps.extend(["valve_output", "condition_counter", "remanent_params"])
-            if any(x in name_up for x in ("DI", "DO", "DIO", "HDO", "AI", "IOL", "VABX")):
-                caps.append("condition_counter")
-                caps.append("remanent_params")
-            if any(x in name_up for x in ("EP", "EC", "PN", "PB")):
+            if is_valve:
+                caps.append("valve_output")
+            if not (num_in or num_out or num_io or is_valve):
                 caps.append("system_diagnosis")
             return list(set(caps))
 
@@ -560,12 +675,12 @@ class BenchConfig(BaseModel):
             inst_id = f"mod-{addr:03d}"
             type_ref = f"type-{m_code}"
 
-            cat = infer_cat(name, m.is_valve, m.num_inputs, m.num_outputs, m.num_inouts)
-            caps = infer_caps(name, m.num_inputs, m.num_outputs, m.num_inouts)
+            cat = infer_cat(m.is_valve, m.num_inputs, m.num_outputs, m.num_inouts)
+            caps = infer_caps(m.is_valve, m.num_inputs, m.num_outputs, m.num_inouts)
 
             # Build channel definitions dynamically
             channels = []
-            for ch_idx in range(max(m.num_inputs, m.num_outputs, m.num_inouts, 8)):
+            for ch_idx in range(max(m.num_inputs, m.num_outputs, m.num_inouts)):
                 ch_caps = []
                 if m.num_outputs > 0 or cat == ModuleCategory.VALVE:
                     ch_caps.append("digital_output")
@@ -585,11 +700,13 @@ class BenchConfig(BaseModel):
             if type_ref not in type_defs:
                 type_defs[type_ref] = ModuleTypeDefinition(
                     module_code=m_code,
+                    product_family=str(m_code),
                     capabilities=caps,
                     num_inputs=m.num_inputs,
                     num_outputs=m.num_outputs,
                     num_configurable=m.num_inouts,
-                    valve_count=16 if cat == ModuleCategory.VALVE else 0,
+                    valve_count=(m.num_outputs // 2) if cat == ModuleCategory.VALVE else 0,
+                    channels_per_valve=2 if cat == ModuleCategory.VALVE else 0,
                     channels=channels,
                 )
 
@@ -612,7 +729,7 @@ class BenchConfig(BaseModel):
         return cls(
             schema_version="1.0",
             test_bench=meta,
-            module_types={},
+            module_types=type_defs,
             module_instances=instances,
             wiring=[],
             test_definitions=[],

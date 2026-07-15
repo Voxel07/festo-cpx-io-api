@@ -1,206 +1,121 @@
-# GitLab CI pipeline for CPX-AP Hardware Test Automation
+# GitLab pipeline for API-owned CPX-AP test execution.
 #
-# Required CI/CD variables (set in GitLab → Settings → CI/CD → Variables):
-#   CONFIG_REPO_URL    - Git URL of the test-bench-configs repository
-#   CONFIG_REF         - Branch/tag of config repo (default: main)
-#   TESTBENCH_ID       - Test bench identifier (e.g. bench-lab-03)
-#   POCKETBASE_URL     - PocketBase server URL
-#   POCKETBASE_TOKEN   - PocketBase admin token (or use PB_USERNAME / PB_PASSWORD)
-#   PB_USERNAME        - PocketBase admin username
-#   PB_PASSWORD        - PocketBase admin password
-#
-# Docker build variables (for container registry push on tags):
-#   CPXIO_REPO_URL     - Git URL of the festo-cpx-io library repo
-#   GUI_REPO_URL       - Git URL of the festo-cpx-io-gui frontend repo
+# Required variables:
+#   CONFIG_REPO_URL, CONFIG_REF, TESTBENCH_ID
+#   POCKETBASE_URL and POCKETBASE_TOKEN (or PB_USERNAME/PB_PASSWORD)
+# Optional safety controls:
+#   TEST_FILTER, SAFETY_CLASS_FILTER, ALLOW_DESTRUCTIVE, ALLOW_NEGATIVE,
+#   PER_TEST_TIMEOUT_S, CPX_IP
 
-stages:
-  - validate
-  - plan
-  - build
-  - test
-  - report
+stages: [validate, plan, build, test, report]
 
 variables:
   CONFIG_REF: "main"
-  DRY_RUN: "false"
   TEST_FILTER: ""
   SAFETY_CLASS_FILTER: "safe"
+  ALLOW_DESTRUCTIVE: "false"
+  ALLOW_NEGATIVE: "false"
+  PER_TEST_TIMEOUT_S: "300"
+  TEST_API_URL: "http://127.0.0.1:8000"
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  FESTO_CONFIG_ROOTS: "/tmp/config"
 
 cache:
   paths:
     - .cache/pip
     - ../festo-cpx-io/
 
-# ── Stage 1: Configuration Validation ──────────────────────────────────────
-
-validate-config:
-  stage: validate
+.api-job:
   image: python:3.12
   before_script:
-    - pip install --quiet pydantic
-  script:
+    - pip install --quiet -e ../festo-cpx-io
+    - pip install --quiet -r requirements.txt
     - |
-      if [ -n "$CONFIG_REPO_URL" ]; then
-        git clone --depth 1 --branch "$CONFIG_REF" "$CONFIG_REPO_URL" /tmp/config
-        CONFIG_FILE="/tmp/config/${TESTBENCH_ID}.jsonc"
+      if [ -n "$CONFIG_REPO_PATH" ]; then
+        export FESTO_CONFIG_ROOTS="$CONFIG_REPO_PATH"
+        export CONFIG_FILE="$CONFIG_REPO_PATH/${TESTBENCH_ID}.jsonc"
+        export CONFIG_COMMIT="$(git -C "$CONFIG_REPO_PATH" rev-parse HEAD 2>/dev/null || true)"
       else
-        echo "No CONFIG_REPO_URL set — skipping config fetch"
-        CONFIG_FILE="topology.jsonc"
+        git clone --depth 1 --branch "$CONFIG_REF" "$CONFIG_REPO_URL" /tmp/config
+        export FESTO_CONFIG_ROOTS="/tmp/config"
+        export CONFIG_FILE="/tmp/config/${TESTBENCH_ID}.jsonc"
+        export CONFIG_COMMIT="$(git -C /tmp/config rev-parse HEAD)"
       fi
-    - python -c "
-      from config_models import BenchConfig
-      import json, sys
-      with open('$CONFIG_FILE') as f:
-          raw = f.read()
-      # Strip JSONC comments
-      import re
-      raw = re.sub(r'//.*?\n|/\*.*?\*/', '', raw, flags=re.DOTALL)
-      config = BenchConfig.model_validate_json(raw)
-      print(f'✓ Config valid — {len(config.module_instances)} module(s), {len(config.test_definitions)} test(s)')
-      "
+    - export PB_URL="${POCKETBASE_URL:-http://localhost:8090}"
+    - python -m uvicorn api:app --host 127.0.0.1 --port 8000 > api.log 2>&1 &
+    - python ci_api_client.py plan --config "$CONFIG_FILE" --output /tmp/api-ready-plan.json
+
+validate-config:
+  extends: .api-job
+  stage: validate
+  script:
+    - python ci_api_client.py plan --config "$CONFIG_FILE" --output validation-plan.json
+  artifacts:
+    when: always
+    paths: [validation-plan.json, api.log]
+    expire_in: 7 days
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "web"'
   tags: [docker]
 
-# ── Stage 2: Dry-Run Planning ──────────────────────────────────────────────
-
-dry-run-plan:
+resolve-plan:
+  extends: .api-job
   stage: plan
-  image: python:3.12
-  before_script:
-    - pip install --quiet -e ../festo-cpx-io
-    - pip install --quiet fastapi uvicorn pydantic requests
   script:
-    - |
-      export DRY_RUN=true
-      python -c "
-      from resolver import TestResolver
-      from config_models import BenchConfig, TestBenchMetadata, create_basic_test_definitions
-      import json
-
-      # Build minimal config from topology.jsonc
-      resolver = TestResolver()
-      defs = create_basic_test_definitions()
-      print(f'Default test definitions: {len(defs)}')
-      for t in defs:
-          print(f'  {t.test_id}: {t.name} [safety={t.safety_class.value}]')
-      print('Dry-run plan generation OK')
-      "
+    - python ci_api_client.py plan --config "$CONFIG_FILE" --output plan.json
   artifacts:
-    paths:
-      - plan.json
-    expire_in: 7 days
+    when: always
+    paths: [plan.json, api.log]
+    expire_in: 30 days
   rules:
-    - if: '$DRY_RUN == "true"'
+    - if: '$CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "web"'
   tags: [docker]
 
-# ── Stage 3: Hardware Tests ────────────────────────────────────────────────
-
 hardware-tests:
+  extends: .api-job
   stage: test
-  image: python:3.12
-  resource_group: "$TESTBENCH_ID"  # GitLab resource group prevents concurrent bench use
-  before_script:
-    - pip install --quiet -e ../festo-cpx-io
-    - pip install --quiet fastapi uvicorn pydantic requests pytest
-    - |
-      if [ -n "$CONFIG_REPO_URL" ]; then
-        git clone --depth 1 --branch "$CONFIG_REF" "$CONFIG_REPO_URL" /tmp/config
-      fi
+  resource_group: "$TESTBENCH_ID"
   script:
-    - |
-      export PB_URL="${POCKETBASE_URL:-http://localhost:8090}"
-      export PB_USERNAME="${PB_USERNAME:-}"
-      export PB_PASSWORD="${PB_PASSWORD:-}"
-      export GITLAB_PIPELINE_ID="$CI_PIPELINE_ID"
-      export GITLAB_JOB_ID="$CI_JOB_ID"
-      export CPX_IP="${CPX_IP:-192.168.0.11}"
-      export TESTBENCH_ID="${TESTBENCH_ID:-default}"
-
-      if [ "$DRY_RUN" = "true" ]; then
-        echo "DRY_RUN=true — skipping hardware tests"
-        exit 0
-      fi
-
-      if [ -f "/tmp/config/${TESTBENCH_ID}.jsonc" ]; then
-        BENCH_CFG="--bench-config=/tmp/config/${TESTBENCH_ID}.jsonc"
-      else
-        BENCH_CFG=""
-      fi
-
-      pytest tests/test_suite.py --junitxml=results.xml $BENCH_CFG --safety-class="${SAFETY_CLASS_FILTER:-safe}" --test-filter="${TEST_FILTER:-}"
+    - python ci_api_client.py run --config "$CONFIG_FILE" --output results.json --junit results.xml
   artifacts:
-    paths:
-      - results.json
-      - logs/
-    expire_in: 30 days
+    when: always
+    paths: [plan.json, results.json, results.xml, api.log]
     reports:
       junit: results.xml
+    expire_in: 30 days
   tags: [hardware, "$TESTBENCH_ID"]
   rules:
-    - if: '$DRY_RUN != "true"'
-  timeout: 30 minutes
-
-# ── Stage 4: Report Generation ─────────────────────────────────────────────
+    - if: '$CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "web"'
+  timeout: 45 minutes
 
 generate-report:
   stage: report
   image: python:3.12
-  needs: [hardware-tests]
-  before_script:
-    - pip install --quiet requests
+  needs:
+    - job: hardware-tests
+      artifacts: true
   script:
-    - |
-      if [ -f results.json ]; then
-        python -c "
-        import json
-        with open('results.json') as f:
-            data = json.load(f)
-        tests = data.get('tests', {})
-        total = len(tests)
-        passed = sum(1 for v in tests.values() if v.get('passed', False))
-        print(f'=== Test Report ===')
-        print(f'Total: {total}, Passed: {passed}, Failed: {total - passed}')
-        for name, result in tests.items():
-            status = '✓' if result.get('passed') else '✗'
-            print(f'  {status} {name}')
-        "
-      fi
+    - python -c "import json; d=json.load(open('results.json')); print(json.dumps({'run_id':d.get('run_id'),'status':d.get('status'),'progress':d.get('progress')},indent=2))"
   artifacts:
-    paths:
-      - results.json
+    paths: [results.json, results.xml]
     expire_in: 30 days
   rules:
-    - if: '$DRY_RUN != "true"'
+    - if: '$CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "web"'
   tags: [docker]
-
-# ── Stage: Docker Build & Push to Container Registry ───────────────────────
-#
-# Runs ONLY on tags (e.g. v1.0.0). Builds the multi-stage Docker image
-# containing the API, pre-built GUI, and all Python libraries, then pushes
-# it to the GitLab Container Registry.
 
 docker-build:
   stage: build
   image: docker:latest
-  services:
-    - docker:dind
+  services: [docker:dind]
   variables:
     DOCKER_TLS_CERTDIR: "/certs"
   before_script:
-    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
-    # Clone sibling repos needed for the Docker build context
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
     - apk add --no-cache git
     - git clone --depth 1 --branch "${CI_COMMIT_TAG}" "${CPXIO_REPO_URL}" ../festo-cpx-io || git clone --depth 1 "${CPXIO_REPO_URL}" ../festo-cpx-io
     - git clone --depth 1 --branch "${CI_COMMIT_TAG}" "${GUI_REPO_URL}" ../festo-cpx-io-gui || git clone --depth 1 "${GUI_REPO_URL}" ../festo-cpx-io-gui
   script:
-    - |
-      docker build \
-        --file festo-cpx-io-api/Dockerfile \
-        --tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG" \
-        --tag "$CI_REGISTRY_IMAGE:latest" \
-        ..
+    - docker build --file festo-cpx-io-api/Dockerfile --tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG" --tag "$CI_REGISTRY_IMAGE:latest" ..
     - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
     - docker push "$CI_REGISTRY_IMAGE:latest"
   rules:

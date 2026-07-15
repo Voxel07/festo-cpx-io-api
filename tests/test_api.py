@@ -38,10 +38,6 @@ TEST_DEFINITION = {
     "singleton": False,
     # Static parameters available to run()
     "parameters": {},
-    # fnmatch patterns for compatible module display names; '*' = all
-    "compatible_modules": [
-        "CPX-AP-A-*DO*",
-    ],
 }
 
 

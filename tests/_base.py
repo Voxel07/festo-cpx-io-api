@@ -1,8 +1,6 @@
 """Shared helpers and types for all CPX-AP test modules."""
 from __future__ import annotations
 
-import fnmatch
-import json
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
@@ -39,64 +37,18 @@ def load_bench_config(config_path: str | None = None) -> "BenchConfig | None":
         The parsed BenchConfig, or ``None`` if the file does not exist
         or cannot be parsed.
     """
-    from config_models import BenchConfig
+    from config_io import load_bench_config as load_validated_config
 
     path = Path(config_path or DEFAULT_BENCH_CONFIG_PATH)
     if not path.exists():
         return None
     try:
-        return BenchConfig.model_validate_json(path.read_text(encoding="utf-8"))
+        return load_validated_config(path)
     except Exception:
         return None
 
 
 # ── Compatibility helpers ─────────────────────────────────────────────────────
-
-
-def load_compatibility(compat_path: str = "test_compatibility.json") -> dict:
-    """Load the module-test compatibility matrix."""
-    path = Path(compat_path)
-    if not path.exists():
-        return {}
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
-
-
-def _matches_any_pattern(name: str, patterns: list[str]) -> bool:
-    """Return True if *name* matches any fnmatch pattern."""
-    return any(fnmatch.fnmatch(name, p) for p in patterns)
-
-
-def get_compatible_tests(module_name: str, compat: dict | None = None) -> set[str]:
-    """Return the set of test IDs that *module_name* is compatible with."""
-    try:
-        from resolver import load_all_test_definitions
-        raw_defs = load_all_test_definitions()
-        tests = set()
-        for d in raw_defs:
-            patterns = d.get("compatible_modules", [])
-            test_id = d.get("test_id")
-            if any(fnmatch.fnmatch(module_name, p) for p in patterns):
-                tests.add(test_id)
-        if tests:
-            return tests
-    except Exception:
-        pass
-
-    if compat is None:
-        compat = load_compatibility()
-    tests: set[str] = set()
-    for category in compat.get("compatibility", {}).values():
-        if _matches_any_pattern(module_name, category.get("module_patterns", [])):
-            tests.update(category.get("tests", []))
-    return tests
-
-
-def is_module_compatible(
-    module_name: str, test_id: str, compat: dict | None = None,
-) -> bool:
-    """Return True if *module_name* matches a pattern in a category that lists *test_id*."""
-    return test_id in get_compatible_tests(module_name, compat)
 
 
 # ── Parameter helpers ─────────────────────────────────────────────────────────
@@ -133,17 +85,9 @@ def load_connections(connections_path: str = "connections.jsonc") -> list[dict]:
     path = Path(connections_path)
     if not path.exists():
         return []
-    with open(path, encoding="utf-8") as f:
-        return json.load(f).get("connections", [])
+    from config_io import parse_jsonc
 
-
-def is_valve_terminal(mod: Any) -> bool:
-    """Return True if *mod* is a VABX valve terminal.
-
-    Works with both festo-cpx-io ApModule objects and hal.ModuleInfo.
-    """
-    name = getattr(mod, "name", "") or getattr(mod, "Name", "")
-    return name.upper().startswith("VABX")
+    return parse_jsonc(path.read_text(encoding="utf-8")).get("connections", [])
 
 
 def channel_index_from_port(port: str) -> int:

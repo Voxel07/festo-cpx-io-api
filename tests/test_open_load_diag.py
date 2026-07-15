@@ -55,7 +55,7 @@ AP_DIAG_SWITCH_OPEN_CHANNEL    0x07060125    VABA
 from __future__ import annotations
 
 import contextlib
-import fnmatch
+import math
 import time
 from typing import Any
 
@@ -63,7 +63,7 @@ import valve_channels
 from config_models import BenchConfig
 from hal import HardwareInterface
 
-from ._base import LogFn, load_bench_config, load_compatibility, noop_log
+from ._base import LogFn, load_bench_config, noop_log
 
 # ── Test metadata ──────────────────────────────────────────────────────────────
 
@@ -91,13 +91,6 @@ TEST_DEFINITION = {
         "diag_settle_time": 1.0,
         "diag_clear_time": 1.0,
     },
-    "compatible_modules": [
-        "VABX-A-S-BV-*",
-        "VABX-A-P-EL-*",
-        "VAEM-L1-S-*",
-        "VMPAL-*",
-        "VABA-S6-*",
-    ],
 }
 
 # ── Diagnosis ID constants ─────────────────────────────────────────────────────
@@ -105,37 +98,20 @@ TEST_DEFINITION = {
 DIAG_VALVE_DEFECT = 0x07060268        # VABX / VAEM
 DIAG_SWITCH_OPEN_CHANNEL = 0x07060125  # VABA
 
-# ── Module configuration table ─────────────────────────────────────────────────
-
-# Each entry: (name_pattern, num_output_bytes, diag_enable_param_id, expected_diag_id)
-_MODULE_CONFIGS: list[tuple[str, int, int, int]] = [
-    # VABX V4x  — 8 outputs, 1-byte mask, ValveDefect
-    ("VABX-A-S-BV-V4*",  1, 20021, DIAG_VALVE_DEFECT),
-    # VABX P/EL families
-    ("VABX-A-P-EL-E12-*", 2, 20021, DIAG_VALVE_DEFECT),
-    ("VABX-A-P-EL-E34-*", 4, 20021, DIAG_VALVE_DEFECT),
-    # VAEM 12-station — 24 outputs, 3-byte mask
-    ("VAEM-L1-S-12-*",   3, 20021, DIAG_VALVE_DEFECT),
-    # VAEM 24-station — 48 outputs, 6-byte mask
-    ("VAEM-L1-S-24-*",   6, 20021, DIAG_VALVE_DEFECT),
-    # VABA — 32 outputs, 4-byte mask, SwitchOpenChannel
-    ("VABA-S6-*",        4, 20027, DIAG_SWITCH_OPEN_CHANNEL),
-    # VMPAL — 32 outputs (up to 16 valves), 4-byte mask
-    ("VMPAL-*",          4, 20021, DIAG_VALVE_DEFECT),
-]
-
-
 # ── Internal helpers ───────────────────────────────────────────────────────────
 
 def _get_module_config(
-    module_name: str,
-) -> tuple[int, int, int] | None:
-    """Return ``(num_output_bytes, diag_enable_param_id, expected_diag_id)``
-    for *module_name*, or ``None`` if not in the table."""
-    for pattern, num_bytes, enable_param, diag_id in _MODULE_CONFIGS:
-        if fnmatch.fnmatch(module_name.upper(), pattern.upper()):
-            return num_bytes, enable_param, diag_id
-    return None
+    bench_config: BenchConfig,
+    address: int,
+) -> tuple[int, int, int]:
+    """Resolve product-specific settings from the canonical module type."""
+    module_type = bench_config.module_type_at(address)
+    parameters = module_type.test_parameters.get("open-load-diag", {})
+    output_count = module_type.num_outputs or len(module_type.channels)
+    num_bytes = int(parameters.get("num_output_bytes", math.ceil(output_count / 8)))
+    enable_param = int(parameters.get("diag_enable_param_id", 20021))
+    expected_diag_id = int(parameters.get("expected_diag_id", DIAG_VALVE_DEFECT))
+    return num_bytes, enable_param, expected_diag_id
 
 
 def _diagnosis_id_from_result(diag_result: Any) -> int | None:
@@ -204,7 +180,7 @@ def _mounted_valves_from_bench_config(
 def _expected_channels_from_mounted_valves(
     mounted_valves: list[int] | None,
     valve_slots: int | None,
-    module_name: str,
+    channels_per_valve: int,
 ) -> list[int]:
     """Derive expected open-load diagnostic channels from mounted_valves."""
     expected_channels: list[int] = []
@@ -214,7 +190,9 @@ def _expected_channels_from_mounted_valves(
 
     for slot in range(valve_slots):
         if slot not in mounted_valves:
-            expected_channels.extend(valve_channels.valve_slot_to_channels(slot, module_name=module_name))
+            expected_channels.extend(
+                valve_channels.valve_slot_to_channels(slot, channels_per_valve)
+            )
 
     return expected_channels
 
@@ -250,15 +228,12 @@ def run(
     """Run the open-load diagnostic test on all compatible output/valve modules."""
     if bench_config is None:
         bench_config = load_bench_config(config_path)
-    valve_defect_diag_enable_param_id = TEST_DEFINITION["parameters"]["valve_defect_diag_enable_param_id"]
-    openload_diag_enable_param_id = TEST_DEFINITION["parameters"]["openload_diag_enable_param_id"]
     diag_settle_time = TEST_DEFINITION["parameters"]["diag_settle_time"]
     diag_clear_time = TEST_DEFINITION["parameters"]["diag_clear_time"]
     topology = hw.read_topology()
     if module_address is not None:
         topology = [m for m in topology if m.address == module_address]
 
-    load_compatibility()
     results: list[dict] = []
 
     for mod_info in topology:
@@ -266,32 +241,17 @@ def run(
         name = mod_info.name
         ch_start = time.time()
 
-        cfg = _get_module_config(name)
-        if cfg is None:
-            log("info", f"  ⊘ #{addr} {name}: not in open-load-diag module table — skipped")
-            results.append({
-                "test": "open-load-diag",
-                "module": name,
-                "address": addr,
-                "passed": None,
-                "note": f"{name} not in open-load-diag compatibility table — skipped",
-                "duration_ms": round((time.time() - ch_start) * 1000, 1),
-            })
-            continue
-
-        num_bytes, enable_param, expected_diag_id = cfg
-
-        if expected_diag_id == DIAG_VALVE_DEFECT:
-            enable_param = valve_defect_diag_enable_param_id
-        elif expected_diag_id == DIAG_SWITCH_OPEN_CHANNEL:
-            enable_param = openload_diag_enable_param_id
+        num_bytes, enable_param, expected_diag_id = _get_module_config(bench_config, addr)
 
         num_channels = num_bytes * 8
         expected_diag_name = _expected_diag_name(expected_diag_id)
 
         # ── Determine mounted valves and expected diagnostic channels ──────
         mounted_valves, valve_slots = _mounted_valves_from_bench_config(bench_config, addr)
-        expected_channels = _expected_channels_from_mounted_valves(mounted_valves, valve_slots, name)
+        channels_per_valve = bench_config.module_type_at(addr).channels_per_valve or 2
+        expected_channels = _expected_channels_from_mounted_valves(
+            mounted_valves, valve_slots, channels_per_valve
+        )
 
         expected_diag_locations = [
             {

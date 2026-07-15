@@ -30,9 +30,10 @@ import tempfile
 import time
 import uuid
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -45,7 +46,8 @@ try:
         SafetyClass,
         TestDefinition,
     )
-    from hal import CpxApHardware, SafeSession, CrossProcessLock
+    from config_io import ConfigLoadError, load_bench_config
+    from hal import CpxApHardware, SafeSession
     from connection_manager import get_connection_manager
     from automation import (
         AutomationProgram,
@@ -68,6 +70,17 @@ app = FastAPI(
     description="Generate and compare CPX-AP hardware topology with a React/MUI frontend.",
     version="3.0.0",
 )
+
+
+@app.on_event("startup")
+async def recover_interrupted_test_runs() -> None:
+    """Reconcile abandoned PocketBase runs left by a stopped API process."""
+    from repository import result_store
+
+    await asyncio.to_thread(
+        result_store.recover_stale_runs,
+        float(os.environ.get("STALE_RUN_AGE_S", "3600")),
+    )
 
 # Serve the compiled Vite app (dist/) in production.
 # Must be mounted AFTER the API routes so it only catches remaining paths.
@@ -134,6 +147,8 @@ async def hw_connect(request: HwConnectRequest):
     operations use this shared connection.
     """
     try:
+        from safety import safety_controller
+        safety_controller.assert_safe()
         automation_engine.stop(reset_outputs=True)
         mgr = get_connection_manager()
         mgr.connect(request.ip_address, request.timeout)
@@ -441,7 +456,7 @@ async def generate_config(request: ConfigGenerateRequest):
         save_path = _resolve_config_path(request.save_path) if request.save_path else None
         if save_path and save_path.exists():
             try:
-                existing = BenchConfig.model_validate_json(save_path.read_text(encoding="utf-8"))
+                existing = load_bench_config(save_path)
                 # Merge wiring
                 if existing.wiring:
                     config.wiring = existing.wiring
@@ -473,7 +488,7 @@ async def load_config(file_path: str = Query("data/bench_config.json", descripti
     """Load a previously saved unified BenchConfig file."""
     path = _resolve_config_path(file_path, must_exist=True)
     try:
-        config = BenchConfig.model_validate_json(path.read_text(encoding="utf-8"))
+        config = load_bench_config(path)
         return JSONResponse(config.model_dump())
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Invalid configuration format: {exc}")
@@ -508,7 +523,7 @@ async def compare_config(request: ConfigCompareRequest):
     try:
         from tests.test_compare_topology import run as run_compare
 
-        bench_config = BenchConfig.model_validate_json(stored_path.read_text(encoding="utf-8"))
+        bench_config = load_bench_config(stored_path)
         mgr = get_connection_manager()
         if not mgr.is_connected:
             raise HTTPException(status_code=400, detail="Not connected. Call /hw/connect first.")
@@ -555,6 +570,8 @@ def _auto_reset_output(
         indices = _output_channel_indices(mod, port_num, cpp, subchannel)
         if not indices:
             return  # port maps to an input channel — nothing to reset
+        if request.value:
+            _validate_output_activation(request.module_addr, indices)
         configurable = [idx for idx in indices if _is_configurable_output(mod, idx)]
         configured_now: list[int] = []
         try:
@@ -631,6 +648,43 @@ def _is_configurable_output(mod, channel: int) -> bool:
     )
 
 
+def _validate_output_activation(module_address: int, channels: list[int]) -> None:
+    """Enforce configured electrical limits and wiring direction before activation."""
+    from safety import safety_controller
+    safety_controller.assert_safe()
+    config_path = _DEFAULT_CONFIG_ROOT / "bench_config.json"
+    if not config_path.is_file():
+        return
+    config = load_bench_config(config_path)
+    module = next(
+        (item for item in config.module_instances if item.address == module_address),
+        None,
+    )
+    if module is None:
+        raise ValueError(f"Module address {module_address} is not present in the bench configuration")
+    module_type = config.module_types[module.module_type_ref]
+    definitions = {channel.index: channel for channel in module_type.channels}
+    for index in channels:
+        definition = definitions.get(index)
+        if definition and definition.limits:
+            maximum = definition.limits.max_voltage_v
+            if maximum is not None and maximum < 24.0:
+                raise ValueError(
+                    f"Channel {module.instance_id}:{index} is limited to {maximum:g}V; "
+                    "a 24V digital activation is unsafe"
+                )
+        labels = {str(index), f"X{index}", f"out{index}"}
+        incorrectly_targeted = [
+            wire.id for wire in config.wiring
+            if wire.target_instance_id == module.instance_id and wire.target_channel in labels
+        ]
+        if incorrectly_targeted:
+            raise ValueError(
+                f"Channel {module.instance_id}:{index} is configured as a wiring target "
+                f"({', '.join(incorrectly_targeted)}) and cannot be activated as a source"
+            )
+
+
 @app.post("/io/set-output")
 async def io_set_output(request: SetOutputRequest):
     """Set a single output channel on a module HIGH or LOW.
@@ -641,6 +695,8 @@ async def io_set_output(request: SetOutputRequest):
     after IO_AUTO_RESET_S seconds (default 60).  Setting LOW cancels any
     pending timer.
     """
+    if _test_run_lock.locked():
+        raise HTTPException(status_code=409, detail="Manual output changes are blocked during test execution")
 
     if automation_engine.running:
         raise HTTPException(status_code=409, detail="Manual output control is locked while automation is running")
@@ -762,6 +818,19 @@ async def io_set_output(request: SetOutputRequest):
             )
             timer.daemon = True
             timer.start()
+            _io_timers[timer_key] = timer
+    _queue_audit(
+        None,
+        "info",
+        "Manual output changed",
+        {
+            "event_type": "output_change",
+            "ip_address": request.ip_address,
+            "module_address": request.module_addr,
+            "channels": result["channels_written"],
+            "value": request.value,
+        },
+    )
     return JSONResponse(result)
 
 
@@ -782,6 +851,7 @@ async def io_read_input(
     channel: str = Query(..., description="Port label, e.g. 'X0'"),
     timeout: float = Query(0.0, ge=0),
     channels_per_port: int = Query(1, ge=1, le=4, description="2 for M12-5P, 1 for M8 / single-channel"),
+    subchannel: int | None = Query(None, ge=0, le=3),
 ):
     """Read one or more input channels from a module (all channels of an M12 connector).
 
@@ -797,7 +867,8 @@ async def io_read_input(
         hw = mgr.get_hw()
         port_num = int(channel.lstrip("X"))
         base_idx = port_num * channels_per_port
-        values = [hw.read_input(module_addr, base_idx + i) for i in range(channels_per_port)]
+        offsets = [subchannel] if subchannel is not None else range(channels_per_port)
+        values = [hw.read_input(module_addr, base_idx + i) for i in offsets]
         return {"values": values, "value": all(values), "module_addr": module_addr, "channel": channel}
 
     try:
@@ -813,8 +884,7 @@ class SetAllOutputsRequest(BaseModel):
     value: bool = Field(..., description="True = all HIGH, False = all LOW")
     timeout: float = Field(0.0, ge=0)
     channels: list[int] | None = Field(None, description="Specific hardware channel indices to set; omit to set all writable channels")
-    valve_indices: list[int] | None = Field(None, description="0-based valve slot indices (VABX only); expanded to hardware channels via valve_channels mapping")
-    module_name: str = Field("", description="Module display name, used with valve_indices to resolve channels-per-valve")
+    valve_indices: list[int] | None = Field(None, description="0-based valve slots; expanded using the configured module type")
 
 
 @app.post("/io/set-all-outputs")
@@ -830,6 +900,8 @@ async def io_set_all_outputs(request: SetAllOutputsRequest):
     Each channel set to HIGH spawns the usual auto-reset safety timer.
     Returns the list of channel indices that were written.
     """
+    if _test_run_lock.locked():
+        raise HTTPException(status_code=409, detail="Manual output changes are blocked during test execution")
 
     if automation_engine.running:
         raise HTTPException(status_code=409, detail="Manual output control is locked while automation is running")
@@ -837,10 +909,22 @@ async def io_set_all_outputs(request: SetAllOutputsRequest):
     if not mgr.is_connected:
         raise HTTPException(status_code=400, detail="Not connected. Call /hw/connect first.")
 
-    # ── Expand valve_indices → hardware channels ──
-    if request.valve_indices is not None and request.module_name:
+    # ── Expand valve_indices → hardware channels from canonical configuration ──
+    if request.valve_indices is not None:
         from valve_channels import expand_valve_indices
-        expanded = expand_valve_indices(request.valve_indices, request.module_name)
+        config = load_bench_config(_DEFAULT_CONFIG_ROOT / "bench_config.json")
+        try:
+            module_type = config.module_type_at(request.module_addr)
+        except KeyError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if module_type.channels_per_valve < 1:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Module #{request.module_addr} is not configured as a valve body",
+            )
+        expanded = expand_valve_indices(
+            request.valve_indices, module_type.channels_per_valve
+        )
         if request.channels:
             request.channels = sorted(set(list(request.channels) + expanded))
         else:
@@ -862,6 +946,8 @@ async def io_set_all_outputs(request: SetAllOutputsRequest):
         if not indices:
             raise ValueError(f"No writable channels found on module at #{request.module_addr}")
 
+        if request.value:
+            _validate_output_activation(request.module_addr, indices)
         for idx in indices:
             hw.write_output(request.module_addr, idx, request.value)
 
@@ -895,7 +981,79 @@ async def io_set_all_outputs(request: SetAllOutputsRequest):
                 timer.start()
                 _io_timers[timer_key] = timer
 
+    _queue_audit(
+        None,
+        "info",
+        "All module outputs changed",
+        {
+            "event_type": "output_change",
+            "ip_address": request.ip_address,
+            "module_address": request.module_addr,
+            "channels": result["channels_written"],
+            "value": request.value,
+        },
+    )
     return JSONResponse(result)
+
+
+class WiringCheckConnection(BaseModel):
+    edge_id: str
+    source_module_addr: int
+    source_channel: str
+    target_module_addr: int
+    target_channel: str
+    source_channels_per_port: int = Field(1, ge=1, le=4)
+    target_channels_per_port: int = Field(1, ge=1, le=4)
+    source_subchannel: int | None = Field(None, ge=0, le=3)
+    target_subchannel: int | None = Field(None, ge=0, le=3)
+
+
+class WiringCheckRequest(BaseModel):
+    ip_address: str
+    connections: list[WiringCheckConnection]
+    settle_time_ms: int = Field(100, ge=20, le=2000)
+
+
+@app.post("/io/check-wiring")
+async def io_check_wiring(request: WiringCheckRequest):
+    """Pulse and verify configured wires using one API request.
+
+    Connections remain serial so only one source is energized at a time. Every
+    source is reset in ``finally`` even when its input read fails.
+    """
+    results: list[dict[str, Any]] = []
+    for connection in request.connections:
+        result: dict[str, Any] = {"edge_id": connection.edge_id, "value": None}
+        output_request = SetOutputRequest(
+            ip_address=request.ip_address,
+            module_addr=connection.source_module_addr,
+            channel=connection.source_channel,
+            value=True,
+            channels_per_port=connection.source_channels_per_port,
+            subchannel=connection.source_subchannel,
+        )
+        try:
+            await io_set_output(output_request)
+            await asyncio.sleep(request.settle_time_ms / 1000)
+            response = await io_read_input(
+                ip_address=request.ip_address,
+                module_addr=connection.target_module_addr,
+                channel=connection.target_channel,
+                channels_per_port=connection.target_channels_per_port,
+                subchannel=connection.target_subchannel,
+            )
+            data = json.loads(response.body)
+            result.update(values=data.get("values", []), value=bool(data.get("value")))
+        except HTTPException as exc:
+            result["error"] = str(exc.detail)
+        except Exception as exc:
+            result["error"] = f"{type(exc).__name__}: {exc}"
+        finally:
+            output_request.value = False
+            with contextlib.suppress(Exception):
+                await io_set_output(output_request)
+        results.append(result)
+    return JSONResponse({"results": results})
 
 
 # ─── Test Run Lock + SSE streaming ─────────────────────────────────────────
@@ -911,6 +1069,21 @@ _run_history: list[dict] = []
 # None is sent as a sentinel when the run ends.
 _log_queues: dict[str, list[asyncio.Queue]] = {}
 _pb_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="pblog")
+
+
+def _queue_audit(
+    run_id: str | None,
+    level: str,
+    message: str,
+    details: dict[str, Any] | None = None,
+) -> None:
+    """Persist an audit event without adding PocketBase latency to an action."""
+    from repository import result_store
+
+    try:
+        _pb_pool.submit(result_store.log, run_id, level, message, details)
+    except RuntimeError:
+        pass
 
 
 # ─── SSE helpers ───────────────────────────────────────────────────────────
@@ -974,12 +1147,21 @@ class StartTestRunRequest(BaseModel):
     config_path: str = Field("data/bench_config.json", description="Path to unified bench configuration file")
     tests: list[str] = Field(..., description="List of test IDs to run")
     source: str = Field("web", description="Initiator: 'web' or 'ci'")
+    allow_destructive: bool = Field(False, description="Explicit opt-in for destructive tests")
+    allow_negative: bool = Field(False, description="Explicit opt-in for expected-failure targets")
+    per_test_timeout_s: float = Field(300.0, ge=10.0, le=3600.0)
 
 
 @app.post("/test-run/start")
 async def start_test_run(request: StartTestRunRequest):
     """Start a test run.  Returns 409 if another run is already in progress."""
     global _current_test_run, _abort_flag
+
+    from safety import safety_controller
+    try:
+        safety_controller.assert_safe()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=423, detail=str(exc)) from exc
 
     if not request.tests:
         raise HTTPException(status_code=400, detail="At least one test must be selected.")
@@ -993,8 +1175,17 @@ async def start_test_run(request: StartTestRunRequest):
 
     config_path = _resolve_config_path(request.config_path, must_exist=True)
     try:
-        bench_config = BenchConfig.model_validate_json(config_path.read_text(encoding="utf-8"))
+        bench_config = load_bench_config(config_path)
+        if request.ip_address != bench_config.test_bench.ip_address:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Requested IP {request.ip_address!r} does not match the validated "
+                    f"bench configuration IP {bench_config.test_bench.ip_address!r}"
+                ),
+            )
         from resolver import load_all_test_definitions
+        from resolver import TestResolver
         definitions = bench_config.test_definitions or [
             TestDefinition.model_validate(raw) for raw in load_all_test_definitions()
         ]
@@ -1007,6 +1198,31 @@ async def start_test_run(request: StartTestRunRequest):
             blocked = [test_id for test_id in requested if not known[test_id].allowed_in_ci]
             if blocked:
                 raise HTTPException(status_code=403, detail=f"Tests are not allowed in CI: {', '.join(blocked)}")
+        destructive = [
+            test_id for test_id in requested
+            if known[test_id].safety_class == SafetyClass.DESTRUCTIVE
+        ]
+        if destructive and not request.allow_destructive:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Destructive tests require allow_destructive=true: "
+                    + ", ".join(destructive)
+                ),
+            )
+        plan = TestResolver().resolve(bench_config)
+        plan.instances = [instance for instance in plan.instances if instance.test_id in requested]
+        plan.instances.sort(key=lambda instance: (instance.test_id, instance.module_address, instance.unique_id))
+        if any(instance.is_negative_test for instance in plan.instances) and not request.allow_negative:
+            raise HTTPException(
+                status_code=403,
+                detail="Expected-failure targets require allow_negative=true",
+            )
+        if not plan.instances:
+            raise HTTPException(
+                status_code=400,
+                detail="No compatible test instances were resolved for the selected tests",
+            )
     except HTTPException:
         raise
     except Exception as exc:
@@ -1032,6 +1248,8 @@ async def start_test_run(request: StartTestRunRequest):
         "results": [],
         "checkpoints": [],
         "logs": [],
+        "resolved_plan_id": plan.plan_id,
+        "resolved_plan": plan.to_dict(),
         "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
 
@@ -1048,6 +1266,9 @@ async def start_test_run(request: StartTestRunRequest):
         requested,
         request.source,
         loop,  # <-- event loop passed explicitly
+        bench_config,
+        plan,
+        request.per_test_timeout_s,
     )
 
     return JSONResponse({"run_id": run_id, "status": "started"})
@@ -1149,7 +1370,7 @@ async def test_run_history(limit: int = 50):
     Tries PocketBase first; falls back to in-memory history when PocketBase
     is unavailable so the History tab always shows data.
     """
-    from pocketbase_logger import pb_log
+    from repository import result_store as pb_log
     runs = await asyncio.to_thread(pb_log.get_run_history, limit)
     if not runs:
         runs = _run_history[:limit]
@@ -1170,11 +1391,99 @@ async def test_run_detail(run_id: str):
     if _current_test_run and _current_test_run.get("run_id") == run_id:
         return JSONResponse(_current_test_run)
     # PocketBase
-    from pocketbase_logger import pb_log
+    from repository import result_store as pb_log
     detail = await asyncio.to_thread(pb_log.get_run_detail, run_id)
     if detail is None:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
     return JSONResponse(detail)
+
+
+@app.get("/test-run/{run_id}/junit.xml")
+async def test_run_junit(run_id: str):
+    """Render API-owned run results as JUnit XML for GitLab."""
+    from xml.etree.ElementTree import Element, SubElement, tostring
+
+    if _current_test_run and _current_test_run.get("run_id") == run_id:
+        run = _current_test_run
+    else:
+        run = next((item for item in _run_history if item.get("run_id") == run_id), None)
+    if run is None:
+        from repository import result_store
+        run = await asyncio.to_thread(result_store.get_run_detail, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
+
+    cases: list[dict] = []
+    for test in run.get("results") or run.get("test_results") or []:
+        children = test.get("results") if isinstance(test, dict) else None
+        if isinstance(children, list) and children:
+            for child in children:
+                cases.append({"test_id": test.get("test_id", "test"), **child})
+        elif isinstance(test, dict):
+            cases.append(test)
+    suite = Element("testsuite", {
+        "name": "festo-cpx-io-api",
+        "tests": str(len(cases)),
+        "failures": str(sum(case.get("passed") is False for case in cases)),
+        "skipped": str(sum(case.get("passed") is None for case in cases)),
+        "time": f"{sum(float(case.get('duration_ms') or 0) for case in cases) / 1000:.3f}",
+    })
+
+
+@app.get("/safety/status")
+async def safety_status():
+    from safety import safety_controller
+    return JSONResponse(safety_controller.status())
+
+
+@app.post("/safety/emergency-stop")
+async def safety_emergency_stop():
+    """Latch the emergency stop, abort tests, and reset live connections."""
+    global _abort_flag
+    from safety import safety_controller
+
+    safety_controller.emergency_stop()
+    _abort_flag = True
+    automation_engine.stop(reset_outputs=True)
+    get_connection_manager().disconnect()
+    _queue_audit(
+        (_current_test_run or {}).get("run_id"),
+        "error",
+        "Emergency stop latched",
+        {"event_type": "emergency_stop"},
+    )
+    return JSONResponse(safety_controller.status(), status_code=202)
+
+
+@app.post("/safety/reset")
+async def safety_reset():
+    """Clear the software latch; an external interlock must still report safe."""
+    from safety import safety_controller
+    safety_controller.reset()
+    try:
+        safety_controller.assert_safe()
+    except RuntimeError as exc:
+        safety_controller.emergency_stop(str(exc))
+        raise HTTPException(status_code=423, detail=str(exc)) from exc
+    return JSONResponse(safety_controller.status())
+    for case in cases:
+        name = case.get("resolved_instance_id") or (
+            f"{case.get('test_id', 'test')}::{case.get('module_instance_id') or case.get('module', '')}"
+        )
+        node = SubElement(suite, "testcase", {
+            "classname": str(case.get("test_id", "festo")),
+            "name": str(name),
+            "time": f"{float(case.get('duration_ms') or 0) / 1000:.3f}",
+        })
+        if case.get("passed") is False:
+            failure = SubElement(node, "failure", {
+                "type": str(case.get("exception_type") or "TestFailure"),
+                "message": str(case.get("error") or "Test failed"),
+            })
+            failure.text = str(case.get("traceback") or case.get("error") or "")
+        elif case.get("passed") is None:
+            SubElement(node, "skipped")
+    return Response(tostring(suite, encoding="unicode"), media_type="application/xml")
 
 
 @app.delete("/test-run/{run_id}")
@@ -1183,7 +1492,7 @@ async def delete_test_run(run_id: str):
     global _run_history
     _run_history = [r for r in _run_history if r.get("run_id") != run_id]
 
-    from pocketbase_logger import pb_log
+    from repository import result_store as pb_log
     await asyncio.to_thread(pb_log.delete_run, run_id)
     return JSONResponse({"status": "deleted", "run_id": run_id})
 
@@ -1194,7 +1503,7 @@ async def clear_test_run_history():
     global _run_history
     _run_history.clear()
 
-    from pocketbase_logger import pb_log
+    from repository import result_store as pb_log
     await asyncio.to_thread(pb_log.clear_history)
     return JSONResponse({"status": "cleared"})
 
@@ -1311,6 +1620,9 @@ async def write_module_parameter(
     """Write a new value to a module parameter and read it back."""
     import asyncio
 
+    if _test_run_lock.locked():
+        raise HTTPException(status_code=409, detail="Parameter writes are blocked during test execution")
+
     mgr = get_connection_manager()
     if not mgr.is_connected:
         raise HTTPException(status_code=400, detail="Not connected. Call /hw/connect first.")
@@ -1358,6 +1670,19 @@ async def write_module_parameter(
 
     try:
         result = await asyncio.to_thread(_do)
+        _queue_audit(
+            None,
+            "info",
+            "Module parameter changed",
+            {
+                "event_type": "parameter_change",
+                "module_address": address,
+                "parameter_id": param_id,
+                "instance": request.instance,
+                "requested_value": request.value,
+                "readback": result.get("value"),
+            },
+        )
         return JSONResponse(result)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -1452,37 +1777,29 @@ async def pocketbase_health():
 
 # ─── Dry-Run / Resolve Endpoints ──────────────────────────────────────────────
 
-class DryRunRequest(BaseModel):
-    """Request body for dry-run / resolve operations."""
-    ip_address: str = Field(..., description="IP address of the CPX-AP gateway")
-    bench_id: str = Field("default", description="Test bench identifier")
+class PlanTestRunRequest(BaseModel):
+    """Request body for API-owned execution planning."""
     test_filter: str | None = Field(None, description="Optional test_id filter")
     safety_class_filter: str | None = Field(None, description="Optional safety class filter (safe/caution/destructive)")
     config_path: str = Field("data/bench_config.json", description="BenchConfig path")
-    export_path: str | None = Field(None, description="Path to export resolved plan JSON")
 
 
-@app.post("/test-run/dry-run")
-async def dry_run(request: DryRunRequest):
-    """Resolve which tests would run for a given bench without touching hardware.
-
-    Returns the execution plan: test_id, module, channel, wiring assignments.
-    """
+@app.post("/test-run/plan")
+async def plan_test_run(request: PlanTestRunRequest):
+    """Validate configuration and return the exact API execution plan."""
     if not _NEW_COMPONENTS:
         raise HTTPException(status_code=501, detail="Resolver not available — check imports")
 
     config_path = _resolve_config_path(request.config_path, must_exist=True)
 
     try:
-        bench_config = BenchConfig.model_validate_json(config_path.read_text(encoding="utf-8"))
+        bench_config = load_bench_config(config_path)
         from resolver import TestFilter, TestResolver
 
         filters = TestFilter(test_id=request.test_filter)
         if request.safety_class_filter:
             filters.safety_class = SafetyClass(request.safety_class_filter)
         plan = TestResolver().resolve(bench_config, filters)
-        if request.export_path:
-            TestResolver().export_plan(plan, str(_resolve_config_path(request.export_path)))
         return JSONResponse(plan.to_dict())
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -1505,7 +1822,7 @@ async def dashboard_data():
     # ── Gather runs from PocketBase + in-memory ──
     all_runs: list[dict] = []
     try:
-        from pocketbase_logger import pb_log
+        from repository import result_store as pb_log
         pb_runs = await asyncio.to_thread(pb_log.get_run_history, 500)
         if pb_runs:
             all_runs = pb_runs
@@ -1712,7 +2029,6 @@ async def ci_environment():
             "CONFIG_REF": os.environ.get("CONFIG_REF", "(not set)"),
             "TESTBENCH_ID": os.environ.get("TESTBENCH_ID", "(not set)"),
             "POCKETBASE_URL": os.environ.get("POCKETBASE_URL", os.environ.get("PB_URL", "(not set)")),
-            "DRY_RUN": os.environ.get("DRY_RUN", "false"),
             "TEST_FILTER": os.environ.get("TEST_FILTER", ""),
             "SAFETY_CLASS_FILTER": os.environ.get("SAFETY_CLASS_FILTER", "safe"),
             "GITLAB_PIPELINE_ID": os.environ.get("CI_PIPELINE_ID", "(not set)"),
@@ -1733,8 +2049,11 @@ def _execute_test_run_safe(
     tests: list[str],
     source: str,
     loop=None,  # asyncio event loop from caller (runs in thread)
+    bench_config=None,
+    plan=None,
+    per_test_timeout_s: float = 300.0,
 ) -> None:
-    """Run tests on the shared interface and reset outputs before finishing.
+    """Execute an API-resolved plan with process-isolated safety timeouts.
 
     Runs in a thread pool — *loop* must be passed from the async caller
     because ``asyncio.get_running_loop()`` doesn't work in threads.
@@ -1742,7 +2061,7 @@ def _execute_test_run_safe(
     global _current_test_run, _abort_flag
     import traceback
 
-    from pocketbase_logger import pb_log
+    from repository import result_store as pb_log
 
     if loop is None:
         loop = asyncio.get_event_loop()
@@ -1783,27 +2102,24 @@ def _execute_test_run_safe(
             loop.call_soon_threadsafe(queue.put_nowait, entry)
 
     _log("info", f"Test run {run_id} started  source={source}  ip={ip_address}")
-    iface = None
-
     try:
         # Load BenchConfig
         from config_models import BenchConfig
-        bench_config = None
         try:
-            if os.path.exists(config_path):
+            if bench_config is None and os.path.exists(config_path):
                 import warnings
                 with warnings.catch_warnings(record=True) as caught_warnings:
                     warnings.simplefilter("always")
-                    bench_config = BenchConfig.model_validate_json(Path(config_path).read_text(encoding="utf-8"))
+                    bench_config = load_bench_config(config_path)
                 for w in caught_warnings:
                     _log("warning", f"Config validation warning: {w.message}")
         except Exception as exc:
             _log("warning", f"Could not load BenchConfig: {exc}")
 
         # Build execution plan instances
-        plan_instances = []
-        planned_tests = set()
-        if bench_config:
+        plan_instances = list(plan.instances) if plan is not None else []
+        planned_tests = {instance.test_id for instance in plan_instances}
+        if bench_config and plan is None:
             try:
                 from resolver import TestFilter, TestResolver
                 resolver = TestResolver()
@@ -1835,9 +2151,10 @@ def _execute_test_run_safe(
             config_commit,
             os.environ.get("CI_PIPELINE_ID", ""),
             os.environ.get("CI_JOB_ID", ""),
-            "", # resolved_plan_id
+            plan.plan_id if plan is not None else "",
             "1.0" # schema_version
         )
+        _pb(pb_log.save_execution_context, run_id, plan, bench_config)
 
         skipped_tests = [t for t in tests if t not in planned_tests]
         for t_id in skipped_tests:
@@ -1896,24 +2213,41 @@ def _execute_test_run_safe(
                     "duration_ms": 0,
                 })
 
-        _log("info", "Waiting for the cross-process hardware lock...")
-        hardware_lock = CrossProcessLock(ip_address)
-        hardware_lock.acquire(timeout=60.0)
-        _log("info", "Running tests on shared hardware connection...")
+        # Test workers own their hardware connection.  Close the interactive
+        # connection first so no second Modbus client can overlap the plan.
         mgr = get_connection_manager()
-        if not mgr.is_connected:
-            _log("error", "Not connected to hardware. Connect via /hw/connect first.")
-            if _current_test_run is not None:
-                _current_test_run["status"] = "error"
-                _current_test_run["error"] = "Not connected to hardware"
-            return
-        iface = mgr.get_hw()
+        if mgr.is_connected:
+            mgr.disconnect()
+        from test_execution import execute_resolved_instance
+
+        def _abort_or_interlock_unsafe() -> bool:
+            if _abort_flag:
+                return True
+            try:
+                safety_controller.assert_safe()
+                return False
+            except RuntimeError as exc:
+                safety_controller.emergency_stop(str(exc))
+                _log("error", str(exc))
+                return True
+
+        _log("info", "Running API plan with an isolated SafeSession per test instance...")
         for idx, inst in enumerate(plan_instances):
             if _abort_flag:
                 _log("warning", "Test run aborted by user.")
                 if _current_test_run is not None:
                     _current_test_run["status"] = "error"
                     _current_test_run["error"] = "Aborted by user"
+                break
+
+            from safety import safety_controller
+            try:
+                safety_controller.assert_safe()
+            except RuntimeError as exc:
+                _log("error", f"Safety interlock stopped the plan: {exc}")
+                if _current_test_run is not None:
+                    _current_test_run["status"] = "error"
+                    _current_test_run["error"] = str(exc)
                 break
 
             test_id = inst.test_id
@@ -1933,18 +2267,72 @@ def _execute_test_run_safe(
                     _pb(pb_log.checkpoint, run_id, test_id, "running")
 
             try:
-                # Run synchronously inside the already-isolated executor thread.
-                # A daemon timeout thread could continue writing hardware outputs
-                # after the run moved on to another test. Hardware-level timeouts
-                # remain authoritative; a hard test timeout requires process-level
-                # isolation and must not be emulated with an unkillable thread.
-                result = _run_single_test_hw(iface, inst, config_path, _log)
+                started = time.monotonic()
+                instance_started_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                result, worker_logs = execute_resolved_instance(
+                    inst,
+                    config_path,
+                    ip_address,
+                    per_test_timeout_s,
+                    should_abort=_abort_or_interlock_unsafe,
+                )
+                for entry in worker_logs:
+                    _log(entry.get("level", "info"), entry.get("message", ""))
+                result.setdefault("duration_ms", round((time.monotonic() - started) * 1000, 1))
+                result["resolved_instance_id"] = inst.unique_id
+                result["module_instance_id"] = inst.module_instance_id
+                result["module_code"] = inst.module_code
+                result["product_key"] = inst.product_key
+                result["channel_id"] = inst.channel_id
+                result["channel_mode"] = inst.channel_mode
+                result["wiring_id"] = inst.wiring_id
+                if inst.is_negative_test:
+                    if result.get("passed") is False:
+                        result["passed"] = True
+                        result["verdict"] = "expected_failure"
+                        result["expected_failure_reason"] = result.get("error", "")
+                    else:
+                        result["passed"] = False
+                        result["verdict"] = "unexpected_pass"
+                        result["error"] = "Negative target unexpectedly passed"
             except Exception as exc:
                 tb = traceback.format_exc()
                 _log("error", f"Test '{test_id}' raised unhandled exception: {exc}")
                 _log("error", tb)
                 result = {"test_id": test_id, "passed": False, "error": str(exc),
                           "traceback": tb}
+
+            from repository import TestResultRecord
+            _pb(
+                pb_log.add_test_result,
+                TestResultRecord(
+                    run_id=run_id,
+                    test_id=inst.test_id,
+                    test_version=inst.test_version,
+                    test_name=inst.test_name,
+                    resolved_instance_id=inst.unique_id,
+                    module_instance_id=inst.module_instance_id,
+                    module_code=inst.module_code,
+                    product_key=inst.product_key,
+                    channel_id=inst.channel_id,
+                    channel_mode=inst.channel_mode,
+                    wiring_id=inst.wiring_id,
+                    verdict=result.get("verdict") or (
+                        "passed" if result.get("passed") is True else "failed"
+                    ),
+                    start_time=locals().get("instance_started_at", ""),
+                    end_time=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    duration_ms=float(result.get("duration_ms") or 0),
+                    failure_reason=str(result.get("error") or ""),
+                    exception_type=str(result.get("exception_type") or ""),
+                    stack_trace=str(result.get("traceback") or ""),
+                ),
+            )
+
+            if result.get("aborted"):
+                if _current_test_run is not None:
+                    _current_test_run["status"] = "error"
+                    _current_test_run["error"] = "Aborted by user"
 
             if _current_test_run is not None:
                 _current_test_run["progress"]["completed"] = idx + 1
@@ -2013,17 +2401,6 @@ def _execute_test_run_safe(
         _log("error", f"Test run crashed: {exc}")
         _pb(pb_log.error, run_id, f"Test run crashed: {exc}")
     finally:
-        if iface is not None:
-            try:
-                iface.reset_all_outputs()
-                _log("info", "All hardware outputs reset to LOW")
-            except Exception as exc:
-                _log("error", f"Failed to reset hardware outputs: {exc}")
-                if _current_test_run is not None:
-                    _current_test_run["status"] = "error"
-                    _current_test_run["error"] = f"Output reset failed: {exc}"
-        if "hardware_lock" in locals():
-            hardware_lock.release()
         if _current_test_run is not None:
             # Preserve failed/error outcomes; only a fully passing run is
             # completed successfully.
