@@ -83,7 +83,7 @@ def run(
             ch_start = time.time()
             try:
                 # Configure as output (True)
-                # Note: instances are 1-based, channel is 0-based
+                # Parameter 20145 instances use the zero-based channel index.
                 hw.configure_port_direction(mod.address, ch, True)
                 
                 # Small delay to let the configuration settle

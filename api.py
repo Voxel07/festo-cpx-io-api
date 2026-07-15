@@ -190,7 +190,11 @@ async def automation_program(program_id: str):
 
 @app.post("/automation/programs")
 async def save_automation_program(program: AutomationProgram):
-    saved, persistence = await asyncio.to_thread(automation_store.save, program)
+    # POST always creates. A stale editor ID must never turn a create request
+    # into a PocketBase PATCH that overwrites an existing program.
+    saved, persistence = await asyncio.to_thread(
+        automation_store.save, program.model_copy(update={"id": None})
+    )
     return JSONResponse({"program": saved.model_dump(), "persistence": persistence})
 
 
@@ -275,14 +279,14 @@ async def automation_status():
 @app.post("/automation/simulation/input")
 async def set_automation_simulation_input(request: SimulationInputRequest):
     """Set a virtual CPX input used by a simulated automation program."""
-    simulation_hardware.set_input(request.module_addr, request.channel, request.value)
+    simulation_hardware.set_node_input(request.node_id, request.value)
     return JSONResponse({"ok": True, **request.model_dump()})
 
 
 @app.post("/automation/simulation/analog")
 async def set_automation_simulation_analog(request: SimulationAnalogRequest):
     """Set a virtual raw analog channel used by simulated temperature/voltage blocks."""
-    simulation_hardware.set_analog(request.module_addr, request.channel, request.value)
+    simulation_hardware.set_node_analog(request.node_id, request.value)
     return JSONResponse({"ok": True, **request.model_dump()})
 
 
@@ -525,12 +529,18 @@ import contextlib
 import threading as _thr
 
 _IO_AUTO_RESET_S = int(os.environ.get("IO_AUTO_RESET_S", "60"))
+_DIO_DIRECTION_SETTLE_S = 0.05
 _io_timers: dict[str, _thr.Timer] = {}
 _io_timers_lock = _thr.Lock()
 
 
 def _auto_reset_output(
-    ip: str, module_addr: int, channel: str, cpp: int, timeout: float,
+    ip: str,
+    module_addr: int,
+    channel: str,
+    cpp: int,
+    subchannel: int | None,
+    timeout: float,
 ) -> None:
     """Background callback that resets an output to LOW."""
     mgr = get_connection_manager()
@@ -541,16 +551,24 @@ def _auto_reset_output(
         if not isinstance(hw, CpxApHardware):
             return
         port_num = int(channel.lstrip("X"))
-        # On mixed DI+DO modules the SVG port IDs are sequential starting at X0
-        # with input connectors first; write_output expects a 0-based index
-        # within outputs only, so subtract the total number of input channels.
         mod = hw._get_module(module_addr)
-        num_in = len([c for c in mod.channels.inputs if c.direction == "in"])
-        out_base = port_num * cpp - num_in
-        if out_base < 0:
+        indices = _output_channel_indices(mod, port_num, cpp, subchannel)
+        if not indices:
             return  # port maps to an input channel — nothing to reset
-        for i in range(cpp):
-            hw.write_output(module_addr, out_base + i, False)
+        configurable = [idx for idx in indices if _is_configurable_output(mod, idx)]
+        configured_now: list[int] = []
+        try:
+            for idx in configurable:
+                hw.configure_port_direction(module_addr, idx, True)
+                configured_now.append(idx)
+            if configured_now:
+                time.sleep(_DIO_DIRECTION_SETTLE_S)
+            for idx in indices:
+                hw.write_output(module_addr, idx, False)
+        finally:
+            for idx in configured_now:
+                with contextlib.suppress(Exception):
+                    hw.configure_port_direction(module_addr, idx, False)
     except Exception:
         pass  # best-effort
 
@@ -562,6 +580,55 @@ class SetOutputRequest(BaseModel):
     value: bool = Field(..., description="True = HIGH, False = LOW")
     timeout: float = Field(0.0, ge=0)
     channels_per_port: int = Field(1, ge=1, le=4, description="2 for M12-5P (2 channels per connector), 1 for M8 or single-channel")
+    subchannel: int | None = Field(
+        None,
+        ge=0,
+        le=3,
+        description="Optional zero-based channel within a multi-channel connector",
+    )
+
+
+def _output_channel_indices(
+    mod, port_num: int, channels_per_port: int, subchannel: int | None,
+) -> list[int]:
+    """Map a UI port to indices in ``mod.channels.outputs``."""
+    if subchannel is not None and subchannel >= channels_per_port:
+        raise ValueError(
+            f"Subchannel {subchannel} is outside a {channels_per_port}-channel port"
+        )
+
+    # Parameter 20145 is the authoritative marker for configurable DIO. Some
+    # APDDs expose those channels as separate ``in`` and ``out`` process-image
+    # entries rather than as ``inout``. In that representation the 16 inputs
+    # must not be subtracted from the output channel index.
+    num_fixed_inputs = 0 if _has_dio_direction_parameter(mod) else len(
+        [c for c in mod.channels.inputs if getattr(c, "direction", None) == "in"]
+    )
+    out_base = port_num * channels_per_port - num_fixed_inputs
+    if out_base < 0:
+        return []
+
+    offsets = [subchannel] if subchannel is not None else range(channels_per_port)
+    indices = [out_base + offset for offset in offsets]
+    if any(idx >= len(mod.channels.outputs) for idx in indices):
+        raise ValueError(
+            f"Port X{port_num} maps outside the output channels of this module"
+        )
+    return indices
+
+
+def _has_dio_direction_parameter(mod) -> bool:
+    """Return whether the module exposes configurable direction parameter 20145."""
+    module_dicts = getattr(mod, "module_dicts", None)
+    parameters = getattr(module_dicts, "parameters", {})
+    return 20145 in parameters
+
+
+def _is_configurable_output(mod, channel: int) -> bool:
+    """Return whether an output-process-image channel is configurable DIO."""
+    return _has_dio_direction_parameter(mod) or (
+        getattr(mod.channels.outputs[channel], "direction", None) == "inout"
+    )
 
 
 @app.post("/io/set-output")
@@ -581,40 +648,102 @@ async def io_set_output(request: SetOutputRequest):
     if not mgr.is_connected:
         raise HTTPException(status_code=400, detail="Not connected. Call /hw/connect first.")
 
-    timer_key = f"{mgr.ip_address}:{request.module_addr}:{request.channel}"
+    timer_key = (
+        f"{mgr.ip_address}:{request.module_addr}:{request.channel}:"
+        f"{request.subchannel}"
+    )
 
     def _do():
         cpp = request.channels_per_port
-        port_num = int(request.channel.lstrip("X"))
-        hw = mgr.get_hw()
-        if not isinstance(hw, CpxApHardware):
-            raise RuntimeError("Shared connection is not a CpxApHardware instance")
-        # On mixed DI+DO modules the SVG port IDs are sequential starting at X0
-        # with input connectors first; write_output expects a 0-based index
-        # within outputs only, so subtract the total number of input channels.
-        mod = hw._get_module(request.module_addr)
-        num_in = len([c for c in mod.channels.inputs if c.direction == "in"])
-        out_base = port_num * cpp - num_in
-        if out_base < 0:
+        try:
+            port_num = int(request.channel.lstrip("X"))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"invalid output channel {request.channel!r}") from exc
+
+        try:
+            hw = mgr.get_hw()
+            if not isinstance(hw, CpxApHardware):
+                raise TypeError(
+                    f"expected CpxApHardware, got {type(hw).__name__}"
+                )
+            mod = hw._get_module(request.module_addr)
+        except Exception as exc:
+            raise RuntimeError(
+                f"module lookup failed for address {request.module_addr}: "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
+
+        try:
+            indices = _output_channel_indices(
+                mod, port_num, cpp, request.subchannel
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                f"output channel mapping failed for module {request.module_addr}, "
+                f"port {request.channel}: {type(exc).__name__}: {exc}"
+            ) from exc
+        if not indices:
             raise ValueError(
                 f"Port X{port_num} maps to an input channel on module "
-                f"#{request.module_addr} (num_inputs={num_in})"
+                f"#{request.module_addr}"
             )
-        for i in range(cpp):
-            hw.write_output(request.module_addr, out_base + i, request.value)
+
+        configurable = [idx for idx in indices if _is_configurable_output(mod, idx)]
+        configured_now: list[int] = []
+        try:
+            for idx in configurable:
+                try:
+                    hw.configure_port_direction(request.module_addr, idx, True)
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"setting parameter 20145=True failed for module "
+                        f"{request.module_addr}, channel {idx}: "
+                        f"{type(exc).__name__}: {exc}"
+                    ) from exc
+                configured_now.append(idx)
+            if configured_now:
+                time.sleep(_DIO_DIRECTION_SETTLE_S)
+            for idx in indices:
+                try:
+                    hw.write_output(request.module_addr, idx, request.value)
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"writing module {request.module_addr}, channel {idx} "
+                        f"to {request.value} failed: {type(exc).__name__}: {exc}"
+                    ) from exc
+            if not request.value:
+                for idx in configurable:
+                    try:
+                        hw.configure_port_direction(request.module_addr, idx, False)
+                    except Exception as exc:
+                        raise RuntimeError(
+                            f"restoring parameter 20145=False failed for module "
+                            f"{request.module_addr}, channel {idx}: "
+                            f"{type(exc).__name__}: {exc}"
+                        ) from exc
+        except Exception:
+            # Do not leave a DIO channel configured as an output when the
+            # requested write could not be completed.
+            for idx in configured_now:
+                with contextlib.suppress(Exception):
+                    hw.configure_port_direction(request.module_addr, idx, False)
+            raise
         return {
             "ok": True,
             "module_addr": request.module_addr,
             "channel": request.channel,
             "value": request.value,
-            "channels_written": list(range(out_base, out_base + cpp)),
+            "channels_written": indices,
             "auto_reset_s": _IO_AUTO_RESET_S if request.value else None,
         }
 
     try:
         result = await asyncio.to_thread(_do)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=502,
+            detail=f"{type(exc).__name__}: {exc}",
+        ) from exc
 
     # ── Manage auto-reset timer ──
     with _io_timers_lock:
@@ -628,7 +757,8 @@ async def io_set_output(request: SetOutputRequest):
                 _IO_AUTO_RESET_S,
                 _auto_reset_output,
                 args=(request.ip_address, request.module_addr, request.channel,
-                      request.channels_per_port, request.timeout),
+                      request.channels_per_port, request.subchannel,
+                      request.timeout),
             )
             timer.daemon = True
             timer.start()

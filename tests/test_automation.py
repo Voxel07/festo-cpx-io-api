@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import unittest
 from typing import Any
+from unittest.mock import Mock, patch
 
 from pydantic import ValidationError
 
-from automation import AutomationEngine, AutomationProgram, SimulatedHardware
+from automation import AutomationEngine, AutomationProgram, AutomationProgramStore, SimulatedHardware
 from hal import CpxApHardware, HardwareInterface, ModuleInfo
 
 
@@ -69,6 +70,26 @@ def program(nodes: list[dict], edges: list[dict]) -> AutomationProgram:
 
 
 class AutomationEngineTests(unittest.TestCase):
+  def test_program_list_skips_an_invalid_record_without_hiding_valid_records(self) -> None:
+    valid = program(
+        [{"id": "nand", "type": "nand", "data": {}}],
+        [],
+    )
+    response = Mock()
+    response.raise_for_status.return_value = None
+    response.json.return_value = {
+        "items": [
+            {"id": "invalid", "name": "Old graph", "graph": {"nodes": [{"id": "old", "type": "and", "data": {}}], "edges": []}},
+            {"id": "valid", "name": "Current graph", "graph": valid.model_dump(exclude={"id", "topology"})},
+        ],
+    }
+    store = AutomationProgramStore()
+    with patch.object(store, "_pb", return_value=("http://pocketbase", {})), patch("automation.requests.get", return_value=response):
+      programs, persistence = store.list()
+
+    self.assertEqual(persistence, "pocketbase")
+    self.assertEqual([item.id for item in programs], ["valid"])
+
   def test_hardware_reads_modules_without_bulk_read_helper(self) -> None:
     class SingleChannelModule:
       position = 3
@@ -123,15 +144,38 @@ class AutomationEngineTests(unittest.TestCase):
     hardware = SimulatedHardware()
     hardware.set_input(3, 7, True)
     hardware.set_analog(4, 0, 27648)
+    hardware.set_node_input("input-a", True)
+    hardware.set_node_analog("analog-a", 123.5)
     self.assertEqual(hardware.read_inputs(3, [0, 7]), {0: False, 7: True})
     hardware.write_output(5, 1, True)
     self.assertEqual(hardware.snapshot(), {
         "inputs": {"3:7": True},
         "analogs": {"4:0": 27648.0},
+        "node_inputs": {"input-a": True},
+        "node_analogs": {"analog-a": 123.5},
         "outputs": {"5:1": True},
     })
     hardware.reset_all_outputs()
     self.assertIs(hardware.snapshot()["outputs"]["5:1"], False)
+
+  def test_simulated_inputs_on_the_same_channel_are_overridden_per_node(self) -> None:
+    hardware = SimulatedHardware()
+    hardware.set_node_input("a", True)
+    hardware.set_node_input("b", False)
+    graph = program(
+        [
+            {"id": "a", "type": "input", "data": {"module_addr": 3, "channel": 0, "trigger": "level_high"}},
+            {"id": "b", "type": "input", "data": {"module_addr": 3, "channel": 0, "trigger": "level_high"}},
+        ],
+        [],
+    )
+    engine = AutomationEngine()
+    engine._program = graph
+    engine._hardware = hardware
+
+    state = engine._scan(1.0)
+    self.assertIs(state["a"]["state"], True)
+    self.assertIs(state["b"]["state"], False)
 
   def test_temperature_and_voltage_limits_emit_boolean_signals(self) -> None:
     hardware = FakeHardware()
@@ -286,35 +330,49 @@ class AutomationEngineTests(unittest.TestCase):
     engine._scan(1.0)
     self.assertEqual(hardware.bulk_reads, [(3, (0, 7))])
 
-  def test_iec_and_or_blocks_use_all_and_at_least_one_semantics(self) -> None:
+  def test_nand_is_false_only_when_both_inputs_are_high(self) -> None:
     hardware = FakeHardware()
-    hardware.inputs[(3, 0)] = True
-    hardware.inputs[(3, 1)] = False
     graph = program(
         [
             {"id": "a", "type": "input", "data": {"module_addr": 3, "channel": 0, "trigger": "level_high"}},
             {"id": "b", "type": "input", "data": {"module_addr": 3, "channel": 1, "trigger": "level_high"}},
-            {"id": "and", "type": "and", "data": {}},
-            {"id": "or", "type": "or", "data": {}},
+            {"id": "nand", "type": "nand", "data": {}},
         ],
         [
-            {"id": "a-and", "source": "a", "sourceHandle": "state", "target": "and"},
-            {"id": "b-and", "source": "b", "sourceHandle": "state", "target": "and"},
-            {"id": "a-or", "source": "a", "sourceHandle": "state", "target": "or"},
-            {"id": "b-or", "source": "b", "sourceHandle": "state", "target": "or"},
+            {"id": "a-nand", "source": "a", "sourceHandle": "state", "target": "nand", "targetHandle": "input-a"},
+            {"id": "b-nand", "source": "b", "sourceHandle": "state", "target": "nand", "targetHandle": "input-b"},
         ],
     )
     engine = AutomationEngine()
     engine._program = graph
     engine._hardware = hardware
-    state = engine._scan(1.0)
-    self.assertIs(state["and"]["signal"], False)
-    self.assertIs(state["or"]["signal"], True)
-    hardware.inputs[(3, 1)] = True
-    state = engine._scan(1.1)
-    self.assertIs(state["and"]["signal"], True)
 
-  def test_two_high_input_states_drive_and_follow_output(self) -> None:
+    self.assertIs(engine._scan(1.0)["nand"]["signal"], True)
+    hardware.inputs[(3, 0)] = True
+    self.assertIs(engine._scan(1.1)["nand"]["signal"], True)
+    hardware.inputs[(3, 1)] = True
+    self.assertIs(engine._scan(1.2)["nand"]["signal"], False)
+
+  def test_conversion_scales_an_incoming_analog_value(self) -> None:
+    hardware = FakeHardware()
+    hardware.analogs[(4, 0)] = 2.5
+    graph = program(
+        [
+            {"id": "analog", "type": "analog_in", "data": {"module_addr": 4, "channel": 0}},
+            {"id": "convert", "type": "conversion", "data": {"scale": 9 / 5, "offset": 32}},
+        ],
+        [{"id": "analog-convert", "source": "analog", "sourceHandle": "value", "target": "convert", "targetHandle": "value"}],
+    )
+    engine = AutomationEngine()
+    engine._program = graph
+    engine._hardware = hardware
+
+    converted = engine._scan(1.0)["convert"]
+    self.assertEqual(converted["input_value"], 2.5)
+    self.assertEqual(converted["value"], 36.5)
+    self.assertIs(converted["_is_analog"], True)
+
+  def test_nand_drives_follow_output(self) -> None:
     hardware = FakeHardware()
     hardware.inputs[(3, 0)] = True
     hardware.inputs[(3, 1)] = True
@@ -322,25 +380,25 @@ class AutomationEngineTests(unittest.TestCase):
         [
             {"id": "a", "type": "input", "data": {"module_addr": 3, "channel": 0}},
             {"id": "b", "type": "input", "data": {"module_addr": 3, "channel": 1}},
-            {"id": "and", "type": "and", "data": {}},
+            {"id": "nand", "type": "nand", "data": {}},
             {"id": "q", "type": "output", "data": {"module_addr": 5, "channel": 0, "action": "follow"}},
         ],
         [
-            {"id": "a-and", "source": "a", "sourceHandle": "state", "target": "and", "targetHandle": "input-a"},
-            {"id": "b-and", "source": "b", "sourceHandle": "state", "target": "and", "targetHandle": "input-b"},
-            {"id": "and-q", "source": "and", "sourceHandle": "signal", "target": "q"},
+            {"id": "a-nand", "source": "a", "sourceHandle": "state", "target": "nand", "targetHandle": "input-a"},
+            {"id": "b-nand", "source": "b", "sourceHandle": "state", "target": "nand", "targetHandle": "input-b"},
+            {"id": "nand-q", "source": "nand", "sourceHandle": "signal", "target": "q"},
         ],
     )
     engine = AutomationEngine()
     engine._program = graph
     engine._hardware = hardware
     state = engine._scan(1.0)
-    self.assertIs(state["and"]["signal"], True)
-    self.assertIs(hardware.outputs[(5, 0)], True)
+    self.assertIs(state["nand"]["signal"], False)
+    self.assertIs(hardware.outputs[(5, 0)], False)
     hardware.inputs[(3, 1)] = False
     state = engine._scan(1.1)
-    self.assertIs(state["and"]["signal"], False)
-    self.assertIs(hardware.outputs[(5, 0)], False)
+    self.assertIs(state["nand"]["signal"], True)
+    self.assertIs(hardware.outputs[(5, 0)], True)
 
   def test_action_blocks_for_one_valve_share_physical_state(self) -> None:
     hardware = FakeHardware()

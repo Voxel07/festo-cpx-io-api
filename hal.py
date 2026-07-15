@@ -126,19 +126,24 @@ class HardwareInterface(ABC):
 
     def configure_port_direction(self, address: int, channel: int, output: bool) -> None:
         """Set a configurable channel direction and register it for cleanup."""
-        self.write_parameter(address, 20145, int(output), instance=channel + 1)
+        # Parameter 20145 uses the same zero-based instance index as the
+        # process-image channel (channel 0 -> instance 0).
+        self.write_parameter(address, 20145, output, instance=channel)
         configured = getattr(self, "_configured_directions", None)
         if configured is None:
             configured = set()
             setattr(self, "_configured_directions", configured)
-        configured.add((address, channel))
+        if output:
+            configured.add((address, channel))
+        else:
+            configured.discard((address, channel))
 
     def restore_port_directions(self) -> None:
         """Restore all configurable channels touched by this session to input."""
         configured = getattr(self, "_configured_directions", set())
         for address, channel in list(configured):
             with suppress(Exception):
-                self.write_parameter(address, 20145, 0, instance=channel + 1)
+                self.write_parameter(address, 20145, False, instance=channel)
         configured.clear()
 
     def reset_device(

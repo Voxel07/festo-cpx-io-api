@@ -28,15 +28,13 @@ BLOCK_TYPES = {
     "timer",
     "delay",
     "counter",
-    "and",
-    "or",
-    "not",
+    "nand",
+    "conversion",
     "output",
     "valve",
     "cylinder",
     "analog_in",
     "analog_out",
-    "comment",
 }
 
 
@@ -117,12 +115,14 @@ class AutomationStartRequest(BaseModel):
 
 
 class SimulationInputRequest(BaseModel):
+    node_id: str = Field(min_length=1)
     module_addr: int = Field(ge=0)
     channel: int = Field(ge=0)
     value: bool
 
 
 class SimulationAnalogRequest(BaseModel):
+    node_id: str = Field(min_length=1)
     module_addr: int = Field(ge=0)
     channel: int = Field(ge=0)
     value: float
@@ -134,6 +134,8 @@ class SimulatedHardware(HardwareInterface):
     def __init__(self) -> None:
         self._inputs: dict[tuple[int, int], bool] = {}
         self._analogs: dict[tuple[int, int], float] = {}
+        self._node_inputs: dict[str, bool] = {}
+        self._node_analogs: dict[str, float] = {}
         self._outputs: dict[tuple[int, int], bool] = {}
         self._lock = threading.RLock()
 
@@ -170,6 +172,22 @@ class SimulatedHardware(HardwareInterface):
         with self._lock:
             self._analogs[(address, channel)] = float(value)
 
+    def set_node_input(self, node_id: str, value: bool) -> None:
+        with self._lock:
+            self._node_inputs[node_id] = bool(value)
+
+    def set_node_analog(self, node_id: str, value: float) -> None:
+        with self._lock:
+            self._node_analogs[node_id] = float(value)
+
+    def read_node_input(self, node_id: str, fallback: bool) -> bool:
+        with self._lock:
+            return self._node_inputs.get(node_id, fallback)
+
+    def read_node_analog(self, node_id: str, fallback: float) -> float:
+        with self._lock:
+            return self._node_analogs.get(node_id, fallback)
+
     def write_output(self, address: int, channel: int, value: bool) -> None:
         with self._lock:
             self._outputs[(address, channel)] = value
@@ -198,11 +216,13 @@ class SimulatedHardware(HardwareInterface):
     def module_supports_channel_write(self, address: int) -> bool:
         return True
 
-    def snapshot(self) -> dict[str, dict[str, bool]]:
+    def snapshot(self) -> dict[str, dict[str, bool | float]]:
         with self._lock:
             return {
                 "inputs": {f"{address}:{channel}": value for (address, channel), value in self._inputs.items()},
                 "analogs": {f"{address}:{channel}": value for (address, channel), value in self._analogs.items()},
+                "node_inputs": dict(self._node_inputs),
+                "node_analogs": dict(self._node_analogs),
                 "outputs": {f"{address}:{channel}": value for (address, channel), value in self._outputs.items()},
             }
 
@@ -249,9 +269,9 @@ def _execution_order(program: AutomationProgram) -> list[AutomationNode]:
                 queue.append(target)
     ordered.extend(node for node in program.nodes if node.id not in seen)
     # Sources first, action/state blocks after combinatorial logic.
-    rank = {"input": 0, "analog_in": 0, "temperature": 0, "voltage": 0, "timer": 0, "and": 1, "or": 1, "not": 1,
+    rank = {"input": 0, "analog_in": 0, "conversion": 0, "temperature": 0, "voltage": 0, "timer": 0, "nand": 1,
             "pressure": 2, "counter": 2, "delay": 2,
-            "output": 3, "valve": 3, "analog_out": 3, "cylinder": 4, "comment": 5}
+            "output": 3, "valve": 3, "analog_out": 3, "cylinder": 4}
     return sorted(ordered, key=lambda node: rank.get(node.type, 9))
 
 
@@ -419,6 +439,8 @@ class AutomationEngine:
                 raw = bool(input_values[(
                     int(node.data["module_addr"]), int(node.data["channel"])
                 )])
+                if isinstance(self._hardware, SimulatedHardware):
+                    raw = self._hardware.read_node_input(node.id, raw)
                 debounce_s = max(0, int(node.data.get("debounce_ms", 0))) / 1000
                 if raw != state.get("candidate", raw):
                     state["candidate"] = raw
@@ -457,6 +479,8 @@ class AutomationEngine:
                     raw_value = analog_values[(
                         int(node.data["module_addr"]), int(node.data["channel"])
                     )]
+                    if isinstance(self._hardware, SimulatedHardware):
+                        raw_value = self._hardware.read_node_analog(node.id, raw_value)
                     scale = float(node.data.get("scale", 0.1 if node.type == "temperature" else 10 / 27648))
                     offset = float(node.data.get("offset", 0.0))
                     value = raw_value * scale + offset
@@ -500,14 +524,9 @@ class AutomationEngine:
                     "fired_count": int(state.get("fired_count", 0)),
                 }
 
-            elif node.type in {"and", "or", "not"}:
+            elif node.type == "nand":
                 source_values = [value for _, value in values]
-                if node.type == "and":
-                    result = {"signal": bool(source_values) and all(source_values)}
-                elif node.type == "or":
-                    result = {"signal": any(source_values)}
-                else:
-                    result = {"signal": not signal}
+                result = {"signal": not (bool(source_values) and all(source_values))}
 
             elif node.type == "counter":
                 previous = bool(state.get("input", False))
@@ -602,6 +621,8 @@ class AutomationEngine:
                 raw_value = analog_values[(
                     int(node.data["module_addr"]), int(node.data["channel"])
                 )]
+                if isinstance(self._hardware, SimulatedHardware):
+                    raw_value = self._hardware.read_node_analog(node.id, raw_value)
                 scale = float(node.data.get("scale", 1.0))
                 offset = float(node.data.get("offset", 0.0))
                 value = raw_value * scale + offset
@@ -609,6 +630,23 @@ class AutomationEngine:
                     "signal": True,
                     "value": round(value, 6),
                     "raw_value": round(raw_value, 6),
+                    "_is_analog": True,
+                }
+
+            elif node.type == "conversion":
+                upstream_numeric = [
+                    float(outputs.get(edge.source, {}).get("value", 0.0))
+                    for edge in incoming.get(node.id, [])
+                    if outputs.get(edge.source, {}).get("_is_analog")
+                ]
+                input_value = upstream_numeric[0] if upstream_numeric else 0.0
+                scale = float(node.data.get("scale", 1.0))
+                offset = float(node.data.get("offset", 0.0))
+                value = input_value * scale + offset
+                result = {
+                    "signal": True,
+                    "value": round(value, 6),
+                    "input_value": round(input_value, 6),
                     "_is_analog": True,
                 }
 
@@ -690,7 +728,18 @@ class AutomationProgramStore:
                 timeout=(1, 2),
             )
             response.raise_for_status()
-            return [self._from_record(item) for item in response.json().get("items", [])], "pocketbase"
+            programs: list[AutomationProgram] = []
+            for item in response.json().get("items", []):
+                try:
+                    programs.append(self._from_record(item))
+                except Exception as exc:
+                    # One invalid record must not hide every other PocketBase
+                    # program from the editor selector.
+                    print(
+                        f"[Automation] Skipping invalid program {item.get('id', '?')}: {exc}",
+                        flush=True,
+                    )
+            return programs, "pocketbase"
         except Exception:
             with self._lock:
                 return list(self._memory.values()), "memory"
