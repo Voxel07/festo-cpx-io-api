@@ -11,7 +11,6 @@ from typing import Any
 
 from config_models import BenchConfig
 from hal import HardwareInterface
-from valve_channels import channels_per_valve
 
 from ._base import LogFn, load_bench_config, noop_log
 
@@ -31,15 +30,6 @@ TEST_DEFINITION = {
     "can_run_parallel": False,
     "singleton": False,
     "parameters": {},
-    "compatible_modules": [
-        "VABX-A-S-BV-V4A",
-        "VABX-A-S-BV-V4B",
-        "VABX-A-S-BV-V4C",
-        "VABX-A-BV-S-*",
-        "VABX-A-VE-S",
-        "VABX-A-VP-*",
-        "VMPAL-*"
-    ]
 }
 
 
@@ -88,7 +78,7 @@ def run(
 
     for mod in valve_mods:
         total_channels = mod.num_outputs + mod.num_inouts
-        cpv = channels_per_valve(mod.name) if mod.is_valve else 0
+        cpv = bench_config.module_type_at(mod.address).channels_per_valve if mod.is_valve else 0
         extra_info = ""
         if mod.is_valve and cpv > 0:
             n_valves = total_channels // cpv

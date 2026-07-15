@@ -36,18 +36,6 @@ TEST_DEFINITION = {
     "parameters": {
         "pulse_duration_s": 0.3
     },
-    "compatible_modules": [
-        "CPX-AP-A-*DO*",
-        "CPX-AP-A-*HDO*",
-        "CPX-AP-A-*DIO*",
-        "CPX-AP-A-*DIDO*",
-        "CPX-AP-A-*DI*DO*",
-        "CPX-AP-I-*DO*",
-        "CPX-AP-I-*DIO*",
-        "CPX-AP-A-*IOL*",
-        "CPX-AP-I-*IOL*",
-        "VABX-A-*"
-    ]
 }
 
 

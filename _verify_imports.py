@@ -22,9 +22,10 @@ except Exception as e:
     errors.append(f"repository: {e}")
 
 try:
-    print("✓ test_runner")
+    import api  # noqa: F401
+    print("✓ api")
 except Exception as e:
-    errors.append(f"test_runner: {e}")
+    errors.append(f"api: {e}")
 
 try:
     print("✓ tests.validate_connections")

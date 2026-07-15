@@ -22,16 +22,6 @@ TEST_DEFINITION = {
     "can_run_parallel": False,
     "singleton": False,
     "parameters": {},
-    "compatible_modules": [
-        "CPX-AP-A-EP*",
-        "CPX-AP-A-EC*",
-        "CPX-AP-A-PN*",
-        "CPX-AP-A-PB*",
-        "CPX-AP-I-EP*",
-        "CPX-AP-I-EC*",
-        "CPX-AP-I-PN*",
-        "CPX-AP-I-PB*"
-    ]
 }
 
 

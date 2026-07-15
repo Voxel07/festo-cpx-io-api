@@ -14,14 +14,11 @@ from typing import Any
 
 from config_models import BenchConfig
 from hal import HardwareInterface
-from valve_channels import channels_per_valve, expand_valve_indices
+from valve_channels import expand_valve_indices
 
 from ._base import (
     LogFn,
-    is_module_compatible,
-    is_valve_terminal,
     load_bench_config,
-    load_compatibility,
     noop_log,
 )
 
@@ -31,7 +28,7 @@ TEST_DEFINITION = {
     "version": "1.0.0",
     "description": "Set CC setpoint, toggle valves past threshold, verify diagnosis",
     "required_capabilities": [
-        "condition_counter",
+        "valve_condition_counter",
         "valve_output"
     ],
     "supported_categories": [
@@ -47,34 +44,18 @@ TEST_DEFINITION = {
         "cc_readback_param_id": 20095,
         "toggle_cycles": 5
     },
-    "compatible_modules": [
-        "VABX-A-S-BV-V4A",
-        "VABX-A-S-BV-V4B",
-        "VABX-A-S-BV-V4C",
-        "VABX-A-BV-S-*",
-        "VABX-A-VE-S",
-        "VABX-A-VP-*"
-    ]
 }
 
 
 def _get_mounted_valves(bench_config: BenchConfig | None) -> dict[int, list[int]]:
-    """Return ``{module_address: [valve_channel, ...]}`` from bench_config."""
+    """Return ``{module_address: [mounted_valve_slot, ...]}`` from config."""
     if not bench_config:
         return {}
-    
-    # Map instance_id -> address
-    inst_to_addr = {m.instance_id: m.address for m in bench_config.module_instances}
-    
-    mounted = {}
-    for wire in bench_config.wiring:
-        addr = inst_to_addr.get(wire.target_instance_id)
-        if addr is not None:
-            if addr not in mounted:
-                mounted[addr] = []
-            if wire.target_channel not in mounted[addr]:
-                mounted[addr].append(wire.target_channel)
-    return mounted
+    return {
+        module.address: list(module.mounted_valves)
+        for module in bench_config.module_instances
+        if module.mounted_valves
+    }
 
 
 def run(
@@ -102,29 +83,15 @@ def run(
     topology = hw.read_topology()
     if module_address is not None:
         topology = [m for m in topology if m.address == module_address]
-    compat = load_compatibility()
-
-    # ── Filter: only valve terminals listed in compatibility matrix ──
-    all_valve_mods = [m for m in topology if is_valve_terminal(m)]
-    valve_mods: list = []
-    skipped_valves: list[dict] = []
-    for m in all_valve_mods:
-        if is_module_compatible(m.name, "valve-condition-counter", compat):
-            valve_mods.append(m)
-        else:
-            skipped_valves.append({
-                "test": "valve-condition-counter",
-                "module": m.name, "address": m.address, "passed": None,
-                "note": f"{m.name} not in valve-condition-counter compatibility list — skipped",
-            })
-            log("info", f"  ⊘ {m.name} @ #{m.address}: not CC-compatible, skipping")
-    results: list[dict] = skipped_valves
+    # The API resolver has already bound this invocation to a module whose
+    # declared capabilities satisfy the test definition.
+    valve_mods = topology
+    results: list[dict] = []
 
     if not valve_mods:
-        if not skipped_valves:
-            log("warning", "No VABX valve terminals found on bus")
-            results.append({"test": "valve-condition-counter", "passed": None,
-                            "error": "No valve terminals found"})
+        log("warning", "No capability-resolved valve terminal found on bus")
+        results.append({"test": "valve-condition-counter", "passed": None,
+                        "error": "No capability-resolved valve terminal found"})
         return results
 
     mounted_valves = _get_mounted_valves(bench_config)
@@ -207,8 +174,8 @@ def run(
             # ── Step 2: Toggle each mounted valve output ──────────────
             # Expand valve slot indices → hardware channel indices
             # (V4A/V4B/V4C: 2 channels/valve; VEAM: 1 channel/valve)
-            all_channels = expand_valve_indices(mounted, mod_info.name)
-            cpv = channels_per_valve(mod_info.name)
+            cpv = bench_config.module_type_at(addr).channels_per_valve
+            all_channels = expand_valve_indices(mounted, cpv)
             step2_ts = time.time()
             cycles = toggle_cycles + 2
             log("info", f"  [2] Toggling {len(mounted)} valve(s) × {cycles} cycles "

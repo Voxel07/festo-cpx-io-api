@@ -26,11 +26,6 @@ TEST_DEFINITION = {
         "power_supply_voltage": 24.0,
         "reconnect_wait": 8.0,
     },
-    "compatible_modules": [
-        "CPX-AP-A*",
-        "CPX-AP-I*",
-        "VABX*"
-    ]
 }
 
 def run(

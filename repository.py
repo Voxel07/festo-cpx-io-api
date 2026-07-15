@@ -14,8 +14,8 @@ Usage::
 
 from __future__ import annotations
 
-import json
 import os
+import threading
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -55,10 +55,13 @@ class TestResultRecord:
     test_id: str
     test_version: str = ""
     test_name: str = ""
+    resolved_instance_id: str = ""
     module_instance_id: str = ""
     module_code: int = 0
     product_key: str = ""
     channel_id: str | None = None
+    channel_mode: str | None = None
+    wiring_id: str | None = None
     verdict: str = "unknown"  # passed, failed, error, skipped
     start_time: str = ""
     end_time: str = ""
@@ -66,6 +69,8 @@ class TestResultRecord:
     failure_reason: str = ""
     exception_type: str = ""
     stack_trace: str = ""
+    raw_log_ref: str = ""
+    artifact_ref: str = ""
 
 
 @dataclass
@@ -105,7 +110,14 @@ class ResultRepository(ABC):
         """Create a new test run record."""
 
     @abstractmethod
-    def update_test_run(self, run_id: str, status: str) -> bool:
+    def update_test_run(
+        self,
+        run_id: str,
+        status: str,
+        *,
+        results: list[dict[str, Any]] | None = None,
+        error: str | None = None,
+    ) -> bool:
         """Update the status of an existing test run."""
 
     @abstractmethod
@@ -136,9 +148,13 @@ class ResultRepository(ABC):
 
 # ── Collection names — must match pocketbase_schema.json ────────────────────
 COLL_TEST_RUNS = "festo_test_runs"
-COLL_CHECKPOINTS = "festo_checkpoints"
+COLL_TEST_RESULTS = "festo_test_results"
 COLL_SYSTEM_LOGS = "festo_system_logs"
 COLL_MEASUREMENTS = "festo_measurements"
+COLL_PLANS = "festo_resolved_plans"
+COLL_MODULE_SNAPSHOTS = "festo_module_snapshots"
+COLL_WIRING_SNAPSHOTS = "festo_wiring_snapshots"
+COLL_ARTIFACTS = "festo_artifacts"
 
 
 class PocketBaseRepository(ResultRepository):
@@ -146,7 +162,7 @@ class PocketBaseRepository(ResultRepository):
 
     Collections used (must match ``pocketbase_schema.json``):
     - ``festo_test_runs``     — top-level run records
-    - ``festo_checkpoints``   — per-test-instance results
+    - ``festo_test_results``  — per-test-instance results
     - ``festo_system_logs``   — structured log events
     - ``festo_measurements``  — structured measurement data
     """
@@ -160,31 +176,43 @@ class PocketBaseRepository(ResultRepository):
         self._url = (url or os.environ.get("PB_URL", "http://localhost:8090")).rstrip("/")
         self._username = username or os.environ.get("PB_USERNAME", "")
         self._password = password or os.environ.get("PB_PASSWORD", "")
-        self._token: str | None = None
+        self._token: str | None = os.environ.get("POCKETBASE_TOKEN") or None
         self._token_expiry: float = 0
+        self._auth_lock = threading.Lock()
+        self._session = requests.Session()
+        self._timeout = (
+            float(os.environ.get("PB_CONNECT_TIMEOUT_S", "0.75")),
+            float(os.environ.get("PB_READ_TIMEOUT_S", "2.0")),
+        )
 
     # ── Auth ──────────────────────────────────────────────────────────────
 
     def _authenticate(self) -> str:
-        if self._token and time.time() < self._token_expiry - 60:
-            return self._token
-        if not self._username or not self._password:
-            self._token = None
-            return ""
-        try:
-            resp = requests.post(
-                f"{self._url}/api/admins/auth-with-password",
-                json={"identity": self._username, "password": self._password},
-                timeout=5,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            self._token = data.get("token", "")
-            self._token_expiry = time.time() + 3600
-            return self._token
-        except Exception:
-            self._token = None
-            return ""
+        configured_token = os.environ.get("POCKETBASE_TOKEN", "")
+        if configured_token:
+            self._token = configured_token
+            self._token_expiry = float("inf")
+            return configured_token
+        with self._auth_lock:
+            if self._token and time.time() < self._token_expiry - 60:
+                return self._token
+            if not self._username or not self._password:
+                self._token = None
+                return ""
+            try:
+                resp = self._session.post(
+                    f"{self._url}/api/admins/auth-with-password",
+                    json={"identity": self._username, "password": self._password},
+                    timeout=self._timeout,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                self._token = data.get("token", "")
+                self._token_expiry = time.time() + 3600
+                return self._token
+            except Exception:
+                self._token = None
+                return ""
 
     def _headers(self) -> dict[str, str]:
         h = {"Content-Type": "application/json"}
@@ -195,11 +223,11 @@ class PocketBaseRepository(ResultRepository):
 
     def _post(self, collection: str, data: dict[str, Any]) -> bool:
         try:
-            resp = requests.post(
+            resp = self._session.post(
                 f"{self._url}/api/collections/{collection}/records",
                 json=data,
                 headers=self._headers(),
-                timeout=5,
+                timeout=self._timeout,
             )
             return resp.status_code in (200, 201)
         except Exception:
@@ -207,11 +235,11 @@ class PocketBaseRepository(ResultRepository):
 
     def _patch(self, collection: str, record_id: str, data: dict[str, Any]) -> bool:
         try:
-            resp = requests.patch(
+            resp = self._session.patch(
                 f"{self._url}/api/collections/{collection}/records/{record_id}",
                 json=data,
                 headers=self._headers(),
-                timeout=5,
+                timeout=self._timeout,
             )
             return resp.status_code in (200, 201)
         except Exception:
@@ -219,11 +247,11 @@ class PocketBaseRepository(ResultRepository):
 
     def _find_record(self, collection: str, filter_expr: str) -> dict[str, Any] | None:
         try:
-            resp = requests.get(
+            resp = self._session.get(
                 f"{self._url}/api/collections/{collection}/records",
                 params={"filter": filter_expr, "perPage": 1},
                 headers=self._headers(),
-                timeout=5,
+                timeout=self._timeout,
             )
             if resp.status_code == 200:
                 items = resp.json().get("items", [])
@@ -249,32 +277,48 @@ class PocketBaseRepository(ResultRepository):
                 "gitlab_job_id": record.gitlab_job_id,
                 "resolved_plan_id": record.resolved_plan_id,
                 "schema_version": record.schema_version,
-                "tests": json.dumps(record.tests),
+                "tests": record.tests,
                 "started_at": record.started_at or _utc_now(),
             },
         )
 
-    def update_test_run(self, run_id: str, status: str) -> bool:
+    def update_test_run(
+        self,
+        run_id: str,
+        status: str,
+        *,
+        results: list[dict[str, Any]] | None = None,
+        error: str | None = None,
+    ) -> bool:
         existing = self._find_record(COLL_TEST_RUNS, f"(run_id='{run_id}')")
         if existing:
             return self._patch(
                 COLL_TEST_RUNS,
                 existing["id"],
-                {"status": status, "completed_at": _utc_now()},
+                {
+                    "status": status,
+                    "completed_at": _utc_now(),
+                    **({"results": results} if results is not None else {}),
+                    **({"error": error} if error else {}),
+                },
             )
         return False
 
     def add_test_result(self, record: TestResultRecord) -> bool:
         return self._post(
-            COLL_CHECKPOINTS,
+            COLL_TEST_RESULTS,
             {
                 "run_id": record.run_id,
-                "test": record.test_id,
+                "test_id": record.test_id,
+                "resolved_instance_id": record.resolved_instance_id,
+                "test_name": record.test_name,
                 "test_version": record.test_version,
                 "module_instance_id": record.module_instance_id,
                 "module_code": record.module_code,
                 "product_key": record.product_key,
-                "channel": record.channel_id or "",
+                "channel_id": record.channel_id or "",
+                "channel_mode": record.channel_mode or "",
+                "wiring_id": record.wiring_id or "",
                 "verdict": record.verdict,
                 "start_time": record.start_time,
                 "end_time": record.end_time,
@@ -282,6 +326,8 @@ class PocketBaseRepository(ResultRepository):
                 "failure_reason": record.failure_reason,
                 "exception_type": record.exception_type,
                 "stack_trace": record.stack_trace[:2000] if record.stack_trace else "",
+                "raw_log_ref": record.raw_log_ref,
+                "artifact_ref": record.artifact_ref,
                 "timestamp": _utc_now(),
             },
         )
@@ -308,9 +354,8 @@ class PocketBaseRepository(ResultRepository):
                 "run_id": record.run_id,
                 "level": record.level,
                 "message": record.message,
-                "details": json.dumps(
-                    {"event_type": record.event_type, **record.details}, default=str
-                ),
+                "event_type": record.event_type,
+                "details": {"event_type": record.event_type, **record.details},
                 "timestamp": record.timestamp or _utc_now(),
             },
         )
@@ -322,11 +367,11 @@ class PocketBaseRepository(ResultRepository):
             params: dict[str, Any] = {"sort": "-created", "perPage": limit}
             if bench_id:
                 params["filter"] = f"(test_bench_id='{bench_id}')"
-            resp = requests.get(
+            resp = self._session.get(
                 f"{self._url}/api/collections/{COLL_TEST_RUNS}/records",
                 params=params,
                 headers=self._headers(),
-                timeout=5,
+                timeout=self._timeout,
             )
             if resp.status_code == 200:
                 return resp.json().get("items", [])
@@ -338,23 +383,100 @@ class PocketBaseRepository(ResultRepository):
         run = self._find_record(COLL_TEST_RUNS, f"(run_id='{run_id}')")
         if run is None:
             return None
-        # Fetch related checkpoints
+        # Fetch related normalized test results.
         try:
-            cp_resp = requests.get(
-                f"{self._url}/api/collections/{COLL_CHECKPOINTS}/records",
+            cp_resp = self._session.get(
+                f"{self._url}/api/collections/{COLL_TEST_RESULTS}/records",
                 params={
                     "filter": f"(run_id='{run_id}')",
                     "sort": "created",
                     "perPage": 500,
                 },
                 headers=self._headers(),
-                timeout=5,
+                timeout=self._timeout,
             )
             if cp_resp.status_code == 200:
-                run["checkpoints"] = cp_resp.json().get("items", [])
+                run["test_results"] = cp_resp.json().get("items", [])
+                run["checkpoints"] = run["test_results"]
         except Exception:
             run["checkpoints"] = []
         return run
+
+    def save_execution_context(self, run_id: str, plan: Any, config: Any) -> bool:
+        """Persist the plan and immutable module/wiring snapshots for a run."""
+        plan_payload = plan.to_dict() if hasattr(plan, "to_dict") else dict(plan)
+        ok = self._post(COLL_PLANS, {
+            "plan_id": plan_payload.get("plan_id", ""),
+            "run_id": run_id,
+            "test_bench_id": plan_payload.get("test_bench_id", ""),
+            "created_at": plan_payload.get("created_at", _utc_now()),
+            "plan": plan_payload,
+        })
+        for module in config.module_instances:
+            ok = self._post(COLL_MODULE_SNAPSHOTS, {
+                "run_id": run_id,
+                "instance_id": module.instance_id,
+                "module_code": module.module_code,
+                "product_key": module.product_key or "",
+                "firmware_version": module.firmware_version or "",
+                "serial_number": module.serial_number or "",
+                "snapshot": module.model_dump(mode="json"),
+            }) and ok
+        for wire in config.wiring:
+            ok = self._post(COLL_WIRING_SNAPSHOTS, {
+                "run_id": run_id,
+                "wiring_id": wire.id,
+                "snapshot": wire.model_dump(mode="json"),
+            }) and ok
+        return ok
+
+    def delete_run(self, run_id: str) -> bool:
+        existing = self._find_record(COLL_TEST_RUNS, f"(run_id='{run_id}')")
+        if not existing:
+            return False
+        try:
+            response = self._session.delete(
+                f"{self._url}/api/collections/{COLL_TEST_RUNS}/records/{existing['id']}",
+                headers=self._headers(),
+                timeout=self._timeout,
+            )
+            return response.status_code in (200, 204)
+        except Exception:
+            return False
+
+    def clear_history(self) -> bool:
+        runs = self.get_run_history(limit=500)
+        return all(self.delete_run(run.get("run_id", "")) for run in runs)
+
+    def recover_stale_runs(self, max_age_s: float = 3600.0) -> int:
+        """Mark abandoned running records as interrupted after API restarts."""
+        try:
+            response = self._session.get(
+                f"{self._url}/api/collections/{COLL_TEST_RUNS}/records",
+                params={"filter": "(status='running')", "perPage": 200},
+                headers=self._headers(),
+                timeout=self._timeout,
+            )
+            if response.status_code != 200:
+                return 0
+            recovered = 0
+            now = datetime.now(timezone.utc)
+            for item in response.json().get("items", []):
+                raw = item.get("started_at") or item.get("created")
+                try:
+                    started = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+                except (TypeError, ValueError):
+                    started = now
+                if (now - started).total_seconds() >= max_age_s:
+                    if self._patch(COLL_TEST_RUNS, item["id"], {
+                        "status": "interrupted",
+                        "error": "Recovered as interrupted after API restart",
+                        "completed_at": _utc_now(),
+                    }):
+                        recovered += 1
+            return recovered
+        except Exception:
+            return 0
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -363,3 +485,112 @@ class PocketBaseRepository(ResultRepository):
 def _utc_now() -> str:
     """Return current UTC time as ISO 8601 string."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+class ResultStore:
+    """Application-facing persistence service independent of PocketBase APIs."""
+
+    def __init__(self, repository: ResultRepository | None = None) -> None:
+        self.repository = repository or PocketBaseRepository()
+
+    def test_run_started(
+        self,
+        run_id: str,
+        source: str,
+        ip_address: str,
+        tests: list[str],
+        test_bench_id: str = "",
+        test_code_commit: str = "",
+        config_commit: str = "",
+        gitlab_pipeline_id: str = "",
+        gitlab_job_id: str = "",
+        resolved_plan_id: str = "",
+        schema_version: str = "",
+    ) -> bool:
+        return self.repository.create_test_run(TestRunRecord(
+            run_id=run_id,
+            source=source,
+            ip_address=ip_address,
+            tests=tests,
+            test_bench_id=test_bench_id,
+            test_code_commit=test_code_commit,
+            config_commit=config_commit,
+            gitlab_pipeline_id=gitlab_pipeline_id,
+            gitlab_job_id=gitlab_job_id,
+            resolved_plan_id=resolved_plan_id,
+            schema_version=schema_version,
+            started_at=_utc_now(),
+        ))
+
+    def test_run_completed(
+        self,
+        run_id: str,
+        results: list[dict[str, Any]],
+        status: str = "completed",
+        error: str | None = None,
+    ) -> bool:
+        return self.repository.update_test_run(run_id, status, results=results, error=error)
+
+    def checkpoint(
+        self, run_id: str, test: str, status: str, error: str | None = None,
+    ) -> bool:
+        return self.repository.add_log_event(LogEventRecord(
+            run_id=run_id,
+            level="error" if status == "failed" else "info",
+            message=f"{test}: {status}",
+            event_type="test_checkpoint",
+            details={"test_id": test, "status": status, "error": error or ""},
+        ))
+
+    def save_execution_context(self, run_id: str, plan: Any, config: Any) -> bool:
+        method = getattr(self.repository, "save_execution_context", None)
+        return bool(method and method(run_id, plan, config))
+
+    def add_test_result(self, record: TestResultRecord) -> bool:
+        return self.repository.add_test_result(record)
+
+    def log(
+        self, run_id: str | None, level: str, message: str, details: dict | None = None,
+    ) -> bool:
+        return self.repository.add_log_event(LogEventRecord(
+            run_id=run_id or "",
+            level=level,
+            message=message,
+            event_type=(details or {}).get("event_type", "log"),
+            details=details or {},
+        ))
+
+    def error(self, run_id: str | None, message: str, details: dict | None = None) -> bool:
+        return self.log(run_id, "error", message, details)
+
+    def info(self, run_id: str | None, message: str) -> bool:
+        return self.log(run_id, "info", message)
+
+    def get_run_history(self, limit: int = 50) -> list[dict[str, Any]]:
+        return self.repository.get_run_history(limit=limit)
+
+    def get_run_detail(self, run_id: str) -> dict[str, Any] | None:
+        return self.repository.get_run_detail(run_id)
+
+    def delete_run(self, run_id: str) -> bool:
+        method = getattr(self.repository, "delete_run", None)
+        return bool(method and method(run_id))
+
+    def clear_history(self) -> bool:
+        method = getattr(self.repository, "clear_history", None)
+        return bool(method and method())
+
+    def recover_stale_runs(self, max_age_s: float = 3600.0) -> int:
+        method = getattr(self.repository, "recover_stale_runs", None)
+        return int(method(max_age_s) if method else 0)
+
+
+result_store = ResultStore()
+
+
+def pocketbase_api_context() -> tuple[str, dict[str, str]]:
+    """Return the shared PocketBase endpoint and authenticated headers."""
+    repository = result_store.repository
+    if not isinstance(repository, PocketBaseRepository):
+        raise RuntimeError("The configured repository is not PocketBase-backed")
+    return repository._url, repository._headers()

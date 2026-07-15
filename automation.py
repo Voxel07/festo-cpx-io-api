@@ -8,6 +8,7 @@ adding one HTTP round-trip per I/O operation.
 from __future__ import annotations
 
 import contextlib
+import os
 import threading
 import time
 import uuid
@@ -686,12 +687,17 @@ class AutomationProgramStore:
     def __init__(self) -> None:
         self._memory: dict[str, AutomationProgram] = {}
         self._lock = threading.Lock()
+        self._session = requests.Session()
+        self._timeout = (
+            float(os.environ.get("PB_CONNECT_TIMEOUT_S", "0.75")),
+            float(os.environ.get("PB_READ_TIMEOUT_S", "2.0")),
+        )
 
     @staticmethod
     def _pb() -> tuple[str, dict[str, str]]:
-        from pocketbase_logger import PB_URL, _headers
+        from repository import pocketbase_api_context
 
-        return PB_URL, _headers()
+        return pocketbase_api_context()
 
     @staticmethod
     def _payload(program: AutomationProgram) -> dict[str, Any]:
@@ -721,11 +727,11 @@ class AutomationProgramStore:
     def list(self) -> tuple[list[AutomationProgram], Literal["pocketbase", "memory"]]:
         try:
             base, headers = self._pb()
-            response = requests.get(
+            response = self._session.get(
                 f"{base}/api/collections/{self.collection}/records",
                 params={"sort": "-updated", "perPage": 200},
                 headers=headers,
-                timeout=(1, 2),
+                timeout=self._timeout,
             )
             response.raise_for_status()
             programs: list[AutomationProgram] = []
@@ -747,10 +753,10 @@ class AutomationProgramStore:
     def get(self, program_id: str) -> AutomationProgram | None:
         try:
             base, headers = self._pb()
-            response = requests.get(
+            response = self._session.get(
                 f"{base}/api/collections/{self.collection}/records/{program_id}",
                 headers=headers,
-                timeout=(1, 2),
+                timeout=self._timeout,
             )
             response.raise_for_status()
             return self._from_record(response.json())
@@ -763,18 +769,18 @@ class AutomationProgramStore:
         try:
             base, headers = self._pb()
             if program.id and not program.id.startswith("local_"):
-                response = requests.patch(
+                response = self._session.patch(
                     f"{base}/api/collections/{self.collection}/records/{program.id}",
                     json=payload,
                     headers=headers,
-                    timeout=(1, 2),
+                    timeout=self._timeout,
                 )
             else:
-                response = requests.post(
+                response = self._session.post(
                     f"{base}/api/collections/{self.collection}/records",
                     json=payload,
                     headers=headers,
-                    timeout=(1, 2),
+                    timeout=self._timeout,
                 )
             response.raise_for_status()
             saved = self._from_record(response.json())
@@ -792,10 +798,10 @@ class AutomationProgramStore:
     def delete(self, program_id: str) -> str:
         try:
             base, headers = self._pb()
-            response = requests.delete(
+            response = self._session.delete(
                 f"{base}/api/collections/{self.collection}/records/{program_id}",
                 headers=headers,
-                timeout=(1, 2),
+                timeout=self._timeout,
             )
             response.raise_for_status()
             persistence = "pocketbase"

@@ -2,7 +2,7 @@
 
 Matches generic test definitions against module instances on a test bench
 by comparing declared capabilities.  Produces a resolved execution plan
-that can be exported, filtered, and passed to the test runner.
+that can be filtered and executed by the API-owned scheduler.
 
 Usage::
 
@@ -15,7 +15,7 @@ Usage::
 
 from __future__ import annotations
 
-import fnmatch
+import hashlib
 import importlib
 import json
 import time
@@ -25,12 +25,13 @@ from pathlib import Path
 from typing import Any
 
 from config_models import (
+    AssignmentScope,
     BenchConfig,
+    ChannelDefinition,
     ModuleInstance,
     SafetyClass,
     TestDefinition,
     create_basic_test_definitions,
-    get_module_capabilities,
 )
 
 
@@ -45,7 +46,7 @@ def _cached_test_definitions() -> tuple[dict, ...]:
         return ()
         
     for file in tests_dir.glob("*.py"):
-        if file.name in ("__init__.py", "_base.py", "test_suite.py", "test_api.py"):
+        if file.name in ("__init__.py", "_base.py", "test_api.py"):
             continue
         try:
             module_name = f"tests.{file.stem}"
@@ -80,10 +81,12 @@ class ResolvedTestInstance:
     product_key: str
     module_address: int
     channel_id: str | None = None
+    channel_mode: str | None = None
     wiring_id: str | None = None
     parameters: dict[str, Any] = field(default_factory=dict)
     is_negative_test: bool = False
     safety_class: SafetyClass = SafetyClass.SAFE
+    can_run_parallel: bool = False
     source_instance_id: str | None = None
     target_instance_id: str | None = None
 
@@ -93,6 +96,8 @@ class ResolvedTestInstance:
         parts = [self.test_id, self.module_instance_id]
         if self.channel_id:
             parts.append(self.channel_id)
+        if self.channel_mode:
+            parts.append(self.channel_mode)
         if self.wiring_id:
             parts.append(self.wiring_id)
         return "-".join(parts)
@@ -122,6 +127,7 @@ class ExecutionPlan:
 
     test_bench_id: str
     test_bench_ip: str
+    plan_id: str = ""
     created_at: str = ""
     instances: list[ResolvedTestInstance] = field(default_factory=list)
 
@@ -133,6 +139,7 @@ class ExecutionPlan:
         return ExecutionPlan(
             test_bench_id=self.test_bench_id,
             test_bench_ip=self.test_bench_ip,
+            plan_id=self.plan_id,
             created_at=self.created_at,
             instances=[i for i in self.instances if i.test_id == test_id],
         )
@@ -141,16 +148,19 @@ class ExecutionPlan:
         return ExecutionPlan(
             test_bench_id=self.test_bench_id,
             test_bench_ip=self.test_bench_ip,
+            plan_id=self.plan_id,
             created_at=self.created_at,
             instances=[i for i in self.instances if i.safety_class == sc],
         )
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "plan_id": self.plan_id,
             "test_bench_id": self.test_bench_id,
             "test_bench_ip": self.test_bench_ip,
             "created_at": self.created_at,
             "total_instances": self.count,
+            "execution_policy": "serial_per_bench",
             "instances": [
                 {
                     "unique_id": i.unique_id,
@@ -162,10 +172,12 @@ class ExecutionPlan:
                     "product_key": i.product_key,
                     "module_address": i.module_address,
                     "channel_id": i.channel_id,
+                    "channel_mode": i.channel_mode,
                     "wiring_id": i.wiring_id,
                     "parameters": i.parameters,
                     "is_negative_test": i.is_negative_test,
                     "safety_class": i.safety_class.value,
+                    "can_run_parallel": i.can_run_parallel,
                 }
                 for i in self.instances
             ],
@@ -218,27 +230,36 @@ class TestResolver:
             for mod in config.module_instances:
                 if not self._matches_category(test_def, mod):
                     continue
-                # An explicit module override bypasses capability and glob
-                # matching, while category and exclusion rules still apply.
+                # An explicit module override bypasses capability matching,
+                # while category and exclusion rules still apply.
                 if mod.compatible_tests_override:
                     if test_def.test_id not in mod.compatible_tests_override:
                         continue
                 else:
                     if not self._matches_capabilities(test_def, config, mod):
                         continue
-                    if not self._matches_compatibility_pattern(test_def, mod):
-                        continue
                 if not self._matches_include_exclude(test_def, mod):
+                    continue
+                if (
+                    test_def.target_module_instance_ids
+                    and mod.instance_id not in test_def.target_module_instance_ids
+                ):
                     continue
 
                 is_negative = mod.is_negative_test_target
+
+                scope = test_def.assignment_scope
+                if test_def.required_wiring_type:
+                    scope = AssignmentScope.WIRING
+                elif test_def.required_channel_capabilities or test_def.required_channel_modes:
+                    scope = AssignmentScope.CHANNEL
 
                 # ── Singleton guard: system-wide tests emit exactly one instance ──
                 if test_def.singleton and singleton_emitted:
                     continue
 
                 # ── Module-level test (no channel/wiring needed) ──
-                if not test_def.required_wiring_type:
+                if scope in {AssignmentScope.MODULE, AssignmentScope.SYSTEM}:
                     instances.append(
                         ResolvedTestInstance(
                             test_id=test_def.test_id,
@@ -246,24 +267,72 @@ class TestResolver:
                             test_version=test_def.version,
                             module_instance_id=mod.instance_id,
                             module_code=mod.module_code,
-                            product_key=mod.product_key,
+                            product_key=mod.product_key or "",
                             module_address=mod.address,
                             parameters=dict(test_def.parameters),
                             is_negative_test=is_negative,
                             safety_class=test_def.safety_class,
+                            can_run_parallel=test_def.can_run_parallel,
                         )
                     )
                     singleton_emitted = True  # mark after first module-level instance
 
                 # ── Wiring-based tests ──
-                if test_def.required_wiring_type:
+                if scope == AssignmentScope.CHANNEL:
+                    module_type = config.module_types.get(mod.module_type_ref)
+                    if module_type is None:
+                        continue
+                    for channel in module_type.channels:
+                        if not self._channel_satisfies(test_def, channel):
+                            continue
+                        if test_def.required_channel_modes:
+                            modes = [
+                                mode for mode in test_def.required_channel_modes
+                                if mode in channel.supported_modes
+                            ]
+                        else:
+                            modes = [channel.current_mode or channel.default_mode or ""]
+                        for mode in modes or [""]:
+                            parameters = dict(test_def.parameters)
+                            parameters.update(
+                                {"channel_index": channel.index, "channel_name": channel.name}
+                            )
+                            if mode:
+                                parameters["channel_mode"] = mode
+                            instances.append(
+                                ResolvedTestInstance(
+                                    test_id=test_def.test_id,
+                                    test_name=test_def.name,
+                                    test_version=test_def.version,
+                                    module_instance_id=mod.instance_id,
+                                    module_code=mod.module_code,
+                                    product_key=mod.product_key or "",
+                                    module_address=mod.address,
+                                    channel_id=channel.name or str(channel.index),
+                                    channel_mode=mode or None,
+                                    parameters=parameters,
+                                    is_negative_test=is_negative,
+                                    safety_class=test_def.safety_class,
+                                    can_run_parallel=test_def.can_run_parallel,
+                                )
+                            )
+
+                if scope == AssignmentScope.WIRING:
                     for wire in config.wiring:
                         src_id = wire.source_instance_id
                         tgt_id = wire.target_instance_id
                         if mod.instance_id not in (src_id, tgt_id):
                             continue
-                        if wire.connection_type != test_def.required_wiring_type:
+                        if (
+                            test_def.required_wiring_type
+                            and wire.connection_type != test_def.required_wiring_type
+                        ):
                             continue
+                        bound_channel = (
+                            wire.source_channel
+                            if mod.instance_id == wire.source_instance_id
+                            else wire.target_channel
+                        )
                         instances.append(
                             ResolvedTestInstance(
                                 test_id=test_def.test_id,
@@ -271,14 +340,16 @@ class TestResolver:
                                 test_version=test_def.version,
                                 module_instance_id=mod.instance_id,
                                 module_code=mod.module_code,
-                                product_key=mod.product_key,
+                                product_key=mod.product_key or "",
                                 module_address=mod.address,
+                                channel_id=bound_channel,
                                 wiring_id=wire.id,
                                 source_instance_id=src_id,
                                 target_instance_id=tgt_id,
                                 parameters=dict(test_def.parameters),
                                 is_negative_test=is_negative,
                                 safety_class=test_def.safety_class,
+                                can_run_parallel=test_def.can_run_parallel,
                             )
                         )
                         singleton_emitted = True  # first wiring instance for singleton tests
@@ -297,10 +368,30 @@ class TestResolver:
                 seen.add(inst.unique_id)
                 deduped.append(inst)
 
+        created_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        digest_source = json.dumps(
+            {
+                "bench_id": config.test_bench.id,
+                "bench_ip": config.test_bench.ip_address,
+                "instances": [
+                    {
+                        "id": instance.unique_id,
+                        "parameters": instance.parameters,
+                        "negative": instance.is_negative_test,
+                        "safety": instance.safety_class.value,
+                    }
+                    for instance in deduped
+                ],
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        )
         return ExecutionPlan(
             test_bench_id=config.test_bench.id,
             test_bench_ip=config.test_bench.ip_address,
-            created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            plan_id="plan-" + hashlib.sha256(digest_source.encode("utf-8")).hexdigest()[:20],
+            created_at=created_at,
             instances=deduped,
         )
 
@@ -323,14 +414,24 @@ class TestResolver:
                 raise ValueError(f"Invalid channel label: {label!r}")
             return int(digits)
 
+        def capabilities(module: ModuleInstance) -> set[str]:
+            return config.module_capabilities(module)
+
         def is_counter_module(module: ModuleInstance) -> bool:
-            return module.display_name.upper().startswith("CPX-AP-I-16")
+            return "condition_counter" in capabilities(module)
 
         def can_drive(module: ModuleInstance, label: str) -> bool:
             key = str(channel_index(label))
             if key in module.port_directions:
                 return module.port_directions[key] is True
-            return module.num_outputs > 0
+            return module.num_outputs > 0 or "digital_output" in capabilities(module)
+
+        def can_count_input(module: ModuleInstance, label: str) -> bool:
+            key = str(channel_index(label))
+            if module.port_directions.get(key) is True:
+                return False
+            caps = capabilities(module)
+            return module.num_inputs > 0 or bool({"digital_input", "configurable_io"} & caps)
 
         # Output variants count their own switching cycles and need no external
         # wire.  For configurable variants, bench_config selects output ports.
@@ -367,7 +468,11 @@ class TestResolver:
                 (second, wire.target_channel, first, wire.source_channel),
             )
             for counter, counter_label, output, output_label in orientations:
-                if not is_counter_module(counter) or not can_drive(output, output_label):
+                if (
+                    not is_counter_module(counter)
+                    or not can_count_input(counter, counter_label)
+                    or not can_drive(output, output_label)
+                ):
                     continue
                 counter_key = str(channel_index(counter_label))
                 if counter.port_directions.get(counter_key) is True:
@@ -402,19 +507,8 @@ class TestResolver:
     ) -> bool:
         if not test.required_capabilities:
             return True
-        type_def = config.module_types.get(mod.module_type_ref)
-        if type_def is None:
-            # Fallback: infer capabilities dynamically if module_types is not in config
-            mod_caps = set(get_module_capabilities(mod.display_name, mod.category.value))
-        else:
-            mod_caps = set(type_def.capabilities)
+        mod_caps = config.module_capabilities(mod)
         return mod_caps.issuperset(test.required_capabilities)
-
-    @staticmethod
-    def _matches_compatibility_pattern(test: TestDefinition, mod: ModuleInstance) -> bool:
-        if not test.compatible_modules:
-            return True
-        return any(fnmatch.fnmatch(mod.display_name, pattern) for pattern in test.compatible_modules)
 
     @staticmethod
     def _matches_include_exclude(test: TestDefinition, mod: ModuleInstance) -> bool:
@@ -438,10 +532,14 @@ class TestResolver:
         return True
 
     @staticmethod
-    def _channel_satisfies(test: TestDefinition, channel_caps: list[str]) -> bool:
-        if not test.required_capabilities:
-            return False  # Don't generate channel tests without requirements
-        return set(channel_caps).issuperset(test.required_capabilities)
+    def _channel_satisfies(test: TestDefinition, channel: ChannelDefinition) -> bool:
+        if not set(channel.capabilities).issuperset(test.required_channel_capabilities):
+            return False
+        if test.required_channel_modes and not any(
+            mode in channel.supported_modes for mode in test.required_channel_modes
+        ):
+            return False
+        return True
 
     @staticmethod
     def _apply_filters(
@@ -480,14 +578,3 @@ class TestResolver:
         if filters.safety_class:
             result = [i for i in result if i.safety_class == filters.safety_class]
         return result
-
-    def dry_run(self, config: BenchConfig, filters: TestFilter | None = None) -> ExecutionPlan:
-        """Resolve tests without touching hardware (same as resolve, semantic alias)."""
-        return self.resolve(config, filters)
-
-    def export_plan(self, plan: ExecutionPlan, path: str) -> None:
-        """Save the resolved execution plan to a JSON file."""
-        out = Path(path)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        with open(out, "w", encoding="utf-8") as f:
-            json.dump(plan.to_dict(), f, indent=2)

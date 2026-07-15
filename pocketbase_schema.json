@@ -195,6 +195,21 @@
         "autogeneratePattern": "",
         "help": "",
         "hidden": false,
+        "id": "fld_000206",
+        "max": 0,
+        "min": 0,
+        "name": "event_type",
+        "pattern": "",
+        "presentable": false,
+        "primaryKey": false,
+        "required": false,
+        "system": false,
+        "type": "text"
+      },
+      {
+        "autogeneratePattern": "",
+        "help": "",
+        "hidden": false,
         "id": "fld_000205",
         "max": 0,
         "min": 0,
@@ -388,6 +403,14 @@
         "hidden": false,
         "id": "fld_000016",
         "name": "schema_version",
+        "type": "text"
+      },
+      {
+        "autogeneratePattern": "",
+        "help": "",
+        "hidden": false,
+        "id": "fld_000017",
+        "name": "error",
         "type": "text"
       },
       {
@@ -672,6 +695,122 @@
     "indexes": [
       "CREATE INDEX `idx_automation_name` ON `festo_automation_programs` (`name`)"
     ],
+    "system": false
+  },
+  {
+    "id": "pbc_festo_results",
+    "listRule": "",
+    "viewRule": "",
+    "createRule": "",
+    "updateRule": "",
+    "deleteRule": "",
+    "name": "festo_test_results",
+    "type": "base",
+    "fields": [
+      {"id":"tr_run","name":"run_id","type":"text","required":true},
+      {"id":"tr_test","name":"test_id","type":"text","required":true},
+      {"id":"tr_inst","name":"resolved_instance_id","type":"text","required":true},
+      {"id":"tr_name","name":"test_name","type":"text"},
+      {"id":"tr_ver","name":"test_version","type":"text"},
+      {"id":"tr_mod","name":"module_instance_id","type":"text"},
+      {"id":"tr_code","name":"module_code","type":"number"},
+      {"id":"tr_key","name":"product_key","type":"text"},
+      {"id":"tr_ch","name":"channel_id","type":"text"},
+      {"id":"tr_mode","name":"channel_mode","type":"text"},
+      {"id":"tr_wire","name":"wiring_id","type":"text"},
+      {"id":"tr_v","name":"verdict","type":"text","required":true},
+      {"id":"tr_start","name":"start_time","type":"text"},
+      {"id":"tr_end","name":"end_time","type":"text"},
+      {"id":"tr_dur","name":"duration_ms","type":"number"},
+      {"id":"tr_fail","name":"failure_reason","type":"text"},
+      {"id":"tr_exc","name":"exception_type","type":"text"},
+      {"id":"tr_stack","name":"stack_trace","type":"text"},
+      {"id":"tr_log","name":"raw_log_ref","type":"text"},
+      {"id":"tr_art","name":"artifact_ref","type":"text"},
+      {"id":"tr_time","name":"timestamp","type":"text"}
+    ],
+    "indexes": [
+      "CREATE INDEX `idx_results_run` ON `festo_test_results` (`run_id`)",
+      "CREATE UNIQUE INDEX `idx_results_instance` ON `festo_test_results` (`run_id`,`resolved_instance_id`)"
+    ],
+    "system": false
+  },
+  {
+    "id": "pbc_festo_plans",
+    "listRule": "",
+    "viewRule": "",
+    "createRule": "",
+    "updateRule": "",
+    "deleteRule": "",
+    "name": "festo_resolved_plans",
+    "type": "base",
+    "fields": [
+      {"id":"pl_id","name":"plan_id","type":"text","required":true},
+      {"id":"pl_run","name":"run_id","type":"text","required":true},
+      {"id":"pl_bench","name":"test_bench_id","type":"text"},
+      {"id":"pl_at","name":"created_at","type":"text"},
+      {"id":"pl_json","name":"plan","type":"json","required":true}
+    ],
+    "indexes": ["CREATE UNIQUE INDEX `idx_plan_id` ON `festo_resolved_plans` (`plan_id`)"] ,
+    "system": false
+  },
+  {
+    "id": "pbc_festo_modules",
+    "listRule": "",
+    "viewRule": "",
+    "createRule": "",
+    "updateRule": "",
+    "deleteRule": "",
+    "name": "festo_module_snapshots",
+    "type": "base",
+    "fields": [
+      {"id":"ms_run","name":"run_id","type":"text","required":true},
+      {"id":"ms_inst","name":"instance_id","type":"text","required":true},
+      {"id":"ms_code","name":"module_code","type":"number"},
+      {"id":"ms_key","name":"product_key","type":"text"},
+      {"id":"ms_fw","name":"firmware_version","type":"text"},
+      {"id":"ms_serial","name":"serial_number","type":"text"},
+      {"id":"ms_json","name":"snapshot","type":"json","required":true}
+    ],
+    "indexes": ["CREATE INDEX `idx_modules_run` ON `festo_module_snapshots` (`run_id`)"] ,
+    "system": false
+  },
+  {
+    "id": "pbc_festo_wiring",
+    "listRule": "",
+    "viewRule": "",
+    "createRule": "",
+    "updateRule": "",
+    "deleteRule": "",
+    "name": "festo_wiring_snapshots",
+    "type": "base",
+    "fields": [
+      {"id":"ws_run","name":"run_id","type":"text","required":true},
+      {"id":"ws_id","name":"wiring_id","type":"text","required":true},
+      {"id":"ws_json","name":"snapshot","type":"json","required":true}
+    ],
+    "indexes": ["CREATE INDEX `idx_wiring_run` ON `festo_wiring_snapshots` (`run_id`)"] ,
+    "system": false
+  },
+  {
+    "id": "pbc_festo_artifacts",
+    "listRule": "",
+    "viewRule": "",
+    "createRule": "",
+    "updateRule": "",
+    "deleteRule": "",
+    "name": "festo_artifacts",
+    "type": "base",
+    "fields": [
+      {"id":"ar_run","name":"run_id","type":"text","required":true},
+      {"id":"ar_result","name":"test_result_id","type":"text"},
+      {"id":"ar_kind","name":"kind","type":"text"},
+      {"id":"ar_name","name":"name","type":"text"},
+      {"id":"ar_file","name":"file","type":"file","maxSelect":1,"maxSize":52428800},
+      {"id":"ar_meta","name":"metadata","type":"json"},
+      {"id":"ar_time","name":"timestamp","type":"text"}
+    ],
+    "indexes": ["CREATE INDEX `idx_artifacts_run` ON `festo_artifacts` (`run_id`)"] ,
     "system": false
   }
 ]

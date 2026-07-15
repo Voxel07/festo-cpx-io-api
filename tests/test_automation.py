@@ -84,7 +84,7 @@ class AutomationEngineTests(unittest.TestCase):
         ],
     }
     store = AutomationProgramStore()
-    with patch.object(store, "_pb", return_value=("http://pocketbase", {})), patch("automation.requests.get", return_value=response):
+    with patch.object(store, "_pb", return_value=("http://pocketbase", {})), patch.object(store._session, "get", return_value=response):
       programs, persistence = store.list()
 
     self.assertEqual(persistence, "pocketbase")
