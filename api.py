@@ -147,6 +147,11 @@ async def hw_connect(request: HwConnectRequest):
     operations use this shared connection.
     """
     try:
+        if _test_run_lock.locked():
+            raise HTTPException(
+                status_code=409,
+                detail="A test run currently owns the hardware connection.",
+            )
         from safety import safety_controller
         safety_controller.assert_safe()
         automation_engine.stop(reset_outputs=True)
@@ -156,6 +161,8 @@ async def hw_connect(request: HwConnectRequest):
             "status": "connected",
             "ip_address": request.ip_address,
         })
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -180,6 +187,7 @@ async def hw_status():
         "connected": mgr.is_connected,
         "ip_address": mgr.ip_address if mgr.is_connected else None,
         "timeout": mgr.timeout if mgr.is_connected else None,
+        "test_running": _test_run_lock.locked(),
     })
 
 
@@ -1804,13 +1812,18 @@ async def get_system_diagnoses():
 @app.get("/pocketbase/health")
 async def pocketbase_health():
     """Check whether the PocketBase logging service is reachable."""
-    import os as _os
-
     import requests as _req
-    pb_url = _os.environ.get("PB_URL") or _os.environ.get("POCKETBASE_URL", "http://localhost:8090")
+    from repository import resolve_pocketbase_public_url, resolve_pocketbase_url
+
+    pb_url = resolve_pocketbase_url()
     try:
         r = await asyncio.to_thread(_req.get, f"{pb_url}/api/health", timeout=(1.5, 3))
-        return JSONResponse({"status": "ok", "url": pb_url, "http_status": r.status_code})
+        r.raise_for_status()
+        return JSONResponse({
+            "status": "ok",
+            "url": resolve_pocketbase_public_url(),
+            "http_status": r.status_code,
+        })
     except Exception as exc:
         return JSONResponse(
             {"status": "unreachable", "url": pb_url, "error": str(exc)},
@@ -2110,6 +2123,8 @@ def _execute_test_run_safe(
         loop = asyncio.get_event_loop()
 
     pb_tail = None
+    mgr = None
+    interactive_connection = None
 
     def _pb(call, *args):
         """Submit a PocketBase call to a background thread.  Best-effort only."""
@@ -2129,7 +2144,9 @@ def _execute_test_run_safe(
                 try:
                     result = done.result()
                     if result is False:
-                        _log("warning", f"PocketBase write failed ({call.__name__})")
+                        detail = pb_log.last_error
+                        suffix = f": {detail}" if detail else ""
+                        _log("warning", f"PocketBase write failed ({call.__name__}){suffix}")
                 except Exception:
                     pass
             f.add_done_callback(_check)
@@ -2259,6 +2276,7 @@ def _execute_test_run_safe(
         # Test workers own their hardware connection.  Close the interactive
         # connection first so no second Modbus client can overlap the plan.
         mgr = get_connection_manager()
+        interactive_connection = mgr.connection_settings()
         if mgr.is_connected:
             mgr.disconnect()
         from test_execution import execute_resolved_instance
@@ -2467,6 +2485,22 @@ def _execute_test_run_safe(
             _run_history.insert(0, history_entry)
             if len(_run_history) > 200:
                 _run_history.pop()
+        if interactive_connection is not None:
+            try:
+                from safety import safety_controller
+
+                safety_controller.assert_safe()
+                mgr.connect(
+                    interactive_connection.ip_address,
+                    interactive_connection.timeout,
+                )
+                _log(
+                    "info",
+                    f"Restored interactive hardware connection to "
+                    f"{interactive_connection.ip_address}",
+                )
+            except Exception as exc:
+                _log("warning", f"Could not restore interactive hardware connection: {exc}")
         for queue in list(_log_queues.get(run_id, [])):
             loop.call_soon_threadsafe(queue.put_nowait, None)
         loop.call_soon_threadsafe(_test_run_lock.release)
@@ -2789,6 +2823,11 @@ async def io_read_all():
     """Read all input, output, and inout channels for all modules."""
     mgr = get_connection_manager()
     if not mgr.is_connected:
+        if _test_run_lock.locked():
+            raise HTTPException(
+                status_code=409,
+                detail="A test run currently owns the hardware connection.",
+            )
         raise HTTPException(status_code=400, detail="Not connected.")
 
     def _do():

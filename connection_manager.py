@@ -23,9 +23,18 @@ from __future__ import annotations
 
 import threading
 from contextlib import suppress
+from dataclasses import dataclass
 from typing import Any
 
 from hal import CpxApHardware, HardwareInterface
+
+
+@dataclass(frozen=True)
+class ConnectionSettings:
+    """Immutable settings needed to restore an interactive connection."""
+
+    ip_address: str
+    timeout: float
 
 
 class ConnectionManager:
@@ -57,6 +66,13 @@ class ConnectionManager:
     def timeout(self) -> float:
         with self._lock:
             return self._timeout
+
+    def connection_settings(self) -> ConnectionSettings | None:
+        """Atomically snapshot the active interactive connection, if any."""
+        with self._lock:
+            if self._hw is None:
+                return None
+            return ConnectionSettings(self._ip, self._timeout)
 
     def connect(self, ip_address: str, timeout: float = 0) -> None:
         """Establish (or replace) the shared hardware connection."""

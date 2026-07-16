@@ -14,6 +14,7 @@ Usage::
 
 from __future__ import annotations
 
+import logging
 import os
 import threading
 import time
@@ -23,6 +24,22 @@ from datetime import datetime, timezone
 from typing import Any
 
 import requests
+
+logger = logging.getLogger(__name__)
+
+
+def resolve_pocketbase_url() -> str:
+    """Return the server-side PocketBase URL used by every API component."""
+    return (
+        os.environ.get("PB_URL")
+        or os.environ.get("POCKETBASE_URL")
+        or "http://localhost:8090"
+    ).rstrip("/")
+
+
+def resolve_pocketbase_public_url() -> str:
+    """Return the browser-reachable PocketBase URL used for realtime SSE."""
+    return os.environ.get("POCKETBASE_PUBLIC_URL", resolve_pocketbase_url()).rstrip("/")
 
 # ─── Domain records ───────────────────────────────────────────────────────────
 
@@ -172,13 +189,18 @@ class PocketBaseRepository(ResultRepository):
         url: str | None = None,
         username: str = "",
         password: str = "",
+        auth_collection: str = "",
     ) -> None:
-        self._url = (url or os.environ.get("PB_URL", "http://localhost:8090")).rstrip("/")
+        self._url = (url or resolve_pocketbase_url()).rstrip("/")
         self._username = username or os.environ.get("PB_USERNAME", "")
         self._password = password or os.environ.get("PB_PASSWORD", "")
+        self._auth_collection = (
+            auth_collection or os.environ.get("PB_AUTH_COLLECTION", "users")
+        ).strip()
         self._token: str | None = os.environ.get("POCKETBASE_TOKEN") or None
         self._token_expiry: float = 0
         self._auth_lock = threading.Lock()
+        self._request_state = threading.local()
         self._session = requests.Session()
         self._timeout = (
             float(os.environ.get("PB_CONNECT_TIMEOUT_S", "0.75")),
@@ -192,16 +214,19 @@ class PocketBaseRepository(ResultRepository):
         if configured_token:
             self._token = configured_token
             self._token_expiry = float("inf")
+            self._request_state.auth_error = ""
             return configured_token
         with self._auth_lock:
             if self._token and time.time() < self._token_expiry - 60:
+                self._request_state.auth_error = ""
                 return self._token
             if not self._username or not self._password:
                 self._token = None
+                self._request_state.auth_error = ""
                 return ""
             try:
                 resp = self._session.post(
-                    f"{self._url}/api/admins/auth-with-password",
+                    f"{self._url}/api/collections/{self._auth_collection}/auth-with-password",
                     json={"identity": self._username, "password": self._password},
                     timeout=self._timeout,
                 )
@@ -209,9 +234,11 @@ class PocketBaseRepository(ResultRepository):
                 data = resp.json()
                 self._token = data.get("token", "")
                 self._token_expiry = time.time() + 3600
+                self._request_state.auth_error = ""
                 return self._token
-            except Exception:
+            except Exception as exc:
                 self._token = None
+                self._request_state.auth_error = self._format_exception(exc)
                 return ""
 
     def _headers(self) -> dict[str, str]:
@@ -229,8 +256,9 @@ class PocketBaseRepository(ResultRepository):
                 headers=self._headers(),
                 timeout=self._timeout,
             )
-            return resp.status_code in (200, 201)
-        except Exception:
+            return self._record_response("POST", collection, resp, (200, 201))
+        except Exception as exc:
+            self._record_exception("POST", collection, exc)
             return False
 
     def _patch(self, collection: str, record_id: str, data: dict[str, Any]) -> bool:
@@ -241,9 +269,51 @@ class PocketBaseRepository(ResultRepository):
                 headers=self._headers(),
                 timeout=self._timeout,
             )
-            return resp.status_code in (200, 201)
-        except Exception:
+            return self._record_response("PATCH", collection, resp, (200, 201))
+        except Exception as exc:
+            self._record_exception("PATCH", collection, exc)
             return False
+
+    @staticmethod
+    def _format_exception(exc: BaseException) -> str:
+        response = getattr(exc, "response", None)
+        if response is not None:
+            body = (getattr(response, "text", "") or "").strip().replace("\n", " ")[:500]
+            return f"HTTP {response.status_code}: {body or response.reason}"
+        return f"{type(exc).__name__}: {exc}"
+
+    def _record_response(
+        self,
+        method: str,
+        collection: str,
+        response: requests.Response,
+        success_codes: tuple[int, ...],
+    ) -> bool:
+        if response.status_code in success_codes:
+            self._request_state.last_error = ""
+            self._request_state.auth_error = ""
+            return True
+        body = (response.text or "").strip().replace("\n", " ")[:500]
+        auth_error = getattr(self._request_state, "auth_error", "")
+        detail = f"{method} {collection}: HTTP {response.status_code}: {body or response.reason}"
+        if auth_error:
+            detail = f"{detail}; normal-user auth failed: {auth_error}"
+        self._request_state.last_error = detail
+        logger.warning("PocketBase request failed: %s", detail)
+        return False
+
+    def _record_exception(self, method: str, collection: str, exc: BaseException) -> None:
+        detail = f"{method} {collection}: {self._format_exception(exc)}"
+        auth_error = getattr(self._request_state, "auth_error", "")
+        if auth_error:
+            detail = f"{detail}; normal-user auth failed: {auth_error}"
+        self._request_state.last_error = detail
+        logger.warning("PocketBase request failed: %s", detail)
+
+    @property
+    def last_error(self) -> str:
+        """Diagnostic for the last failed request in the current worker thread."""
+        return getattr(self._request_state, "last_error", "")
 
     def _find_record(self, collection: str, filter_expr: str) -> dict[str, Any] | None:
         try:
@@ -254,10 +324,12 @@ class PocketBaseRepository(ResultRepository):
                 timeout=self._timeout,
             )
             if resp.status_code == 200:
+                self._record_response("GET", collection, resp, (200,))
                 items = resp.json().get("items", [])
                 return items[0] if items else None
-        except Exception:
-            pass
+            self._record_response("GET", collection, resp, (200,))
+        except Exception as exc:
+            self._record_exception("GET", collection, exc)
         return None
 
     # ── Public API ────────────────────────────────────────────────────────
@@ -301,6 +373,10 @@ class PocketBaseRepository(ResultRepository):
                     **({"results": results} if results is not None else {}),
                     **({"error": error} if error else {}),
                 },
+            )
+        if not self.last_error:
+            self._request_state.last_error = (
+                f"GET {COLL_TEST_RUNS}: no record found for run_id={run_id}"
             )
         return False
 
@@ -492,6 +568,11 @@ class ResultStore:
 
     def __init__(self, repository: ResultRepository | None = None) -> None:
         self.repository = repository or PocketBaseRepository()
+
+    @property
+    def last_error(self) -> str:
+        """Return the repository diagnostic associated with the current worker."""
+        return str(getattr(self.repository, "last_error", "") or "")
 
     def test_run_started(
         self,

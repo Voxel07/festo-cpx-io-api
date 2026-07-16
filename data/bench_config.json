@@ -152,10 +152,7 @@
       "excluded_tests": [],
       "is_negative_test_target": false,
       "mounted_valves": [
-        0,
-        1,
-        2,
-        3
+        1
       ],
       "valve_slots": 4,
       "num_inputs": 8,
@@ -184,7 +181,6 @@
       "is_negative_test_target": false,
       "mounted_valves": [
         0,
-        1,
         2,
         3
       ],
@@ -333,7 +329,6 @@
         1,
         2,
         3,
-        4,
         5,
         6,
         7,

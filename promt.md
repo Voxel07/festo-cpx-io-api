@@ -36,6 +36,17 @@ This is implementation verification, not a hardware qualification statement. Com
 - DIO ports can connect to everything the port then has to be configured to be the opposit to of what it was connected to
 - There are modules NDI or NDIO which are negative latching they can not be connected to normal DIO or DO DI modules.
 
+## Test runner
+ - The test runner tab should show all available tests
+ - The module under test should be heighleited in the topology map
+ - There should be a progress that shows which modules will be tested for the current test and the state to the running test
+ - There should be a live log that show all events and erros that happen during the test
+ - The test results should be stored in a db
+
+## History
+ - This should be a paginated list that shows all previos run testcases
+ - It should be possible to open each test run and inspect the results
+
 ## Non-negotiable architecture rules
 
 1. FastAPI is the only hardware-test execution boundary.

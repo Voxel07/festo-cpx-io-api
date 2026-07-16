@@ -28,8 +28,10 @@ services:
 
     environment:
       - POCKETBASE_URL=http://pocketbase:8090
+      - POCKETBASE_PUBLIC_URL=${POCKETBASE_PUBLIC_URL:-http://localhost:8090}
       - PB_USERNAME=${PB_USERNAME:-}
       - PB_PASSWORD=${PB_PASSWORD:-}
+      - PB_AUTH_COLLECTION=${PB_AUTH_COLLECTION:-users}
       - CPX_IP=${CPX_IP:-192.168.0.11}
       - TESTBENCH_ID=${TESTBENCH_ID:-default}
       - IO_AUTO_RESET_S=${IO_AUTO_RESET_S:-60}
@@ -56,6 +58,8 @@ services:
       - "8090:8090"
     volumes:
       - pb_data:/pb/pb_data
+      - ./pocketbase_schema.json:/pb/pocketbase_schema.json:ro
+      - ./pb_migrations:/pb/pb_migrations:ro
     restart: unless-stopped
 
 volumes:
