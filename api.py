@@ -173,6 +173,11 @@ async def hw_disconnect():
 
     All outputs are reset to LOW before disconnecting.
     """
+    if _test_run_lock.locked():
+        raise HTTPException(
+            status_code=409,
+            detail="A test run currently owns the hardware connection.",
+        )
     automation_engine.stop(reset_outputs=True)
     mgr = get_connection_manager()
     mgr.disconnect()
@@ -1290,6 +1295,26 @@ async def start_test_run(request: StartTestRunRequest):
 
     await _test_run_lock.acquire()
 
+    # Capture the interactive session while the test-run lock prevents any
+    # concurrent connect/disconnect request.  A run is only accepted when it
+    # can restore the exact session it temporarily takes over.
+    interactive_connection = get_connection_manager().connection_settings()
+    if interactive_connection is None:
+        _test_run_lock.release()
+        raise HTTPException(
+            status_code=409,
+            detail="Connect to hardware before starting a test run.",
+        )
+    if interactive_connection.ip_address != request.ip_address:
+        _test_run_lock.release()
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"The active hardware connection uses {interactive_connection.ip_address!r}; "
+                f"connect to {request.ip_address!r} before starting this test run."
+            ),
+        )
+
     _abort_flag = False
     run_id = f"run-{uuid.uuid4().hex}"
     _current_test_run = {
@@ -1311,19 +1336,25 @@ async def start_test_run(request: StartTestRunRequest):
     # Pass the event loop explicitly — the function runs in a thread pool
     # where asyncio.get_running_loop() would fail.
     loop = asyncio.get_running_loop()
-    loop.run_in_executor(
-        None,
-        _execute_test_run_safe,
-        run_id,
-        request.ip_address,
-        str(config_path),
-        requested,
-        request.source,
-        loop,  # <-- event loop passed explicitly
-        bench_config,
-        plan,
-        request.per_test_timeout_s,
-    )
+    try:
+        loop.run_in_executor(
+            None,
+            _execute_test_run_safe,
+            run_id,
+            request.ip_address,
+            str(config_path),
+            requested,
+            request.source,
+            loop,  # <-- event loop passed explicitly
+            bench_config,
+            plan,
+            request.per_test_timeout_s,
+            interactive_connection,
+        )
+    except Exception as exc:
+        _current_test_run = None
+        _test_run_lock.release()
+        raise HTTPException(status_code=500, detail=f"Could not schedule test run: {exc}") from exc
 
     return JSONResponse({"run_id": run_id, "status": "started"})
 
@@ -2108,6 +2139,7 @@ def _execute_test_run_safe(
     bench_config=None,
     plan=None,
     per_test_timeout_s: float = 300.0,
+    interactive_connection=None,
 ) -> None:
     """Execute an API-resolved plan with process-isolated safety timeouts.
 
@@ -2124,7 +2156,6 @@ def _execute_test_run_safe(
 
     pb_tail = None
     mgr = None
-    interactive_connection = None
 
     def _pb(call, *args):
         """Submit a PocketBase call to a background thread.  Best-effort only."""
@@ -2276,7 +2307,6 @@ def _execute_test_run_safe(
         # Test workers own their hardware connection.  Close the interactive
         # connection first so no second Modbus client can overlap the plan.
         mgr = get_connection_manager()
-        interactive_connection = mgr.connection_settings()
         if mgr.is_connected:
             mgr.disconnect()
         from test_execution import execute_resolved_instance
@@ -2490,7 +2520,8 @@ def _execute_test_run_safe(
                 from safety import safety_controller
 
                 safety_controller.assert_safe()
-                mgr.connect(
+                restore_manager = mgr or get_connection_manager()
+                restore_manager.connect(
                     interactive_connection.ip_address,
                     interactive_connection.timeout,
                 )

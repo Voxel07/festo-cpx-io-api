@@ -114,6 +114,16 @@ class HardwareInterface(ABC):
     def read_diagnosis(self, address: int) -> Any:
         """Read diagnosis information from a module."""
 
+    def read_diagnosis_channel(self, address: int) -> int | None:
+        """Return the channel number associated with the current diagnosis, or ``None``.
+
+        The channel is stored in the first register of the module's diagnosis
+        system-entry block (same source used by the ``/io/diagnoses`` API
+        endpoint).  The default implementation returns ``None``; subclasses
+        that have access to the raw register bus override this.
+        """
+        return None
+
     @abstractmethod
     def module_supports_channel_write(self, address: int) -> bool:
         """Check whether individual channel writes are supported."""
@@ -278,6 +288,22 @@ class CpxApHardware(HardwareInterface):
     def read_diagnosis(self, address: int) -> Any:
         mod = self._get_module(address)
         return mod.read_diagnosis_information()
+
+    def read_diagnosis_channel(self, address: int) -> int | None:
+        """Return the channel index from the diagnosis register block.
+
+        Mirrors the channel extraction performed by the ``/io/diagnoses``
+        endpoint: the first register of the module's diagnosis system-entry
+        holds the affected channel number as a little-endian integer.
+        """
+        mod = self._get_module(address)
+        try:
+            channel_reg = mod.base.read_reg_data(
+                mod.system_entry_registers.diagnosis, length=1
+            )
+            return int.from_bytes(channel_reg, byteorder="little")
+        except Exception:
+            return None
 
     def module_supports_channel_write(self, address: int) -> bool:
         mod = self._get_module(address)

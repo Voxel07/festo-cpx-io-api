@@ -481,15 +481,19 @@ class PocketBaseRepository(ResultRepository):
     def save_execution_context(self, run_id: str, plan: Any, config: Any) -> bool:
         """Persist the plan and immutable module/wiring snapshots for a run."""
         plan_payload = plan.to_dict() if hasattr(plan, "to_dict") else dict(plan)
-        ok = self._post(COLL_PLANS, {
+        if not self._post(COLL_PLANS, {
             "plan_id": plan_payload.get("plan_id", ""),
             "run_id": run_id,
             "test_bench_id": plan_payload.get("test_bench_id", ""),
             "created_at": plan_payload.get("created_at", _utc_now()),
             "plan": plan_payload,
-        })
+        }):
+            # Preserve the exact failing response in ``last_error``. Continuing
+            # with successful snapshot writes would clear it and leave callers
+            # with only the generic save_execution_context warning.
+            return False
         for module in config.module_instances:
-            ok = self._post(COLL_MODULE_SNAPSHOTS, {
+            if not self._post(COLL_MODULE_SNAPSHOTS, {
                 "run_id": run_id,
                 "instance_id": module.instance_id,
                 "module_code": module.module_code,
@@ -497,14 +501,16 @@ class PocketBaseRepository(ResultRepository):
                 "firmware_version": module.firmware_version or "",
                 "serial_number": module.serial_number or "",
                 "snapshot": module.model_dump(mode="json"),
-            }) and ok
+            }):
+                return False
         for wire in config.wiring:
-            ok = self._post(COLL_WIRING_SNAPSHOTS, {
+            if not self._post(COLL_WIRING_SNAPSHOTS, {
                 "run_id": run_id,
                 "wiring_id": wire.id,
                 "snapshot": wire.model_dump(mode="json"),
-            }) and ok
-        return ok
+            }):
+                return False
+        return True
 
     def delete_run(self, run_id: str) -> bool:
         existing = self._find_record(COLL_TEST_RUNS, f"(run_id='{run_id}')")

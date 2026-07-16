@@ -255,7 +255,8 @@
       "capabilities": [
         "system_diagnosis",
         "digital_output",
-        "valve_output"
+        "valve_output",
+        "remanent_params"
       ],
       "firmware_version": null,
       "serial_number": null,
@@ -316,7 +317,8 @@
       "capabilities": [
         "digital_output",
         "valve_output",
-        "remanent_params"
+        "remanent_params",
+        "valve_condition_counter"
       ],
       "firmware_version": null,
       "serial_number": null,

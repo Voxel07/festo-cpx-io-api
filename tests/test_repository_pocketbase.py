@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
 import os
 import unittest
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import requests
@@ -37,6 +40,29 @@ def response(status: int, body: str = "{}") -> requests.Response:
 
 
 class PocketBaseRepositoryTests(unittest.TestCase):
+    def test_resolved_plan_schema_allows_same_plan_across_runs(self) -> None:
+        schema = json.loads(
+            (Path(__file__).parents[1] / "pocketbase_schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        collection = next(
+            item for item in schema if item["name"] == "festo_resolved_plans"
+        )
+
+        self.assertIn(
+            "CREATE INDEX `idx_plan_id` ON `festo_resolved_plans` (`plan_id`)",
+            collection["indexes"],
+        )
+        self.assertIn(
+            "CREATE UNIQUE INDEX `idx_plans_run_id` ON `festo_resolved_plans` (`run_id`)",
+            collection["indexes"],
+        )
+        self.assertNotIn(
+            "CREATE UNIQUE INDEX `idx_plan_id` ON `festo_resolved_plans` (`plan_id`)",
+            collection["indexes"],
+        )
+
     def test_resolve_url_accepts_long_environment_name(self) -> None:
         with patch.dict(
             os.environ,
@@ -99,6 +125,27 @@ class PocketBaseRepositoryTests(unittest.TestCase):
             )
             self.assertIn("HTTP 400", repository.last_error)
             self.assertIn("validation failed", repository.last_error)
+
+    def test_execution_context_stops_at_first_failure_and_preserves_error(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            repository = PocketBaseRepository("https://pb.example.test")
+            repository._session = FakeSession([
+                response(400, '{"message":"plan_id must be unique"}'),
+                response(201),
+            ])
+            plan = {
+                "plan_id": "stable-plan-id",
+                "test_bench_id": "bench-1",
+                "created_at": "2026-07-17T12:00:00Z",
+            }
+            config = SimpleNamespace(
+                module_instances=[SimpleNamespace()],
+                wiring=[],
+            )
+
+            self.assertFalse(repository.save_execution_context("run-2", plan, config))
+            self.assertEqual(len(repository._session.calls), 1)
+            self.assertIn("plan_id must be unique", repository.last_error)
 
 
 if __name__ == "__main__":

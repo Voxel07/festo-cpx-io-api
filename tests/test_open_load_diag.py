@@ -396,7 +396,7 @@ def run(
 
             if diag_id is not None:
                 actual_base = diag_id & 0xFFFF00FF
-                actual_channel = (diag_id >> 8) & 0xFF
+                actual_channel = hw.read_diagnosis_channel(addr)
                 actual_diag_locations = [{
                     "channel": actual_channel,
                     "diag_id": _format_diag_id(diag_id),
@@ -417,13 +417,19 @@ def run(
                     log("info", f"    [4] ✓ {detail}")
                 else:
                     diag_ok = False
-                    detail = f"Unexpected diagnosis {_format_diag_id(diag_id)} on ch {actual_channel}"
+                    detail = (
+                        f"Unexpected diagnosis {_format_diag_id(diag_id)} "
+                        f"on ch {actual_channel}"
+                    )
                     log("warning", f"    [4] ✗ {detail}")
                     result["error"] = detail
             else:
                 if diag_id is None:
                     diag_ok = False
-                    detail = f"No diagnosis active; expected on channels {expected_channels}"
+                    detail = (
+                        f"No diagnosis active; expected {_format_diag_id(expected_diag_id)} "
+                        f"on channels {expected_channels}"
+                    )
                     log("warning", f"    [4] ✗ {detail}")
                     result["error"] = detail
                 elif actual_base == expected_base and actual_channel in expected_channels:
@@ -444,15 +450,15 @@ def run(
                     result["error"] = detail
 
             log("info", f"OPEN_LOAD_ACTUAL|{addr}|{actual_channel if actual_channel is not None else 'none'}")
-            
+
             # Print list for live log
             log("info", "    [4] Expected vs actual:")
             if expected_channels:
                 log("info", "        Expected diag")
                 for ch in expected_channels:
-                    ch_status = "got diag" if ch == actual_channel else "did not get"
+                    ch_status = "got diag ✓" if ch == actual_channel else "did not get"
                     log("info", f"        - Channel {ch} -> {ch_status}")
-            
+
             unexpected_ch = [ch for ch in range(num_channels) if ch not in expected_channels]
             if unexpected_ch:
                 log("info", "        No diag expected")

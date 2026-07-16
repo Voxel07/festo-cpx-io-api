@@ -18,7 +18,7 @@ TEST_DEFINITION = {
     "name": "DIO Toggle",
     "version": "1.0.0",
     "description": "Configure DIO channels to output mode, toggle ON/OFF, and restore to input mode",
-    "required_capabilities": [],
+    "required_capabilities": [ "configurable_io",],
     "supported_categories": [
         "inout"
     ],

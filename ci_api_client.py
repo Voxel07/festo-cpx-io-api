@@ -68,8 +68,22 @@ def run(base_url: str, config_path: str, output: Path, junit: Path) -> int:
     ))
     if not test_ids:
         raise RuntimeError("The API resolved an empty execution plan")
+    ip_address = os.environ.get("CPX_IP") or execution_plan.get("test_bench_ip")
+    if not ip_address:
+        raise RuntimeError("No hardware IP was provided by CPX_IP or the resolved plan")
+
+    hardware_status = _request(base_url, "GET", "/hw/status")
+    if (
+        not hardware_status.get("connected")
+        or hardware_status.get("ip_address") != ip_address
+    ):
+        _request(base_url, "POST", "/hw/connect", {
+            "ip_address": ip_address,
+            "timeout": float(os.environ.get("CPX_TIMEOUT", "0")),
+        })
+
     start = _request(base_url, "POST", "/test-run/start", {
-        "ip_address": os.environ.get("CPX_IP") or execution_plan.get("test_bench_ip"),
+        "ip_address": ip_address,
         "config_path": config_path,
         "tests": test_ids,
         "source": "ci",
@@ -109,4 +123,3 @@ if __name__ == "__main__":
     except Exception as exc:
         print(f"CI API client failed: {exc}", file=sys.stderr)
         raise SystemExit(2)
-

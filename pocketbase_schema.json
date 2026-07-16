@@ -751,7 +751,10 @@
       {"id":"pl_at","name":"created_at","type":"text"},
       {"id":"pl_json","name":"plan","type":"json","required":true}
     ],
-    "indexes": ["CREATE UNIQUE INDEX `idx_plan_id` ON `festo_resolved_plans` (`plan_id`)"] ,
+    "indexes": [
+      "CREATE INDEX `idx_plan_id` ON `festo_resolved_plans` (`plan_id`)",
+      "CREATE UNIQUE INDEX `idx_plans_run_id` ON `festo_resolved_plans` (`run_id`)"
+    ],
     "system": false
   },
   {
