@@ -1,86 +1,109 @@
 {
   "VABX-A-S-EL-E12-API": {
     "category": "Interface",
+    "capabilities": ["system_diagnosis"],
     "mounted_valves": [],
     "valve_slots": null
   },
+  "VABX-A-P-EL-E12-API": {
+    "category": "Interface",
+    "capabilities": ["system_diagnosis", "digital_output", "valve_output"],
+    "mounted_valves": [],
+    "valve_slots": 32
+  },
   "VABX-A-S-EL-E12-APA": {
     "category": "Interface",
+    "capabilities": ["system_diagnosis"],
     "mounted_valves": [],
     "valve_slots": null
   },
   "VABX-A-S-EL-E34-API": {
     "category": "Interface",
+    "capabilities": ["system_diagnosis"],
     "mounted_valves": [],
     "valve_slots": null
   },
   "VABX-A-S-EL-E34-APA": {
     "category": "Interface",
+    "capabilities": ["system_diagnosis"],
     "mounted_valves": [],
     "valve_slots": null
   },
   "VMPAL-EPL-AP": {
     "category": "valve",
+    "capabilities": ["digital_output", "valve_output", "remanent_params"],
     "mounted_valves": [],
     "valve_slots": 16
   },
   "CPX-AP-A-EPLI": {
     "category": "bus",
+    "capabilities": ["system_diagnosis"],
     "mounted_valves": [],
     "valve_slots": null
   },
   "CPX-AP-A-EPLI-S": {
     "category": "bus",
+    "capabilities": ["system_diagnosis"],
     "mounted_valves": [],
     "valve_slots": null
   },
   "CPX-AP-A-EP-M12": {
     "category": "bus",
+    "capabilities": ["system_diagnosis"],
     "mounted_valves": [],
     "valve_slots": null
   },
   "CPX-AP-A-12DI4DO-M12-5P": {
     "category": "inout",
+    "capabilities": ["digital_input", "digital_output", "configurable_io", "remanent_params"],
     "mounted_valves": [],
     "valve_slots": null
   },
   "CPX-AP-A-8HDO-M12-5P": {
     "category": "output",
+    "capabilities": ["digital_output", "remanent_params"],
     "mounted_valves": [],
     "valve_slots": null
   },
   "CPX-AP-A-16DI-D-M12-5P": {
     "category": "input",
+    "capabilities": ["digital_input", "remanent_params"],
     "mounted_valves": [],
     "valve_slots": null
   },
   "CPX-AP-A-8DO-PI": {
     "category": "output",
+    "capabilities": ["digital_output", "remanent_params"],
     "mounted_valves": [],
     "valve_slots": null
   },
   "CPX-AP-A-8DO-M12-5P": {
     "category": "output",
+    "capabilities": ["digital_output", "remanent_params"],
     "mounted_valves": [],
     "valve_slots": null
   },
   "CPX-AP-I-4DI-M8-3P": {
     "category": "input",
+    "capabilities": ["digital_input", "remanent_params"],
     "mounted_valves": [],
     "valve_slots": null
   },
   "VABX-A-S-BV-V4A": {
     "category": "valve",
+    "capabilities": ["digital_output", "valve_output", "remanent_params"],
     "mounted_valves": [],
     "valve_slots": 4
   },
   "VABX-A-S-BV-V4B": {
     "category": "valve",
+    "capabilities": ["digital_output", "valve_output", "remanent_params"],
     "mounted_valves": [],
     "valve_slots": 4
   },
   "VABX-A-S-BV-V4C": {
     "category": "valve",
+    "capabilities": ["digital_output", "valve_output", "remanent_params"],
     "mounted_valves": [],
     "valve_slots": 4
   },
@@ -128,22 +151,32 @@
   },
   "CPX-AP-L-16DIO-PI": {
     "category": "inout",
+    "capabilities": ["digital_input", "digital_output", "configurable_io", "remanent_params"],
     "mounted_valves": [],
     "valve_slots": null
   },
   "CPX-AP-L-16NDI-PI": {
     "category": "input",
+    "capabilities": ["digital_input", "remanent_params"],
     "mounted_valves": [],
     "valve_slots": null
   },
   "VAEM-L1-S-12-AP": {
     "category": "valve",
+    "capabilities": ["digital_output", "valve_output", "remanent_params"],
     "mounted_valves": [],
     "valve_slots": 12
   },
   "VAEM-L1-S-24-AP": {
     "category": "valve",
+    "capabilities": ["digital_output", "valve_output", "remanent_params"],
     "mounted_valves": [],
     "valve_slots": 24
+  },
+  "VABA-S6-1-X5-F5": {
+    "category": "valve",
+    "capabilities": ["digital_output", "valve_output", "remanent_params"],
+    "mounted_valves": [],
+    "valve_slots": 32
   }
 }

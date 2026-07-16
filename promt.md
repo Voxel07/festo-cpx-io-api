@@ -21,6 +21,21 @@ The action plan from the architecture review has been implemented:
 
 This is implementation verification, not a hardware qualification statement. Compilation, configuration loading, plan resolution, API route checks, frontend production builds, and React Doctor were exercised without a live CPX-AP bench. Hardware-in-the-loop behavior and PocketBase schema import still require the target environment.
 
+## Topology
+- The topology reader should read in the details of the currently connected system and give the option to sotre it to a file as well as compare the live config to an sotred on
+- The config should incldde : - Position, Ordercode, Number of valves if its a valve terminal 
+
+## Connections 
+- There should be a tool to connect modules inputs and ouptus together the ruels are:
+- M12 have 2 channels per connector M8 1 channel per connecotr
+- If M12 is connected to m12 connect bot channels If m12 is connected to m8 then conly on channel can be connected. There should be a selector
+- There should be a modal to select channel mode or port mode
+- DI connectos to DO modules 
+- DIDO modules can connect to bot and internaly. But only input to ouput not the same port
+- DIO modules have ports that can be bot input and outpt its configurable per channel 
+- DIO ports can connect to everything the port then has to be configured to be the opposit to of what it was connected to
+- There are modules NDI or NDIO which are negative latching they can not be connected to normal DIO or DO DI modules.
+
 ## Non-negotiable architecture rules
 
 1. FastAPI is the only hardware-test execution boundary.

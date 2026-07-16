@@ -402,6 +402,35 @@ def _enrich_generated_metadata(config: BenchConfig) -> None:
                     tdef.channels.append(ChannelDefinition(index=ch_idx, name=f"X{ch_idx}", capabilities=ch_caps))
 
 
+def _preserve_mounted_valve_metadata(config: BenchConfig, existing: BenchConfig) -> None:
+    """Copy installation-authored valve data onto a freshly discovered config."""
+    existing_by_product_key = {
+        inst.product_key: inst
+        for inst in existing.module_instances
+        if inst.product_key
+    }
+    existing_by_address = {inst.address: inst for inst in existing.module_instances}
+
+    for inst in config.module_instances:
+        previous = (
+            existing_by_product_key.get(inst.product_key)
+            if inst.product_key
+            else None
+        )
+        address_match = existing_by_address.get(inst.address)
+        if previous is None and address_match and address_match.module_code == inst.module_code:
+            previous = address_match
+        if previous is None:
+            continue
+
+        inst.mounted_valves = list(previous.mounted_valves)
+        if previous.valve_slots is not None:
+            inst.valve_slots = previous.valve_slots
+            type_def = config.module_types.get(inst.module_type_ref)
+            if type_def is not None:
+                type_def.valve_count = previous.valve_slots
+
+
 @app.get("/", response_class=FileResponse, include_in_schema=False)
 async def ui():
     """Serve the built React SPA (production). During development use the Vite dev server."""
@@ -463,7 +492,7 @@ async def generate_config(request: ConfigGenerateRequest):
                 if existing.wiring:
                     config.wiring = existing.wiring
                 # Preserve concrete per-product configuration when regenerating.
-                existing_valves: dict[int, list[int]] = {}
+                _preserve_mounted_valve_metadata(config, existing)
                 existing_capabilities_by_key = {
                     inst.product_key: list(inst.capabilities)
                     for inst in existing.module_instances
@@ -474,13 +503,7 @@ async def generate_config(request: ConfigGenerateRequest):
                     for inst in existing.module_instances
                     if inst.capabilities is not None
                 }
-                for inst in (existing.module_instances or []):
-                    mv = inst.mounted_valves
-                    if mv is not None and len(mv) >= 0:
-                        existing_valves[inst.address] = list(mv)
                 for inst in (config.module_instances or []):
-                    if inst.address in existing_valves:
-                        inst.mounted_valves = existing_valves[inst.address]
                     preserved = (
                         existing_capabilities_by_key.get(inst.product_key)
                         if inst.product_key
