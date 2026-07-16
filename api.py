@@ -1735,10 +1735,7 @@ async def write_module_parameter(
 
 
 @app.get("/io/diagnoses")
-async def get_system_diagnoses(
-    ip_address: str = Query(..., description="IP of the CPX-AP gateway"),
-    timeout: float = Query(0.0),
-):
+async def get_system_diagnoses():
     """Retrieve all active diagnoses raised in the system across all modules."""
     import asyncio
 
