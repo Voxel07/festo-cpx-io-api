@@ -7,7 +7,7 @@
   },
   "VABX-A-P-EL-E12-API": {
     "category": "Interface",
-    "capabilities": ["system_diagnosis", "digital_output", "valve_output"],
+    "capabilities": ["system_diagnosis", "digital_output", "valve_output", "remanent_params"],
     "mounted_valves": [],
     "valve_slots": 32
   },
@@ -31,7 +31,7 @@
   },
   "VMPAL-EPL-AP": {
     "category": "valve",
-    "capabilities": ["digital_output", "valve_output", "remanent_params"],
+    "capabilities": ["digital_output", "valve_output", "remanent_params", "valve_condition_counter"],
     "mounted_valves": [],
     "valve_slots": 16
   },

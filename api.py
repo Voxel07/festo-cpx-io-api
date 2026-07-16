@@ -386,7 +386,10 @@ def _enrich_generated_metadata(config: BenchConfig) -> None:
                 if "num_inputs" in match: tdef.num_inputs = match["num_inputs"] or 0
                 if "num_outputs" in match: tdef.num_outputs = match["num_outputs"] or 0
                 if "num_inouts" in match: tdef.num_configurable = match["num_inouts"] or 0
-                if "valve_slots" in match: tdef.valve_count = match["valve_slots"] or 0
+                if "valve_slots" in match:
+                    tdef.valve_count = match["valve_slots"] or 0
+                    if tdef.valve_count > 0 and tdef.num_outputs > 0:
+                        tdef.channels_per_valve = max(1, tdef.num_outputs // tdef.valve_count)
                 
                 # Rebuild channels
                 max_ch = max(tdef.num_inputs, tdef.num_outputs, tdef.num_configurable, 8)

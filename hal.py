@@ -50,7 +50,7 @@ class ModuleInfo:
 
     @property
     def is_valve(self) -> bool:
-        return self.name.upper().startswith("VABX")
+        return self.name.upper().startswith(("VABX", "VMPAL", "VAEM", "VABA", "VTUX"))
 
 
 # ─── Abstract interface ───────────────────────────────────────────────────────

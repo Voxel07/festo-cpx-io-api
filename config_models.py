@@ -742,7 +742,9 @@ class BenchConfig(BaseModel):
                     category=cat,
                     module_type_ref=type_ref,
                     capabilities=caps,
-                    mounted_valves=list(range(16)) if cat == ModuleCategory.VALVE else [],
+                    # Mounted valves are installation metadata and cannot be
+                    # discovered from the live AP topology.
+                    mounted_valves=[],
                     num_inputs=m.num_inputs,
                     num_outputs=m.num_outputs,
                     num_inouts=m.num_inouts,
@@ -826,7 +828,7 @@ def create_basic_test_definitions() -> list[TestDefinition]:
             version="1.0.0",
             description="Toggle all valve channels ON/OFF and verify state changes",
             required_capabilities=["valve_output"],
-            supported_categories=[ModuleCategory("valve")],
+            supported_categories=[ModuleCategory("valve"), ModuleCategory("interface")],
             safety_class=SafetyClass.CAUTION,
             allowed_in_ci=True,
             can_run_parallel=False,

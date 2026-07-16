@@ -11,6 +11,7 @@ from typing import Any
 
 from config_models import BenchConfig
 from hal import HardwareInterface
+from valve_channels import expand_valve_indices
 
 from ._base import LogFn, load_bench_config, noop_log
 
@@ -23,7 +24,8 @@ TEST_DEFINITION = {
         "valve_output"
     ],
     "supported_categories": [
-        "valve"
+        "valve",
+        "interface"
     ],
     "safety_class": "caution",
     "allowed_in_ci": True,
@@ -59,17 +61,32 @@ def run(
     pause_between_modules_s = 0.3
 
     topology = hw.read_topology()
-    valve_mods = [m for m in topology if m.is_valve]
     if module_address is not None:
-        valve_mods = [m for m in valve_mods if m.address == module_address]
+        # The resolver already verified the configured capability/category.
+        # Do not apply a second, product-name based valve filter here.
+        valve_mods = [m for m in topology if m.address == module_address]
+    else:
+        valve_addresses = {
+            module.address
+            for module in bench_config.module_instances
+            if "valve_output" in bench_config.module_capabilities(module)
+        }
+        valve_mods = [m for m in topology if m.address in valve_addresses]
 
     if not valve_mods:
-        log("warning", "No valve modules found on bus")
-        return [{
-            "test": "valve-toggle",
-            "passed": None,
-            "error": "No valve modules found",
-        }]
+        error = "Resolved valve module was not found in the live topology"
+        log("warning", error)
+        result = {
+            "test_id": "valve-toggle",
+            "address": module_address,
+            "passed": False,
+            "error": error,
+            "channels": [],
+        }
+        if on_result:
+            with contextlib.suppress(Exception):
+                on_result(result)
+        return [result]
 
     log("info", f"Found {len(valve_mods)} valve module(s): "
         f"{[f'#{m.address} {m.name}' for m in valve_mods]}")
@@ -77,12 +94,22 @@ def run(
     results: list[dict] = []
 
     for mod in valve_mods:
-        total_channels = mod.num_outputs + mod.num_inouts
-        cpv = bench_config.module_type_at(mod.address).channels_per_valve if mod.is_valve else 0
-        extra_info = ""
-        if mod.is_valve and cpv > 0:
-            n_valves = total_channels // cpv
-            extra_info = f"  ({n_valves} valves × {cpv}c/valve)"
+        configured = bench_config.module_instance_at(mod.address)
+        module_type = bench_config.module_type_at(mod.address)
+        cpv = module_type.channels_per_valve
+        if cpv < 1:
+            # Old generated configs did not persist this value. Interfaces use
+            # one channel per valve; conventional valve terminals use two.
+            cpv = 1 if configured.category.value == "interface" else 2
+        available_channels = mod.num_outputs + mod.num_inouts
+        mounted_valves = sorted(set(configured.mounted_valves))
+        output_channels = [
+            channel
+            for channel in expand_valve_indices(mounted_valves, cpv)
+            if channel < available_channels
+        ]
+        total_channels = len(output_channels)
+        extra_info = f"  ({len(mounted_valves)} mounted valve(s) × {cpv}c/valve)"
         if on_module:
             with contextlib.suppress(Exception):
                 on_module(mod.address)
@@ -90,7 +117,31 @@ def run(
         t_start = time.time()
         channels: list[dict[str, Any]] = []
 
-        for ch in range(total_channels):
+        if not output_channels:
+            result = {
+                "test_id": "valve-toggle",
+                "module": mod.name,
+                "address": mod.address,
+                "module_code": mod.module_code,
+                "product_key": mod.product_key,
+                "mounted_valves": mounted_valves,
+                "total_channels": 0,
+                "passed_channels": 0,
+                "failed_channels": 0,
+                "passed": True,
+                "skipped": True,
+                "note": "No valves are configured as mounted",
+                "duration_ms": 0.0,
+                "channels": [],
+            }
+            results.append(result)
+            log("info", f"  - #{mod.address} {mod.name}: no mounted valves; skipped")
+            if on_result:
+                with contextlib.suppress(Exception):
+                    on_result(result)
+            continue
+
+        for ch in output_channels:
             ch_start = time.time()
 
             try:
@@ -142,6 +193,7 @@ def run(
             "address": mod.address,
             "module_code": mod.module_code,
             "product_key": mod.product_key,
+            "mounted_valves": mounted_valves,
             "total_channels": total_channels,
             "passed_channels": sum(1 for c in channels if c.get("passed")),
             "failed_channels": sum(1 for c in channels if not c.get("passed")),
